@@ -1,0 +1,150 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:XCommander.ViewModels"
+        xmlns:converters="using:XCommander.Converters"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+        x:Class="XCommander.Views.SearchDialog"
+        x:DataType="vm:SearchViewModel"
+        Title="Search Files"
+        Width="900"
+        Height="700"
+        WindowStartupLocation="CenterOwner">
+    
+    <Window.Resources>
+        <converters:DateTimeConverter x:Key="DateTimeConverter"/>
+    </Window.Resources>
+    
+    <Grid RowDefinitions="Auto,*,Auto" Margin="10">
+        <!-- Search Criteria -->
+        <Border Grid.Row="0" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                CornerRadius="4"
+                Padding="10"
+                Margin="0,0,0,10">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                <!-- Search Path -->
+                <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
+                    <TextBlock Text="Search in:" VerticalAlignment="Center" Width="80"/>
+                    <TextBox Text="{Binding SearchPath}" Width="400"/>
+                    <Button Content="Browse..." Click="OnBrowseClick" Padding="10,4"/>
+                </StackPanel>
+                
+                <!-- File Pattern & Text Search -->
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
+                    <TextBlock Text="File mask:" VerticalAlignment="Center" Width="80"/>
+                    <TextBox Text="{Binding SearchPattern}" Width="150" ToolTip.Tip="e.g., *.txt;*.cs"/>
+                    <TextBlock Text="Search for:" VerticalAlignment="Center" Margin="20,0,0,0"/>
+                    <TextBox Text="{Binding SearchText}" Width="200" Watermark="Text to find"/>
+                </StackPanel>
+                
+                <!-- Options Row 1 -->
+                <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="15" Margin="0,0,0,10">
+                    <CheckBox IsChecked="{Binding SearchInSubfolders}" Content="Include subfolders"/>
+                    <CheckBox IsChecked="{Binding SearchInContent}" Content="Search in file content"/>
+                    <CheckBox IsChecked="{Binding CaseSensitive}" Content="Case sensitive"/>
+                    <CheckBox IsChecked="{Binding UseRegex}" Content="Use regex"/>
+                    <CheckBox IsChecked="{Binding SearchHiddenFiles}" Content="Include hidden files"/>
+                </StackPanel>
+                
+                <!-- Date Filter -->
+                <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
+                    <TextBlock Text="Date from:" VerticalAlignment="Center"/>
+                    <DatePicker SelectedDate="{Binding DateFrom}" Width="130"/>
+                    <TextBlock Text="to:" VerticalAlignment="Center"/>
+                    <DatePicker SelectedDate="{Binding DateTo}" Width="130"/>
+                    <Button Content="Clear dates" Click="OnClearDatesClick" Padding="8,2"/>
+                </StackPanel>
+                
+                <!-- Size Filter -->
+                <StackPanel Grid.Row="4" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Size from:" VerticalAlignment="Center"/>
+                    <TextBox Text="{Binding SizeFrom}" Width="100" Watermark="bytes"/>
+                    <TextBlock Text="to:" VerticalAlignment="Center"/>
+                    <TextBox Text="{Binding SizeTo}" Width="100" Watermark="bytes"/>
+                    <TextBlock Text="bytes" VerticalAlignment="Center" Opacity="0.7"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+        
+        <!-- Results Grid -->
+        <DataGrid Grid.Row="1" 
+                  ItemsSource="{Binding Results}"
+                  SelectedItem="{Binding SelectedResult}"
+                  SelectionMode="Extended"
+                  CanUserResizeColumns="True"
+                  CanUserReorderColumns="True"
+                  CanUserSortColumns="True"
+                  GridLinesVisibility="Horizontal"
+                  IsReadOnly="True"
+                  FontSize="12"
+                  DoubleTapped="OnResultDoubleTapped">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="Name" Width="250" MinWidth="150">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:SearchResultItem">
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,2">
+                                <TextBlock Text="{Binding Icon}" FontSize="14" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Directory" 
+                                    Binding="{Binding Directory}" 
+                                    Width="*"/>
+                <DataGridTextColumn Header="Size" 
+                                    Binding="{Binding DisplaySize}" 
+                                    Width="80"/>
+                <DataGridTextColumn Header="Date Modified" 
+                                    Binding="{Binding DateModified, Converter={StaticResource DateTimeConverter}}" 
+                                    Width="130"/>
+            </DataGrid.Columns>
+        </DataGrid>
+        
+        <!-- Bottom Bar -->
+        <Border Grid.Row="2" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                CornerRadius="4"
+                Padding="10"
+                Margin="0,10,0,0">
+            <Grid ColumnDefinitions="*,Auto">
+                <!-- Status -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="20" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding StatusText}"/>
+                    <TextBlock Text="{Binding FilesFound, StringFormat='Files found: {0}'}" Opacity="0.7"/>
+                    <TextBlock Text="{Binding FilesSearched, StringFormat='Files searched: {0}'}" Opacity="0.7"/>
+                </StackPanel>
+                
+                <!-- Buttons -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                    <Button Content="Start Search" 
+                            Command="{Binding StartSearchCommand}"
+                            IsEnabled="{Binding !IsSearching}"
+                            Padding="15,8"
+                            Classes="accent"/>
+                    <Button Content="Stop" 
+                            Command="{Binding StopSearchCommand}"
+                            IsEnabled="{Binding IsSearching}"
+                            Padding="15,8"/>
+                    <Button Content="Clear" 
+                            Command="{Binding ClearResultsCommand}"
+                            IsEnabled="{Binding !IsSearching}"
+                            Padding="15,8"/>
+                    <Button Content="Go to File" 
+                            Click="OnGoToFileClick"
+                            IsEnabled="{Binding SelectedResult, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            Padding="15,8"/>
+                    <Button Content="Feed to Panel" 
+                            Click="OnFeedToPanelClick"
+                            IsEnabled="{Binding Results.Count}"
+                            Padding="15,8"/>
+                    <Button Content="Close" 
+                            Click="OnCloseClick"
+                            Padding="15,8"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

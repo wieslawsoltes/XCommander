@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="32"
+             x:Class="XCommander.Controls.CommandLine"
+             x:Name="Root">
+    
+    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            CornerRadius="4"
+            Padding="8,4">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+            <!-- Current Directory Label -->
+            <TextBlock Grid.Column="0"
+                       Text="{Binding #Root.CurrentDirectory}"
+                       VerticalAlignment="Center"
+                       Margin="0,0,4,0"
+                       Opacity="0.7"
+                       FontFamily="Consolas, Menlo, Monaco, monospace"/>
+            
+            <!-- Prompt -->
+            <TextBlock Grid.Column="0"
+                       Text="&gt;"
+                       VerticalAlignment="Center"
+                       Margin="4,0"
+                       FontWeight="Bold"
+                       FontFamily="Consolas, Menlo, Monaco, monospace"/>
+            
+            <!-- Input TextBox -->
+            <TextBox x:Name="CommandInput"
+                     Grid.Column="1"
+                     Text="{Binding #Root.CommandText, Mode=TwoWay}"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     FontFamily="Consolas, Menlo, Monaco, monospace"
+                     VerticalAlignment="Center"
+                     KeyDown="OnKeyDown"
+                     Watermark="Enter command..."/>
+            
+            <!-- Execute Button -->
+            <Button Grid.Column="2"
+                    Content="▶"
+                    Command="{Binding #Root.ExecuteCommand}"
+                    CommandParameter="{Binding #Root.CommandText}"
+                    Padding="8,4"
+                    Margin="4,0,0,0"
+                    ToolTip.Tip="Execute Command (Enter)"
+                    Background="Transparent"
+                    BorderThickness="0"/>
+        </Grid>
+    </Border>
+</UserControl>

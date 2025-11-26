@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:XCommander.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="XCommander.Views.Dialogs.HelpDialog"
+             x:DataType="vm:HelpViewModel">
+    
+    <Grid RowDefinitions="*,Auto">
+        <!-- Main Content -->
+        <Grid Grid.Row="0" ColumnDefinitions="200,*">
+            <!-- Category List -->
+            <Border Grid.Column="0" 
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                    BorderThickness="0,0,1,0"
+                    Padding="8">
+                <ListBox ItemsSource="{Binding Categories}"
+                         SelectedItem="{Binding SelectedCategory}"
+                         Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" 
+                                       Padding="8,6"
+                                       FontSize="14"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+            
+            <!-- Help Content -->
+            <ScrollViewer Grid.Column="1" 
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="16">
+                <TextBlock Text="{Binding HelpContent}"
+                           TextWrapping="Wrap"
+                           FontFamily="Consolas, Menlo, Monaco, monospace"
+                           FontSize="13"
+                           LineHeight="20"/>
+            </ScrollViewer>
+        </Grid>
+        
+        <!-- Footer -->
+        <Border Grid.Row="1" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                Padding="16,12">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="XCommander v1.0 - Cross-Platform File Manager"
+                           VerticalAlignment="Center"
+                           Opacity="0.7"/>
+                <Button Grid.Column="1"
+                        Content="Close"
+                        Command="{Binding CloseCommand}"
+                        MinWidth="80"
+                        HorizontalContentAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

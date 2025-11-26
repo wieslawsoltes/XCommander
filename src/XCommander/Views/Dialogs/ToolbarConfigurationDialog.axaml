@@ -1,0 +1,162 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:XCommander.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="500"
+             x:Class="XCommander.Views.Dialogs.ToolbarConfigurationDialog"
+             x:DataType="vm:ToolbarConfigurationViewModel">
+    
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="16">
+        <!-- Options -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="16" Margin="0,0,0,12">
+            <CheckBox Content="Show button labels" IsChecked="{Binding ShowLabels}"/>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Size:" VerticalAlignment="Center"/>
+                <ComboBox SelectedIndex="{Binding SelectedSizeIndex}" Width="100">
+                    <ComboBoxItem Content="Small"/>
+                    <ComboBoxItem Content="Medium"/>
+                    <ComboBoxItem Content="Large"/>
+                </ComboBox>
+            </StackPanel>
+        </StackPanel>
+        
+        <!-- Button List -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,*">
+            <!-- Available Buttons -->
+            <Grid Grid.Column="0" RowDefinitions="Auto,*">
+                <TextBlock Text="Buttons" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <ListBox Grid.Row="1"
+                         ItemsSource="{Binding Buttons}"
+                         SelectedItem="{Binding SelectedButton}"
+                         SelectionMode="Single">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ToolbarButtonViewModel">
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                                <CheckBox Grid.Column="0" IsChecked="{Binding IsVisible}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Icon}" Width="24" FontSize="16"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Label}" VerticalAlignment="Center"
+                                           IsVisible="{Binding !IsSeparator}"/>
+                                <TextBlock Grid.Column="2" Text="── Separator ──" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                           IsVisible="{Binding IsSeparator}"/>
+                                <TextBlock Grid.Column="3" Text="{Binding CommandName}" FontSize="10"
+                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                           VerticalAlignment="Center" Margin="8,0,0,0"
+                                           IsVisible="{Binding !IsSeparator}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+            
+            <!-- Move Buttons -->
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8" Spacing="4">
+                <Button Content="▲" Command="{Binding MoveUpCommand}" 
+                        CommandParameter="{Binding SelectedButton}"
+                        Padding="12,4" ToolTip.Tip="Move Up"/>
+                <Button Content="▼" Command="{Binding MoveDownCommand}" 
+                        CommandParameter="{Binding SelectedButton}"
+                        Padding="12,4" ToolTip.Tip="Move Down"/>
+                <Separator Margin="0,8"/>
+                <Button Content="+" Command="{Binding AddButtonCommand}"
+                        Padding="12,4" ToolTip.Tip="Add Button"/>
+                <Button Content="─" Command="{Binding AddSeparatorCommand}"
+                        Padding="12,4" ToolTip.Tip="Add Separator"/>
+                <Button Content="×" Command="{Binding RemoveButtonCommand}"
+                        CommandParameter="{Binding SelectedButton}"
+                        Padding="12,4" ToolTip.Tip="Remove"/>
+            </StackPanel>
+            
+            <!-- Button Properties -->
+            <Border Grid.Column="2" 
+                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                    Padding="12"
+                    CornerRadius="4"
+                    IsVisible="{Binding SelectedButton, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <StackPanel Spacing="12" DataContext="{Binding SelectedButton}">
+                    <TextBlock Text="Button Properties" FontWeight="SemiBold"/>
+                    
+                    <StackPanel IsVisible="{Binding !IsSeparator}" Spacing="8">
+                        <Grid ColumnDefinitions="80,*">
+                            <TextBlock Text="Label:" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding Label}"/>
+                        </Grid>
+                        
+                        <Grid ColumnDefinitions="80,*">
+                            <TextBlock Text="Icon:" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Column="1" 
+                                      ItemsSource="{Binding $parent[UserControl].((vm:ToolbarConfigurationViewModel)DataContext).AvailableIcons}"
+                                      SelectedItem="{Binding Icon}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" FontSize="16"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                        
+                        <Grid ColumnDefinitions="80,*">
+                            <TextBlock Text="Command:" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Column="1" 
+                                      ItemsSource="{Binding $parent[UserControl].((vm:ToolbarConfigurationViewModel)DataContext).AvailableCommands}"
+                                      SelectedItem="{Binding CommandName}"/>
+                        </Grid>
+                        
+                        <Grid ColumnDefinitions="80,*">
+                            <TextBlock Text="Tooltip:" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding Tooltip}"/>
+                        </Grid>
+                    </StackPanel>
+                    
+                    <TextBlock Text="This is a separator" 
+                               IsVisible="{Binding IsSeparator}"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
+        <!-- Preview -->
+        <Border Grid.Row="2" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                Padding="8" Margin="0,12,0,0"
+                CornerRadius="4">
+            <StackPanel>
+                <TextBlock Text="Preview" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ItemsControl ItemsSource="{Binding Buttons}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="4"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ToolbarButtonViewModel">
+                                <ContentControl IsVisible="{Binding IsVisible}">
+                                    <Panel>
+                                        <Separator IsVisible="{Binding IsSeparator}" Margin="4,0"/>
+                                        <Button IsVisible="{Binding !IsSeparator}" Padding="8,4">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <TextBlock Text="{Binding Icon}" FontSize="14"/>
+                                                <TextBlock Text="{Binding Label}" FontSize="12"
+                                                           IsVisible="{Binding $parent[UserControl].((vm:ToolbarConfigurationViewModel)DataContext).ShowLabels}"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Panel>
+                                </ContentControl>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+        
+        <!-- Buttons -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" 
+                    Spacing="8" Margin="0,16,0,0">
+            <Button Content="Reset to Default" Command="{Binding ResetToDefaultCommand}" Padding="16,8"/>
+            <Button Content="Cancel" Command="{Binding CancelCommand}" Padding="16,8"/>
+            <Button Content="Save" Command="{Binding SaveAndCloseCommand}" Padding="16,8"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

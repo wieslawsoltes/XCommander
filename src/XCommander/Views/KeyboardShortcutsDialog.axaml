@@ -1,0 +1,122 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:XCommander.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="500"
+        x:Class="XCommander.Views.KeyboardShortcutsDialog"
+        x:DataType="vm:KeyboardShortcutManager"
+        Title="Keyboard Shortcuts"
+        Width="800"
+        Height="600"
+        WindowStartupLocation="CenterOwner">
+    
+    <Grid RowDefinitions="Auto,*,Auto" Margin="10">
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="Customize Keyboard Shortcuts" 
+                       FontWeight="SemiBold" 
+                       FontSize="16"/>
+            <TextBlock Text="Click on a shortcut to edit it. Double-click to clear." 
+                       Opacity="0.7"
+                       FontSize="12"
+                       Margin="0,4,0,0"/>
+        </StackPanel>
+        
+        <!-- Shortcuts List -->
+        <DataGrid Grid.Row="1"
+                  ItemsSource="{Binding Shortcuts}"
+                  AutoGenerateColumns="False"
+                  CanUserResizeColumns="True"
+                  IsReadOnly="False"
+                  SelectionMode="Single"
+                  GridLinesVisibility="Horizontal"
+                  FontSize="13">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Category" 
+                                    Binding="{Binding Category}" 
+                                    Width="120"
+                                    IsReadOnly="True"/>
+                <DataGridTextColumn Header="Action" 
+                                    Binding="{Binding Name}" 
+                                    Width="*"
+                                    IsReadOnly="True"/>
+                <DataGridTextColumn Header="Default" 
+                                    Binding="{Binding DefaultGesture}" 
+                                    Width="120"
+                                    IsReadOnly="True"
+                                    Foreground="Gray"/>
+                <DataGridTemplateColumn Header="Current Shortcut" Width="150">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:KeyboardShortcut">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding CurrentGesture, Mode=TwoWay}"
+                                         Watermark="Press keys..."
+                                         KeyDown="OnShortcutKeyDown"
+                                         Tag="{Binding}"/>
+                                <Button Grid.Column="1" 
+                                        Content="×" 
+                                        Padding="4,2"
+                                        Margin="4,0,0,0"
+                                        ToolTip.Tip="Clear shortcut"
+                                        Click="OnClearShortcut"
+                                        Tag="{Binding}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Status" Width="80">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:KeyboardShortcut">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Modified" 
+                                           Foreground="Orange"
+                                           IsVisible="{Binding IsModified}"/>
+                                <Button Content="↩" 
+                                        Padding="4,2"
+                                        Margin="4,0,0,0"
+                                        ToolTip.Tip="Reset to default"
+                                        IsVisible="{Binding IsModified}"
+                                        Command="{Binding $parent[Window].((vm:KeyboardShortcutManager)DataContext).ResetShortcutCommand}"
+                                        CommandParameter="{Binding}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+        
+        <!-- Buttons -->
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,0">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                <Button Content="📥 Import" 
+                        Command="{Binding ImportShortcutsCommand}"
+                        Padding="12,8"
+                        ToolTip.Tip="Import shortcuts from file"/>
+                <Button Content="📤 Export" 
+                        Command="{Binding ExportShortcutsCommand}"
+                        Padding="12,8"
+                        ToolTip.Tip="Export shortcuts to file"/>
+            </StackPanel>
+            
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <Button Content="Reset All" 
+                        Command="{Binding ResetAllShortcutsCommand}"
+                        Padding="12,8"
+                        ToolTip.Tip="Reset all shortcuts to defaults"/>
+                <Button Content="Save" 
+                        Click="OnSaveClick"
+                        Padding="16,8"
+                        Classes="accent"/>
+                <Button Content="Cancel" 
+                        Click="OnCancelClick"
+                        Padding="16,8"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+    
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Escape" Command="{Binding $parent[Window].Close}"/>
+    </Window.KeyBindings>
+</Window>

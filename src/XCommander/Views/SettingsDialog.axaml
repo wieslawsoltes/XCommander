@@ -1,0 +1,164 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:XCommander.ViewModels"
+             x:Class="XCommander.Views.SettingsDialog"
+             x:DataType="vm:SettingsViewModel"
+             MinWidth="600"
+             MinHeight="500">
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- Header -->
+        <Border Grid.Row="0" Background="{DynamicResource SystemAccentColor}" Padding="16">
+            <TextBlock Text="Settings" FontSize="18" FontWeight="Bold" Foreground="White"/>
+        </Border>
+
+        <!-- Settings Content -->
+        <ScrollViewer Grid.Row="1" Padding="16">
+            <StackPanel Spacing="16">
+                
+                <!-- Appearance Section -->
+                <Expander Header="Appearance" IsExpanded="True">
+                    <StackPanel Margin="16,8" Spacing="8">
+                        <CheckBox Content="Use Dark Theme" IsChecked="{Binding UseDarkTheme}"/>
+                        
+                        <Grid ColumnDefinitions="150,*" Margin="0,8,0,0">
+                            <TextBlock Text="Font Size:" VerticalAlignment="Center"/>
+                            <NumericUpDown Grid.Column="1" Value="{Binding FontSize}" 
+                                           Minimum="8" Maximum="24" Width="100" HorizontalAlignment="Left"/>
+                        </Grid>
+                        
+                        <Grid ColumnDefinitions="150,*">
+                            <TextBlock Text="Font Family:" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding FontFamily}" Width="200" HorizontalAlignment="Left"/>
+                        </Grid>
+                        
+                        <CheckBox Content="Show Grid Lines" IsChecked="{Binding ShowGridLines}"/>
+                        <CheckBox Content="Show Status Bar" IsChecked="{Binding ShowStatusBar}"/>
+                        <CheckBox Content="Show Toolbar" IsChecked="{Binding ShowToolbar}"/>
+                    </StackPanel>
+                </Expander>
+
+                <!-- File Display Section -->
+                <Expander Header="File Display" IsExpanded="True">
+                    <StackPanel Margin="16,8" Spacing="8">
+                        <CheckBox Content="Show Hidden Files" IsChecked="{Binding ShowHiddenFiles}"/>
+                        <CheckBox Content="Show System Files" IsChecked="{Binding ShowSystemFiles}"/>
+                        <CheckBox Content="Show File Extensions" IsChecked="{Binding ShowFileExtensions}"/>
+                        <CheckBox Content="Show File Sizes" IsChecked="{Binding ShowFileSizes}"/>
+                        <CheckBox Content="Show File Dates" IsChecked="{Binding ShowFileDates}"/>
+                        
+                        <Grid ColumnDefinitions="150,*" Margin="0,8,0,0">
+                            <TextBlock Text="Date Format:" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding DateFormat}" Width="200" HorizontalAlignment="Left"
+                                     Watermark="yyyy-MM-dd HH:mm"/>
+                        </Grid>
+                    </StackPanel>
+                </Expander>
+
+                <!-- Behavior Section -->
+                <Expander Header="Behavior">
+                    <StackPanel Margin="16,8" Spacing="8">
+                        <CheckBox Content="Confirm Before Delete" IsChecked="{Binding ConfirmDelete}"/>
+                        <CheckBox Content="Confirm Before Overwrite" IsChecked="{Binding ConfirmOverwrite}"/>
+                        <CheckBox Content="Use Recycle Bin for Delete" IsChecked="{Binding UseRecycleBin}"/>
+                        <CheckBox Content="Single Click to Open" IsChecked="{Binding SingleClickOpen}"/>
+                        <CheckBox Content="Remember Last Path" IsChecked="{Binding RememberLastPath}"/>
+                        
+                        <Grid ColumnDefinitions="150,*,Auto" Margin="0,8,0,0">
+                            <TextBlock Text="Default Left Path:" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding DefaultLeftPath}" Margin="0,0,8,0"/>
+                            <Button Grid.Column="2" Content="..." Width="30" Click="BrowseLeftPath_Click"/>
+                        </Grid>
+                        
+                        <Grid ColumnDefinitions="150,*,Auto">
+                            <TextBlock Text="Default Right Path:" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding DefaultRightPath}" Margin="0,0,8,0"/>
+                            <Button Grid.Column="2" Content="..." Width="30" Click="BrowseRightPath_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </Expander>
+
+                <!-- External Programs Section -->
+                <Expander Header="External Programs">
+                    <StackPanel Margin="16,8" Spacing="8">
+                        <Grid ColumnDefinitions="150,*,Auto">
+                            <TextBlock Text="External Editor:" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding ExternalEditor}" Margin="0,0,8,0"
+                                     Watermark="e.g., notepad.exe, code, vim"/>
+                            <Button Grid.Column="2" Content="..." Width="30" Click="BrowseEditor_Click"/>
+                        </Grid>
+                        
+                        <Grid ColumnDefinitions="150,*,Auto">
+                            <TextBlock Text="External Viewer:" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding ExternalViewer}" Margin="0,0,8,0"/>
+                            <Button Grid.Column="2" Content="..." Width="30" Click="BrowseViewer_Click"/>
+                        </Grid>
+                        
+                        <Grid ColumnDefinitions="150,*">
+                            <TextBlock Text="Terminal Command:" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding TerminalCommand}"
+                                     Watermark="e.g., cmd.exe, Terminal, x-terminal-emulator"/>
+                        </Grid>
+                    </StackPanel>
+                </Expander>
+
+                <!-- Tabs Section -->
+                <Expander Header="Tabs">
+                    <StackPanel Margin="16,8" Spacing="8">
+                        <CheckBox Content="Open New Tab on Drive Change" IsChecked="{Binding OpenNewTabOnDriveChange}"/>
+                        <CheckBox Content="Close Tab on Middle Click" IsChecked="{Binding CloseTabOnMiddleClick}"/>
+                        <CheckBox Content="Show Tab Close Button" IsChecked="{Binding ShowTabCloseButton}"/>
+                    </StackPanel>
+                </Expander>
+
+                <!-- Quick View Section -->
+                <Expander Header="Quick View">
+                    <StackPanel Margin="16,8" Spacing="8">
+                        <Grid ColumnDefinitions="200,*">
+                            <TextBlock Text="Max File Size (KB):" VerticalAlignment="Center"/>
+                            <NumericUpDown Grid.Column="1" Value="{Binding QuickViewMaxFileSizeKb}" 
+                                           Minimum="64" Maximum="10240" Width="100" HorizontalAlignment="Left"/>
+                        </Grid>
+                        <CheckBox Content="Auto-update Preview on Selection Change" IsChecked="{Binding QuickViewAutoUpdate}"/>
+                    </StackPanel>
+                </Expander>
+
+                <!-- File Operations Section -->
+                <Expander Header="File Operations">
+                    <StackPanel Margin="16,8" Spacing="8">
+                        <Grid ColumnDefinitions="200,*">
+                            <TextBlock Text="Copy Buffer Size (KB):" VerticalAlignment="Center"/>
+                            <NumericUpDown Grid.Column="1" Value="{Binding CopyBufferSizeKb}" 
+                                           Minimum="4" Maximum="1024" Width="100" HorizontalAlignment="Left"/>
+                        </Grid>
+                        <CheckBox Content="Verify Files After Copy" IsChecked="{Binding VerifyAfterCopy}"/>
+                        <CheckBox Content="Preserve Timestamps" IsChecked="{Binding PreserveTimestamps}"/>
+                    </StackPanel>
+                </Expander>
+
+                <!-- Search Section -->
+                <Expander Header="Search">
+                    <StackPanel Margin="16,8" Spacing="8">
+                        <Grid ColumnDefinitions="200,*">
+                            <TextBlock Text="Max Search Results:" VerticalAlignment="Center"/>
+                            <NumericUpDown Grid.Column="1" Value="{Binding SearchMaxResults}" 
+                                           Minimum="100" Maximum="100000" Width="120" HorizontalAlignment="Left"/>
+                        </Grid>
+                        <CheckBox Content="Include Hidden Files in Search" IsChecked="{Binding SearchIncludeHidden}"/>
+                    </StackPanel>
+                </Expander>
+                
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Button Bar -->
+        <Border Grid.Row="2" Background="{DynamicResource SystemRegionBrush}" Padding="16,12">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                <Button Grid.Column="0" Content="Reset to Defaults" Command="{Binding SetDefaultsCommand}"/>
+                
+                <Button Grid.Column="2" Content="Save" Command="{Binding SaveCommand}" 
+                        Width="80" Margin="0,0,8,0" Click="Save_Click"/>
+                <Button Grid.Column="3" Content="Cancel" Click="Cancel_Click" Width="80"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

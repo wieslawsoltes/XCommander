@@ -1,0 +1,160 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:XCommander.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="650"
+             x:Class="XCommander.Views.DirectorySyncDialog"
+             x:DataType="vm:DirectorySyncViewModel">
+    
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+        <!-- Path inputs -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,8,*" Margin="16,16,16,8">
+            <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="Left Directory:" FontWeight="SemiBold"/>
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Grid.Column="0" Text="{Binding LeftPath}" Watermark="Select left directory..."/>
+                    <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="12,6"
+                            Click="BrowseLeft_Click"/>
+                </Grid>
+            </StackPanel>
+            
+            <StackPanel Grid.Column="2" Spacing="4">
+                <TextBlock Text="Right Directory:" FontWeight="SemiBold"/>
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Grid.Column="0" Text="{Binding RightPath}" Watermark="Select right directory..."/>
+                    <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="12,6"
+                            Click="BrowseRight_Click"/>
+                </Grid>
+            </StackPanel>
+        </Grid>
+        
+        <!-- Options panel -->
+        <Border Grid.Row="1" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                Margin="16,8" Padding="12" CornerRadius="4">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <!-- Sync Direction -->
+                <StackPanel Grid.Column="0" Spacing="4">
+                    <TextBlock Text="Sync Direction:" FontWeight="SemiBold"/>
+                    <ComboBox SelectedIndex="{Binding SyncDirection, Converter={x:Static vm:EnumToIndexConverter.Instance}}"
+                              MinWidth="150">
+                        <ComboBoxItem Content="Left → Right"/>
+                        <ComboBoxItem Content="Left ← Right"/>
+                        <ComboBoxItem Content="Bidirectional ↔"/>
+                    </ComboBox>
+                </StackPanel>
+                
+                <!-- Options -->
+                <StackPanel Grid.Column="1" Margin="24,0" Spacing="4">
+                    <CheckBox Content="Include subdirectories" IsChecked="{Binding SyncSubdirectories}"/>
+                    <CheckBox Content="Compare by content (slower)" IsChecked="{Binding CompareByContent}"/>
+                    <CheckBox Content="Delete extra files in destination" IsChecked="{Binding DeleteExtraFiles}"
+                              Foreground="Orange"/>
+                </StackPanel>
+                
+                <!-- Filter -->
+                <StackPanel Grid.Column="2" Spacing="4">
+                    <TextBlock Text="File Filter:" FontWeight="SemiBold"/>
+                    <TextBox Text="{Binding FileFilter}" MinWidth="150" Watermark="*.*"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+        
+        <!-- Sync items list -->
+        <Border Grid.Row="2" Margin="16,8" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                BorderThickness="1" CornerRadius="4">
+            <Grid RowDefinitions="Auto,*">
+                <!-- Header -->
+                <Border Grid.Row="0" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                        Padding="8,6">
+                    <Grid ColumnDefinitions="32,*,100,100,140,140,80">
+                        <CheckBox Grid.Column="0" IsChecked="True" Click="SelectAll_Click"/>
+                        <TextBlock Grid.Column="1" Text="Name" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="2" Text="Left Size" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="3" Text="Right Size" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="4" Text="Left Modified" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="5" Text="Right Modified" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="6" Text="Action" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                    </Grid>
+                </Border>
+                
+                <!-- Items -->
+                <ListBox Grid.Row="1" ItemsSource="{Binding SyncItems}" 
+                         SelectionMode="Multiple"
+                         Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:SyncItemViewModel}">
+                            <Grid ColumnDefinitions="32,*,100,100,140,140,80" Margin="0,2">
+                                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="{Binding Icon}"/>
+                                    <TextBlock Text="{Binding RelativePath}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Status}" Foreground="Green" Margin="8,0,0,0"
+                                               IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{Binding LeftSizeDisplay}" 
+                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding RightSizeDisplay}" 
+                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" Text="{Binding LeftModifiedDisplay}" 
+                                           VerticalAlignment="Center" FontSize="11"/>
+                                <TextBlock Grid.Column="5" Text="{Binding RightModifiedDisplay}" 
+                                           VerticalAlignment="Center" FontSize="11"/>
+                                <Border Grid.Column="6" CornerRadius="4" Padding="6,2"
+                                        HorizontalAlignment="Center"
+                                        Background="{Binding Action, Converter={x:Static vm:SyncActionToColorConverter.Instance}}">
+                                    <TextBlock Text="{Binding ActionDisplay}" FontWeight="SemiBold"/>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+        
+        <!-- Status and summary -->
+        <Border Grid.Row="3" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                Margin="16,0" Padding="12,8" CornerRadius="4">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Margin="16,0">
+                    <Run Text="Copy: "/>
+                    <Run Text="{Binding FilesToCopy}" FontWeight="SemiBold"/>
+                </TextBlock>
+                <TextBlock Grid.Column="2" Margin="16,0">
+                    <Run Text="Update: "/>
+                    <Run Text="{Binding FilesToUpdate}" FontWeight="SemiBold"/>
+                </TextBlock>
+                <TextBlock Grid.Column="3" Margin="16,0">
+                    <Run Text="Delete: "/>
+                    <Run Text="{Binding FilesToDelete}" FontWeight="SemiBold" Foreground="Orange"/>
+                </TextBlock>
+                <TextBlock Grid.Column="4" Margin="16,0">
+                    <Run Text="Total: "/>
+                    <Run Text="{Binding TotalBytesDisplay}" FontWeight="SemiBold"/>
+                </TextBlock>
+            </Grid>
+        </Border>
+        
+        <!-- Progress and buttons -->
+        <Grid Grid.Row="4" Margin="16,8,16,16" ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+            <ProgressBar Grid.Column="0" Value="{Binding Progress}" Maximum="100" 
+                         Height="8" VerticalAlignment="Center" Margin="0,0,16,0"/>
+            
+            <Button Grid.Column="1" Content="Analyze" Command="{Binding AnalyzeCommand}"
+                    IsEnabled="{Binding !IsAnalyzing}"
+                    Padding="24,8" Margin="0,0,8,0"/>
+            
+            <Button Grid.Column="2" Content="Synchronize" Command="{Binding SynchronizeCommand}"
+                    IsEnabled="{Binding CanSync}"
+                    Classes="accent" Padding="24,8" Margin="0,0,8,0"/>
+            
+            <Button Grid.Column="3" Content="Cancel" Command="{Binding CancelCommand}"
+                    IsEnabled="{Binding IsSynchronizing}"
+                    Padding="24,8" Margin="0,0,8,0"/>
+            
+            <Button Grid.Column="4" Content="Close" Click="Close_Click"
+                    Padding="24,8"/>
+        </Grid>
+    </Grid>
+</UserControl>

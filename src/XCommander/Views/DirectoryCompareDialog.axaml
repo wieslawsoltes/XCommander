@@ -1,0 +1,108 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:XCommander.ViewModels"
+             x:Class="XCommander.Views.DirectoryCompareDialog"
+             x:DataType="vm:DirectoryCompareViewModel"
+             MinWidth="900"
+             MinHeight="600">
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+        <!-- Header -->
+        <Border Grid.Row="0" Background="{DynamicResource SystemAccentColor}" Padding="16">
+            <TextBlock Text="Directory Comparison" FontSize="18" FontWeight="Bold" Foreground="White"/>
+        </Border>
+
+        <!-- Options -->
+        <Border Grid.Row="1" Background="{DynamicResource SystemRegionBrush}" Padding="12">
+            <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto,Auto,*,Auto">
+                <!-- Left Directory -->
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Left:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding LeftPath}" 
+                         IsEnabled="{Binding !IsComparing}" Margin="0,0,4,8"/>
+                <Button Grid.Row="0" Grid.Column="2" Content="..." Width="30" Margin="0,0,16,8"
+                        IsEnabled="{Binding !IsComparing}" Click="BrowseLeft_Click"/>
+
+                <!-- Right Directory -->
+                <TextBlock Grid.Row="0" Grid.Column="3" Text="Right:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Grid.Row="0" Grid.Column="4" Text="{Binding RightPath}" 
+                         IsEnabled="{Binding !IsComparing}" Margin="0,0,4,8"/>
+                <Button Grid.Row="0" Grid.Column="5" Content="..." Width="30" Margin="0,0,0,8"
+                        IsEnabled="{Binding !IsComparing}" Click="BrowseRight_Click"/>
+
+                <!-- Options Row -->
+                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal" Spacing="16" Margin="0,0,0,8">
+                    <CheckBox Content="Show only differences" IsChecked="{Binding ShowOnlyDifferences}" IsEnabled="{Binding !IsComparing}"/>
+                    <CheckBox Content="Compare subdirectories" IsChecked="{Binding CompareSubdirectories}" IsEnabled="{Binding !IsComparing}"/>
+                    <CheckBox Content="Compare by content" IsChecked="{Binding CompareByContent}" IsEnabled="{Binding !IsComparing}"/>
+                    <CheckBox Content="Compare by date" IsChecked="{Binding CompareByDate}" IsEnabled="{Binding !IsComparing}"/>
+                    <CheckBox Content="Compare by size" IsChecked="{Binding CompareBySize}" IsEnabled="{Binding !IsComparing}"/>
+                    <CheckBox Content="Ignore case" IsChecked="{Binding IgnoreCase}" IsEnabled="{Binding !IsComparing}"/>
+                </StackPanel>
+
+                <!-- Action Buttons -->
+                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Compare" Command="{Binding CompareCommand}" IsEnabled="{Binding !IsComparing}"/>
+                    <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding IsComparing}"/>
+                    <Separator Width="1" Background="Gray" Margin="8,0"/>
+                    <Button Content="Copy → Right" Command="{Binding CopyToRightCommand}" IsEnabled="{Binding !IsComparing}" ToolTip.Tip="Copy selected files from left to right"/>
+                    <Button Content="Copy ← Left" Command="{Binding CopyToLeftCommand}" IsEnabled="{Binding !IsComparing}" ToolTip.Tip="Copy selected files from right to left"/>
+                    <Separator Width="1" Background="Gray" Margin="8,0"/>
+                    <Button Content="Select All" Command="{Binding SelectAllCommand}"/>
+                    <Button Content="Select None" Command="{Binding SelectNoneCommand}"/>
+                    <Button Content="Left Only" Command="{Binding SelectLeftOnlyCommand}"/>
+                    <Button Content="Right Only" Command="{Binding SelectRightOnlyCommand}"/>
+                    <Button Content="Different" Command="{Binding SelectDifferentCommand}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Results Grid -->
+        <DataGrid Grid.Row="2" ItemsSource="{Binding Results}" 
+                  AutoGenerateColumns="False"
+                  CanUserReorderColumns="True"
+                  CanUserResizeColumns="True"
+                  CanUserSortColumns="True"
+                  GridLinesVisibility="All"
+                  IsReadOnly="False"
+                  Margin="8">
+            <DataGrid.Columns>
+                <DataGridCheckBoxColumn Header="" Binding="{Binding IsSelected}" Width="30"/>
+                <DataGridTextColumn Header="Status" Binding="{Binding StatusDisplay}" Width="50"/>
+                <DataGridTextColumn Header="Path" Binding="{Binding RelativePath}" Width="*"/>
+                <DataGridTextColumn Header="Left Size" Binding="{Binding LeftSizeDisplay}" Width="100"/>
+                <DataGridTextColumn Header="Left Date" Binding="{Binding LeftDateDisplay}" Width="140"/>
+                <DataGridTextColumn Header="Right Size" Binding="{Binding RightSizeDisplay}" Width="100"/>
+                <DataGridTextColumn Header="Right Date" Binding="{Binding RightDateDisplay}" Width="140"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Statistics -->
+        <Border Grid.Row="3" Background="{DynamicResource SystemRegionBrush}" Padding="8">
+            <StackPanel Orientation="Horizontal" Spacing="24">
+                <TextBlock>
+                    <Run Text="Left only: "/>
+                    <Run Text="{Binding LeftOnlyCount}" FontWeight="Bold" Foreground="Blue"/>
+                </TextBlock>
+                <TextBlock>
+                    <Run Text="Right only: "/>
+                    <Run Text="{Binding RightOnlyCount}" FontWeight="Bold" Foreground="Green"/>
+                </TextBlock>
+                <TextBlock>
+                    <Run Text="Different: "/>
+                    <Run Text="{Binding DifferentCount}" FontWeight="Bold" Foreground="Red"/>
+                </TextBlock>
+                <TextBlock>
+                    <Run Text="Identical: "/>
+                    <Run Text="{Binding IdenticalCount}" FontWeight="Bold" Foreground="Gray"/>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="4" Background="{DynamicResource SystemRegionBrush}" Padding="8">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Status}" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Content="Close" Click="Close_Click" Width="80"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

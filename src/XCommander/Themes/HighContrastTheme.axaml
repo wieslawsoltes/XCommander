@@ -1,0 +1,209 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    
+    <!-- High Contrast Theme Styles for Accessibility -->
+    <!-- Apply this theme when high contrast mode is enabled -->
+    
+    <!-- Window and Panel backgrounds -->
+    <Style Selector="Window.high-contrast">
+        <Setter Property="Background" Value="Black"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+    
+    <!-- Main content areas -->
+    <Style Selector=".high-contrast Border">
+        <Setter Property="BorderBrush" Value="White"/>
+    </Style>
+    
+    <Style Selector=".high-contrast Border.panel-border">
+        <Setter Property="BorderBrush" Value="Yellow"/>
+        <Setter Property="BorderThickness" Value="2"/>
+    </Style>
+    
+    <Style Selector=".high-contrast Border.panel-border.active">
+        <Setter Property="BorderBrush" Value="Cyan"/>
+        <Setter Property="BorderThickness" Value="3"/>
+    </Style>
+    
+    <!-- DataGrid styles -->
+    <Style Selector=".high-contrast DataGrid">
+        <Setter Property="Background" Value="Black"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="White"/>
+    </Style>
+    
+    <Style Selector=".high-contrast DataGridRow">
+        <Setter Property="Background" Value="Black"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+    
+    <Style Selector=".high-contrast DataGridRow:pointerover">
+        <Setter Property="Background" Value="#404040"/>
+    </Style>
+    
+    <Style Selector=".high-contrast DataGridRow:selected">
+        <Setter Property="Background" Value="Yellow"/>
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+    
+    <Style Selector=".high-contrast DataGridRow:selected:pointerover">
+        <Setter Property="Background" Value="#FFFF80"/>
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+    
+    <Style Selector=".high-contrast DataGridColumnHeader">
+        <Setter Property="Background" Value="#202020"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="White"/>
+    </Style>
+    
+    <!-- Button styles -->
+    <Style Selector=".high-contrast Button">
+        <Setter Property="Background" Value="Black"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="White"/>
+        <Setter Property="BorderThickness" Value="2"/>
+    </Style>
+    
+    <Style Selector=".high-contrast Button:pointerover">
+        <Setter Property="Background" Value="Yellow"/>
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+    
+    <Style Selector=".high-contrast Button:pressed">
+        <Setter Property="Background" Value="Cyan"/>
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+    
+    <Style Selector=".high-contrast Button:focus-visible">
+        <Setter Property="BorderBrush" Value="Cyan"/>
+        <Setter Property="BorderThickness" Value="3"/>
+    </Style>
+    
+    <Style Selector=".high-contrast Button:disabled">
+        <Setter Property="Background" Value="#404040"/>
+        <Setter Property="Foreground" Value="#808080"/>
+        <Setter Property="BorderBrush" Value="#808080"/>
+    </Style>
+    
+    <!-- TextBox styles -->
+    <Style Selector=".high-contrast TextBox">
+        <Setter Property="Background" Value="Black"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="White"/>
+        <Setter Property="CaretBrush" Value="White"/>
+        <Setter Property="SelectionBrush" Value="Yellow"/>
+        <Setter Property="SelectionForegroundBrush" Value="Black"/>
+    </Style>
+    
+    <Style Selector=".high-contrast TextBox:focus">
+        <Setter Property="BorderBrush" Value="Cyan"/>
+        <Setter Property="BorderThickness" Value="2"/>
+    </Style>
+    
+    <!-- TextBlock styles -->
+    <Style Selector=".high-contrast TextBlock">
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+    
+    <!-- Menu styles -->
+    <Style Selector=".high-contrast Menu">
+        <Setter Property="Background" Value="Black"/>
+    </Style>
+    
+    <Style Selector=".high-contrast MenuItem">
+        <Setter Property="Background" Value="Black"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+    
+    <Style Selector=".high-contrast MenuItem:pointerover">
+        <Setter Property="Background" Value="Yellow"/>
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+    
+    <Style Selector=".high-contrast MenuItem:selected">
+        <Setter Property="Background" Value="Cyan"/>
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+    
+    <!-- TabItem styles -->
+    <Style Selector=".high-contrast TabItem">
+        <Setter Property="Background" Value="Black"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="White"/>
+    </Style>
+    
+    <Style Selector=".high-contrast TabItem:pointerover">
+        <Setter Property="Background" Value="#404040"/>
+    </Style>
+    
+    <Style Selector=".high-contrast TabItem:selected">
+        <Setter Property="Background" Value="Yellow"/>
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+    
+    <!-- ScrollBar styles -->
+    <Style Selector=".high-contrast ScrollBar">
+        <Setter Property="Background" Value="Black"/>
+    </Style>
+    
+    <Style Selector=".high-contrast ScrollBar /template/ Thumb">
+        <Setter Property="Background" Value="White"/>
+    </Style>
+    
+    <!-- ProgressBar styles -->
+    <Style Selector=".high-contrast ProgressBar">
+        <Setter Property="Background" Value="Black"/>
+        <Setter Property="Foreground" Value="Yellow"/>
+        <Setter Property="BorderBrush" Value="White"/>
+    </Style>
+    
+    <!-- Toast notification styles -->
+    <Style Selector=".high-contrast Border.toast">
+        <Setter Property="BorderBrush" Value="White"/>
+        <Setter Property="BorderThickness" Value="2"/>
+    </Style>
+    
+    <Style Selector=".high-contrast Border.toast-info">
+        <Setter Property="Background" Value="#000080"/>
+    </Style>
+    
+    <Style Selector=".high-contrast Border.toast-success">
+        <Setter Property="Background" Value="#008000"/>
+    </Style>
+    
+    <Style Selector=".high-contrast Border.toast-warning">
+        <Setter Property="Background" Value="#808000"/>
+    </Style>
+    
+    <Style Selector=".high-contrast Border.toast-error">
+        <Setter Property="Background" Value="#800000"/>
+    </Style>
+    
+    <!-- Focus indicators (more visible in high contrast) -->
+    <Style Selector=".high-contrast Button:focus-visible">
+        <Setter Property="BorderBrush" Value="Cyan"/>
+        <Setter Property="BorderThickness" Value="3"/>
+    </Style>
+    
+    <Style Selector=".high-contrast TextBox:focus-visible">
+        <Setter Property="BorderBrush" Value="Cyan"/>
+        <Setter Property="BorderThickness" Value="3"/>
+    </Style>
+    
+    <Style Selector=".high-contrast ListBoxItem:focus-visible">
+        <Setter Property="BorderBrush" Value="Cyan"/>
+        <Setter Property="BorderThickness" Value="3"/>
+    </Style>
+    
+    <!-- Link/hyperlink styles -->
+    <Style Selector=".high-contrast TextBlock.link">
+        <Setter Property="Foreground" Value="Cyan"/>
+        <Setter Property="TextDecorations" Value="Underline"/>
+    </Style>
+    
+    <Style Selector=".high-contrast TextBlock.link:pointerover">
+        <Setter Property="Foreground" Value="Yellow"/>
+    </Style>
+    
+</Styles>

@@ -1,0 +1,131 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:XCommander.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="500"
+        x:Class="XCommander.Views.FileAssociationsDialog"
+        x:DataType="vm:FileAssociationManager"
+        Title="File Associations"
+        Width="900"
+        Height="600"
+        WindowStartupLocation="CenterOwner">
+    
+    <Grid RowDefinitions="Auto,*,Auto" Margin="10">
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="File Associations" 
+                       FontWeight="SemiBold" 
+                       FontSize="16"/>
+            <TextBlock Text="Configure custom viewers and editors for different file types. Use %s as placeholder for file path." 
+                       Opacity="0.7"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Margin="0,4,0,0"/>
+        </StackPanel>
+        
+        <!-- Content -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,300">
+            <!-- Associations List -->
+            <DataGrid Grid.Column="0"
+                      ItemsSource="{Binding Associations}"
+                      SelectedItem="{Binding SelectedAssociation}"
+                      AutoGenerateColumns="False"
+                      CanUserResizeColumns="True"
+                      IsReadOnly="False"
+                      SelectionMode="Single"
+                      GridLinesVisibility="Horizontal"
+                      FontSize="13"
+                      Margin="0,0,10,0">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Extension" 
+                                        Binding="{Binding Extension}" 
+                                        Width="80"/>
+                    <DataGridTextColumn Header="Description" 
+                                        Binding="{Binding Description}" 
+                                        Width="*"/>
+                    <DataGridCheckBoxColumn Header="System" 
+                                            Binding="{Binding UseSystemDefault}" 
+                                            Width="60"/>
+                </DataGrid.Columns>
+            </DataGrid>
+            
+            <!-- Edit Panel -->
+            <Border Grid.Column="1" 
+                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                    CornerRadius="4"
+                    Padding="10">
+                <StackPanel IsEnabled="{Binding SelectedAssociation, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <TextBlock Text="Edit Association" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                    
+                    <TextBlock Text="Extension:" FontSize="12" Margin="0,0,0,4"/>
+                    <TextBox Text="{Binding SelectedAssociation.Extension}" Margin="0,0,0,10"/>
+                    
+                    <TextBlock Text="Description:" FontSize="12" Margin="0,0,0,4"/>
+                    <TextBox Text="{Binding SelectedAssociation.Description}" Margin="0,0,0,10"/>
+                    
+                    <CheckBox Content="Use System Default" 
+                              IsChecked="{Binding SelectedAssociation.UseSystemDefault}"
+                              Margin="0,0,0,10"/>
+                    
+                    <TextBlock Text="View Command:" FontSize="12" Margin="0,0,0,4"
+                               IsEnabled="{Binding !SelectedAssociation.UseSystemDefault}"/>
+                    <TextBox Text="{Binding SelectedAssociation.ViewerCommand}" 
+                             Watermark="e.g., notepad &quot;%s&quot;"
+                             IsEnabled="{Binding !SelectedAssociation.UseSystemDefault}"
+                             Margin="0,0,0,10"/>
+                    
+                    <TextBlock Text="Edit Command:" FontSize="12" Margin="0,0,0,4"
+                               IsEnabled="{Binding !SelectedAssociation.UseSystemDefault}"/>
+                    <TextBox Text="{Binding SelectedAssociation.EditorCommand}" 
+                             Watermark="e.g., code &quot;%s&quot;"
+                             IsEnabled="{Binding !SelectedAssociation.UseSystemDefault}"
+                             Margin="0,0,0,10"/>
+                    
+                    <TextBlock Text="Open Command (double-click):" FontSize="12" Margin="0,0,0,4"
+                               IsEnabled="{Binding !SelectedAssociation.UseSystemDefault}"/>
+                    <TextBox Text="{Binding SelectedAssociation.OpenCommand}" 
+                             Watermark="e.g., internal:archive"
+                             IsEnabled="{Binding !SelectedAssociation.UseSystemDefault}"
+                             Margin="0,0,0,10"/>
+                    
+                    <Button Content="Remove" 
+                            Command="{Binding RemoveAssociationCommand}"
+                            CommandParameter="{Binding SelectedAssociation}"
+                            HorizontalAlignment="Left"
+                            Padding="12,6"
+                            Margin="0,10,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
+        <!-- Buttons -->
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,0">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                <TextBox Text="{Binding NewExtension}" 
+                         Watermark=".ext" 
+                         Width="80"/>
+                <Button Content="Add Extension" 
+                        Command="{Binding AddAssociationCommand}"
+                        Padding="12,8"/>
+                <Button Content="Reset Defaults" 
+                        Command="{Binding ResetToDefaultsCommand}"
+                        Padding="12,8"/>
+            </StackPanel>
+            
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <Button Content="Save" 
+                        Click="OnSaveClick"
+                        Padding="16,8"
+                        Classes="accent"/>
+                <Button Content="Cancel" 
+                        Click="OnCancelClick"
+                        Padding="16,8"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+    
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Escape" Command="{Binding $parent[Window].Close}"/>
+    </Window.KeyBindings>
+</Window>

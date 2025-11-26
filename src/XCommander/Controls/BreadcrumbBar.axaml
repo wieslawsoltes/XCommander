@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:XCommander.Controls"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="32"
+             x:Class="XCommander.Controls.BreadcrumbBar"
+             x:Name="Root">
+    
+    <UserControl.Styles>
+        <!-- Style for highlighted segment during drag -->
+        <Style Selector="Button.breadcrumb-highlighted">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightAccentBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </UserControl.Styles>
+    
+    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            CornerRadius="4"
+            Padding="4,2"
+            DragDrop.AllowDrop="True">
+        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled">
+            <ItemsControl x:Name="BreadcrumbItems"
+                          ItemsSource="{Binding #Root.Segments}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="0"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="controls:BreadcrumbSegment">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="{Binding Name}"
+                                    Command="{Binding #Root.NavigateCommand}"
+                                    CommandParameter="{Binding Path}"
+                                    Padding="8,4"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    ToolTip.Tip="{Binding Path}"
+                                    Classes.breadcrumb-highlighted="{Binding IsHighlighted}">
+                                <Button.Styles>
+                                    <Style Selector="Button:pointerover">
+                                        <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListLowBrush}"/>
+                                    </Style>
+                                </Button.Styles>
+                            </Button>
+                            <TextBlock Text="›"
+                                       VerticalAlignment="Center"
+                                       Margin="4,0"
+                                       Opacity="0.5"
+                                       IsVisible="{Binding !IsLast}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Border>
+</UserControl>

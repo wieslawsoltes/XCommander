@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:XCommander.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="250" d:DesignHeight="400"
+             x:Class="XCommander.Views.DirectoryTreePanel"
+             x:DataType="vm:DirectoryTreeViewModel">
+    
+    <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+            BorderThickness="0,0,1,0">
+        <Grid RowDefinitions="Auto,*">
+            <!-- Header -->
+            <Border Grid.Row="0" 
+                    Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                    Padding="8,4">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" 
+                               Text="Folders" 
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                        <Button Content="⟳" 
+                                Command="{Binding RefreshCommand}"
+                                Padding="4,2"
+                                ToolTip.Tip="Refresh"/>
+                        <Button Content="✕" 
+                                Command="{Binding ToggleVisibilityCommand}"
+                                Padding="4,2"
+                                ToolTip.Tip="Close"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            
+            <!-- Tree View -->
+            <TreeView Grid.Row="1" 
+                      ItemsSource="{Binding RootNodes}"
+                      SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                      Margin="4">
+                <TreeView.ItemTemplate>
+                    <TreeDataTemplate ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="{Binding Icon}" FontSize="12"/>
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TreeDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+        </Grid>
+    </Border>
+</UserControl>

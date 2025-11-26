@@ -1,0 +1,444 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:XCommander.ViewModels"
+        xmlns:views="using:XCommander.Views"
+        xmlns:models="using:XCommander.Models"
+        xmlns:controls="using:XCommander.Controls"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
+        x:Class="XCommander.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="XCommander"
+        Width="1200" Height="700"
+        MinWidth="800" MinHeight="500"
+        WindowStartupLocation="CenterScreen">
+    
+    <Window.Styles>
+        <!-- Global focus indicator for keyboard navigation -->
+        <Style Selector="Button:focus-visible">
+            <Setter Property="BorderBrush" Value="#007ACC"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
+        <Style Selector="TextBox:focus-visible">
+            <Setter Property="BorderBrush" Value="#007ACC"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
+        <Style Selector="ListBoxItem:focus-visible">
+            <Setter Property="BorderBrush" Value="#007ACC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        
+        <!-- Tab header focus and hover effects -->
+        <Style Selector="TabItem">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.1"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="TabItem:pointerover">
+            <Setter Property="Background" Value="#20007ACC"/>
+        </Style>
+        <Style Selector="TabItem:selected">
+            <Setter Property="Background" Value="#30007ACC"/>
+        </Style>
+        
+        <!-- Menu item hover transitions -->
+        <Style Selector="MenuItem">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.1"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        
+        <!-- Status bar item styling -->
+        <Style Selector="StackPanel.status-item">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+        </Style>
+    </Window.Styles>
+    
+    <Window.KeyBindings>
+        <!-- Navigation -->
+        <KeyBinding Gesture="Alt+Left" Command="{Binding ActivePanel.ActiveTab.GoBackCommand}"/>
+        <KeyBinding Gesture="Alt+Right" Command="{Binding ActivePanel.ActiveTab.GoForwardCommand}"/>
+        <KeyBinding Gesture="Back" Command="{Binding ActivePanel.ActiveTab.GoToParentCommand}"/>
+        
+        <!-- Selection -->
+        <KeyBinding Gesture="Ctrl+A" Command="{Binding ActivePanel.ActiveTab.SelectAllCommand}"/>
+        <KeyBinding Gesture="Ctrl+Shift+A" Command="{Binding ActivePanel.ActiveTab.DeselectAllCommand}"/>
+        <KeyBinding Gesture="Ctrl+I" Command="{Binding ActivePanel.ActiveTab.InvertSelectionCommand}"/>
+        
+        <!-- File Operations -->
+        <KeyBinding Gesture="F2" Command="{Binding RenameSelectedCommand}"/>
+        <KeyBinding Gesture="F3" Command="{Binding ViewSelectedCommand}"/>
+        <KeyBinding Gesture="F4" Command="{Binding EditSelectedCommand}"/>
+        <KeyBinding Gesture="F5" Command="{Binding CopySelectedCommand}"/>
+        <KeyBinding Gesture="F6" Command="{Binding MoveSelectedCommand}"/>
+        <KeyBinding Gesture="F7" Command="{Binding CreateNewFolderCommand}"/>
+        <KeyBinding Gesture="F8" Command="{Binding DeleteSelectedCommand}"/>
+        <KeyBinding Gesture="Delete" Command="{Binding DeleteSelectedCommand}"/>
+        <KeyBinding Gesture="Shift+F4" Command="{Binding CreateNewFileCommand}"/>
+        
+        <!-- View -->
+        <KeyBinding Gesture="Ctrl+H" Command="{Binding ActivePanel.ActiveTab.ToggleHiddenFilesCommand}"/>
+        <KeyBinding Gesture="Ctrl+R" Command="{Binding ActivePanel.ActiveTab.RefreshCommand}"/>
+        <KeyBinding Gesture="Ctrl+Q" Command="{Binding ToggleQuickViewCommand}"/>
+        <KeyBinding Gesture="Alt+F1" Command="{Binding ToggleDirectoryTreeCommand}"/>
+        
+        <!-- Bookmarks -->
+        <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleBookmarksPanelCommand}"/>
+        <KeyBinding Gesture="Ctrl+Shift+D" Command="{Binding AddCurrentFolderToBookmarksCommand}"/>
+        
+        <!-- Tabs -->
+        <KeyBinding Gesture="Ctrl+T" Command="{Binding ActivePanel.AddNewTabCommand}"/>
+        <KeyBinding Gesture="Ctrl+W" Command="{Binding ActivePanel.CloseTabCommand}" CommandParameter="{Binding ActivePanel.ActiveTab}"/>
+        <KeyBinding Gesture="Ctrl+Tab" Command="{Binding ActivePanel.NextTabCommand}"/>
+        <KeyBinding Gesture="Ctrl+Shift+Tab" Command="{Binding ActivePanel.PreviousTabCommand}"/>
+        
+        <!-- Tools -->
+        <KeyBinding Gesture="Ctrl+M" Command="{Binding MultiRenameCommand}"/>
+        <KeyBinding Gesture="Ctrl+E" Command="{Binding OpenEncodingToolCommand}"/>
+        
+        <!-- Command Palette -->
+        <KeyBinding Gesture="Ctrl+Shift+P" Command="{Binding OpenCommandPaletteCommand}"/>
+        <KeyBinding Gesture="Escape" Command="{Binding CloseCommandPaletteCommand}"/>
+    </Window.KeyBindings>
+    
+    <Panel>
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto">
+        <!-- Menu Bar -->
+        <Menu Grid.Row="0">
+            <MenuItem Header="_File">
+                <MenuItem Header="_New Tab" Command="{Binding ActivePanel.AddNewTabCommand}" InputGesture="Ctrl+T"/>
+                <MenuItem Header="_Close Tab" Command="{Binding ActivePanel.CloseTabCommand}" CommandParameter="{Binding ActivePanel.ActiveTab}" InputGesture="Ctrl+W"/>
+                <Separator/>
+                <MenuItem Header="_New Folder" Command="{Binding CreateNewFolderCommand}" InputGesture="F7"/>
+                <MenuItem Header="New _File" Command="{Binding CreateNewFileCommand}" InputGesture="Shift+F4"/>
+                <Separator/>
+                <MenuItem Header="_Exit" Command="{Binding ExitCommand}" InputGesture="Alt+F4"/>
+            </MenuItem>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Copy" Command="{Binding CopySelectedCommand}" InputGesture="F5"/>
+                <MenuItem Header="_Move" Command="{Binding MoveSelectedCommand}" InputGesture="F6"/>
+                <MenuItem Header="_Delete" Command="{Binding DeleteSelectedCommand}" InputGesture="F8"/>
+                <Separator/>
+                <MenuItem Header="_Rename" Command="{Binding RenameSelectedCommand}" InputGesture="F2"/>
+                <Separator/>
+                <MenuItem Header="Select _All" Command="{Binding ActivePanel.ActiveTab.SelectAllCommand}" InputGesture="Ctrl+A"/>
+                <MenuItem Header="_Deselect All" Command="{Binding ActivePanel.ActiveTab.DeselectAllCommand}" InputGesture="Ctrl+Shift+A"/>
+                <MenuItem Header="_Invert Selection" Command="{Binding ActivePanel.ActiveTab.InvertSelectionCommand}" InputGesture="Ctrl+I"/>
+            </MenuItem>
+            <MenuItem Header="_View">
+                <MenuItem Header="_Refresh" Command="{Binding ActivePanel.ActiveTab.RefreshCommand}" InputGesture="Ctrl+R"/>
+                <Separator/>
+                <MenuItem Header="Show _Hidden Files" 
+                          Command="{Binding ActivePanel.ActiveTab.ToggleHiddenFilesCommand}" 
+                          InputGesture="Ctrl+H"/>
+                <MenuItem Header="_Directory Tree" 
+                          Command="{Binding ToggleDirectoryTreeCommand}" 
+                          InputGesture="Alt+F1"/>
+                <MenuItem Header="_Quick View Panel" 
+                          Command="{Binding ToggleQuickViewCommand}" 
+                          InputGesture="Ctrl+Q"/>
+                <MenuItem Header="_Bookmarks Panel" 
+                          Command="{Binding ToggleBookmarksPanelCommand}" 
+                          InputGesture="Ctrl+B"/>
+            </MenuItem>
+            <MenuItem Header="_Commands">
+                <MenuItem Header="_Search..." Click="OnSearchClick" InputGesture="Alt+F7"/>
+                <MenuItem Header="_Multi-Rename Tool..." Command="{Binding MultiRenameCommand}" InputGesture="Ctrl+M"/>
+                <Separator/>
+                <MenuItem Header="_Compare Directories..." Command="{Binding CompareDirectoriesCommand}" InputGesture="Shift+F6"/>
+                <MenuItem Header="Compare _Files..." Command="{Binding CompareFilesCommand}"/>
+                <MenuItem Header="_Synchronize Directories..." Command="{Binding SyncDirectoriesCommand}" InputGesture="Ctrl+Shift+S"/>
+                <Separator/>
+                <MenuItem Header="Calculate _Checksum..." Command="{Binding CalculateChecksumCommand}" InputGesture="Ctrl+Shift+C"/>
+                <MenuItem Header="_Encoding Tool..." Command="{Binding OpenEncodingToolCommand}" InputGesture="Ctrl+E"/>
+                <Separator/>
+                <MenuItem Header="S_plit File..." Command="{Binding SplitFileCommand}"/>
+                <MenuItem Header="Com_bine Files..." Command="{Binding CombineFilesCommand}"/>
+                <Separator/>
+                <MenuItem Header="_Archive">
+                    <MenuItem Header="_Open Archive..." Command="{Binding OpenArchiveCommand}" InputGesture="Ctrl+O"/>
+                    <MenuItem Header="_Create Archive..." Command="{Binding CreateArchiveCommand}" InputGesture="Alt+F5"/>
+                    <MenuItem Header="_Extract Archive..." Command="{Binding ExtractArchiveCommand}" InputGesture="Alt+F9"/>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="_FTP Connect..." Command="{Binding OpenFtpConnectionCommand}" InputGesture="Ctrl+F"/>
+                <MenuItem Header="_SFTP Connect..." Command="{Binding OpenSftpConnectionCommand}" InputGesture="Ctrl+Shift+F"/>
+                <Separator/>
+                <MenuItem Header="Se_ttings..." Command="{Binding OpenSettingsCommand}" InputGesture="Ctrl+,"/>
+            </MenuItem>
+            <MenuItem Header="_Bookmarks">
+                <MenuItem Header="_Show Bookmarks Panel" 
+                          Command="{Binding ToggleBookmarksPanelCommand}" 
+                          InputGesture="Ctrl+B"/>
+                <MenuItem Header="_Add Current Folder" 
+                          Command="{Binding AddCurrentFolderToBookmarksCommand}" 
+                          InputGesture="Ctrl+Shift+D"/>
+                <Separator/>
+            </MenuItem>
+            <MenuItem Header="_Go">
+                <MenuItem Header="_Back" Command="{Binding ActivePanel.ActiveTab.GoBackCommand}" InputGesture="Alt+Left"/>
+                <MenuItem Header="_Forward" Command="{Binding ActivePanel.ActiveTab.GoForwardCommand}" InputGesture="Alt+Right"/>
+                <MenuItem Header="_Parent Directory" Command="{Binding ActivePanel.ActiveTab.GoToParentCommand}" InputGesture="Back"/>
+                <MenuItem Header="_Root" Command="{Binding ActivePanel.ActiveTab.GoToRootCommand}"/>
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_Help" Command="{Binding ShowHelpCommand}" InputGesture="F1"/>
+                <MenuItem Header="_Command Palette..." Command="{Binding OpenCommandPaletteCommand}" InputGesture="Ctrl+Shift+P"/>
+                <Separator/>
+                <MenuItem Header="_Plugins..." Command="{Binding ManagePluginsCommand}"/>
+                <MenuItem Header="Custom _Columns..." Command="{Binding CustomizeColumnsCommand}"/>
+                <MenuItem Header="Configure _Toolbar..." Command="{Binding ConfigureToolbarCommand}"/>
+                <MenuItem Header="_Keyboard Shortcuts..." Command="{Binding OpenKeyboardShortcutsCommand}"/>
+                <MenuItem Header="_File Associations..." Command="{Binding OpenFileAssociationsCommand}"/>
+                <Separator/>
+                <MenuItem Header="_About XCommander" Command="{Binding ShowAboutCommand}"/>
+            </MenuItem>
+        </Menu>
+        
+        <!-- Dynamic Toolbar -->
+        <Border Grid.Row="1" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                Padding="4">
+            <ItemsControl ItemsSource="{Binding ToolbarButtons}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="2"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:ToolbarButton">
+                        <Panel>
+                            <!-- Separator -->
+                            <Separator Margin="4,0" 
+                                       IsVisible="{Binding IsSeparator}"/>
+                            <!-- Regular Button -->
+                            <Button Padding="8,4"
+                                    IsVisible="{Binding !IsSeparator}"
+                                    Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ExecuteToolbarCommandCommand}"
+                                    CommandParameter="{Binding CommandName}"
+                                    ToolTip.Tip="{Binding Tooltip}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="{Binding Icon}"/>
+                                    <TextBlock Text="{Binding Label}" 
+                                               IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ShowToolbarLabels}"/>
+                                </StackPanel>
+                            </Button>
+                        </Panel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+        
+        <!-- Main Panels -->
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto,*,Auto">
+            <!-- Directory Tree Panel -->
+            <Border Grid.Column="0" 
+                    Width="220"
+                    IsVisible="{Binding IsDirectoryTreeVisible}">
+                <views:DirectoryTreePanel DataContext="{Binding DirectoryTree}"/>
+            </Border>
+            
+            <!-- Bookmarks Panel -->
+            <Border Grid.Column="1" 
+                    Width="250"
+                    IsVisible="{Binding IsBookmarksPanelVisible}">
+                <views:BookmarksPanel x:Name="BookmarksPanel" DataContext="{Binding Bookmarks}"/>
+            </Border>
+            
+            <!-- Left Panel -->
+            <views:TabbedFilePanel Grid.Column="2" DataContext="{Binding LeftPanel}"/>
+            
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="3" 
+                          Width="4" 
+                          ResizeDirection="Columns"
+                          Background="Transparent"/>
+            
+            <!-- Right Panel -->
+            <views:TabbedFilePanel Grid.Column="4" DataContext="{Binding RightPanel}"/>
+            
+            <!-- Quick View Panel -->
+            <Border Grid.Column="5" 
+                    Width="350"
+                    IsVisible="{Binding IsQuickViewVisible}">
+                <views:QuickViewPanel DataContext="{Binding QuickView}"/>
+            </Border>
+        </Grid>
+        
+        <!-- Progress Bar (shown during operations) -->
+        <Grid Grid.Row="3" 
+              IsVisible="{Binding IsOperationInProgress}"
+              Margin="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <ProgressBar Grid.Column="0" 
+                         Value="{Binding OperationProgress}" 
+                         Minimum="0" 
+                         Maximum="100"
+                         Height="20"/>
+            <TextBlock Grid.Column="1" 
+                       Text="{Binding OperationStatus}" 
+                       Margin="8,0,0,0"
+                       VerticalAlignment="Center"/>
+        </Grid>
+        
+        <!-- Command Line -->
+        <Grid Grid.Row="4" 
+              ColumnDefinitions="Auto,*" 
+              Margin="4"
+              Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+            <TextBlock Grid.Column="0" 
+                       Text=">" 
+                       VerticalAlignment="Center"
+                       Margin="8,0,4,0"
+                       FontFamily="Consolas,Menlo,monospace"/>
+            <TextBox Grid.Column="1" 
+                     Text="{Binding CommandLine}"
+                     FontFamily="Consolas,Menlo,monospace"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     x:Name="CommandLineTextBox">
+                <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Enter" Command="{Binding ExecuteCommandCommand}"/>
+                    <KeyBinding Gesture="Up" Command="{Binding CommandHistoryUpCommand}"/>
+                    <KeyBinding Gesture="Down" Command="{Binding CommandHistoryDownCommand}"/>
+                </TextBox.KeyBindings>
+            </TextBox>
+        </Grid>
+        
+        <!-- Function Key Bar -->
+        <Border Grid.Row="5" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                Padding="2"
+                AutomationProperties.Name="Function key bar">
+            <Grid ColumnDefinitions="*,*,*,*,*,*,*,*">
+                <Button Grid.Column="0" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Command="{Binding ShowHelpCommand}"
+                        Margin="1"
+                        AutomationProperties.Name="Help, F1"
+                        AutomationProperties.AcceleratorKey="F1">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="F1" FontWeight="Bold"/>
+                        <TextBlock Text="Help"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="1" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Command="{Binding RenameSelectedCommand}"
+                        Margin="1"
+                        AutomationProperties.Name="Rename, F2"
+                        AutomationProperties.AcceleratorKey="F2">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="F2" FontWeight="Bold"/>
+                        <TextBlock Text="Rename"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Command="{Binding ViewSelectedCommand}"
+                        Margin="1"
+                        AutomationProperties.Name="View file, F3"
+                        AutomationProperties.AcceleratorKey="F3">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="F3" FontWeight="Bold"/>
+                        <TextBlock Text="View"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="3" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Command="{Binding EditSelectedCommand}"
+                        Margin="1"
+                        AutomationProperties.Name="Edit file, F4"
+                        AutomationProperties.AcceleratorKey="F4">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="F4" FontWeight="Bold"/>
+                        <TextBlock Text="Edit"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="4" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Command="{Binding CopySelectedCommand}"
+                        Margin="1"
+                        AutomationProperties.Name="Copy, F5"
+                        AutomationProperties.AcceleratorKey="F5">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="F5" FontWeight="Bold"/>
+                        <TextBlock Text="Copy"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="5" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Command="{Binding MoveSelectedCommand}"
+                        Margin="1"
+                        AutomationProperties.Name="Move, F6"
+                        AutomationProperties.AcceleratorKey="F6">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="F6" FontWeight="Bold"/>
+                        <TextBlock Text="Move"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="6" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Command="{Binding CreateNewFolderCommand}"
+                        Margin="1"
+                        AutomationProperties.Name="New folder, F7"
+                        AutomationProperties.AcceleratorKey="F7">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="F7" FontWeight="Bold"/>
+                        <TextBlock Text="Folder"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="7" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Command="{Binding DeleteSelectedCommand}"
+                        Margin="1"
+                        AutomationProperties.Name="Delete, F8"
+                        AutomationProperties.AcceleratorKey="F8">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="F8" FontWeight="Bold"/>
+                        <TextBlock Text="Delete"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+    </Grid>
+    
+    <!-- Command Palette Overlay -->
+    <Border IsVisible="{Binding IsCommandPaletteOpen}"
+            Background="#80000000"
+            PointerPressed="OnCommandPaletteBackgroundClick">
+        <views:CommandPalette DataContext="{Binding CommandPalette}"
+                              VerticalAlignment="Top"
+                              HorizontalAlignment="Center"
+                              Margin="0,100,0,0"
+                              x:Name="CommandPaletteControl"/>
+    </Border>
+    
+    <!-- Notification Toast Overlay -->
+    <controls:NotificationOverlay x:Name="NotificationOverlay"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Bottom"
+                                   Margin="0,0,16,80"
+                                   Width="360"/>
+    </Panel>
+</Window>

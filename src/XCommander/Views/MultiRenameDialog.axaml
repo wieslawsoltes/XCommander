@@ -1,0 +1,207 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:XCommander.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+        x:Class="XCommander.Views.MultiRenameDialog"
+        x:DataType="vm:MultiRenameViewModel"
+        Title="Multi-Rename Tool"
+        Width="950"
+        Height="700"
+        WindowStartupLocation="CenterOwner">
+    
+    <Grid RowDefinitions="Auto,*,Auto" Margin="10">
+        <!-- Settings Panel -->
+        <Border Grid.Row="0" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                CornerRadius="4"
+                Padding="10"
+                Margin="0,0,0,10">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                <!-- Search & Replace -->
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,*" Margin="0,0,0,8">
+                    <TextBlock Grid.Column="0" Text="Search:" VerticalAlignment="Center" Width="80"/>
+                    <TextBox Grid.Column="1" Text="{Binding SearchPattern}" Watermark="Text to find"/>
+                    <TextBlock Grid.Column="2" Text="Replace:" VerticalAlignment="Center" Margin="20,0,8,0"/>
+                    <TextBox Grid.Column="3" Text="{Binding ReplacePattern}" Watermark="Replacement text or pattern"/>
+                </Grid>
+                
+                <!-- Options -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="15" Margin="0,0,0,8">
+                    <CheckBox IsChecked="{Binding UseRegex}" Content="Regular expressions"/>
+                    <CheckBox IsChecked="{Binding CaseSensitive}" Content="Case sensitive"/>
+                </StackPanel>
+                
+                <!-- Extension & Counter -->
+                <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,8">
+                    <TextBlock Grid.Column="0" Text="Extension:" VerticalAlignment="Center" Width="80"/>
+                    <TextBox Grid.Column="1" Text="{Binding ExtensionPattern}" Width="80" Watermark=".ext"/>
+                    
+                    <TextBlock Grid.Column="2" Text="Counter start:" VerticalAlignment="Center" Margin="20,0,8,0"/>
+                    <TextBox Grid.Column="3" Text="{Binding CounterStart}" Width="60"/>
+                    
+                    <TextBlock Grid.Column="4" Text="Step:" VerticalAlignment="Center" Margin="10,0,8,0"/>
+                    <TextBox Grid.Column="5" Text="{Binding CounterStep}" Width="50"/>
+                    
+                    <TextBlock Grid.Column="6" Text="Digits:" VerticalAlignment="Center" Margin="10,0,8,0"/>
+                    <TextBox Grid.Column="7" Text="{Binding CounterDigits}" Width="50"/>
+                </Grid>
+                
+                <!-- Case Transform -->
+                <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,Auto,Auto" Margin="0,0,0,8">
+                    <TextBlock Grid.Column="0" Text="Name case:" VerticalAlignment="Center" Width="80"/>
+                    <ComboBox Grid.Column="1" SelectedIndex="{Binding NameCase}" Width="120">
+                        <ComboBoxItem Content="No change"/>
+                        <ComboBoxItem Content="lowercase"/>
+                        <ComboBoxItem Content="UPPERCASE"/>
+                        <ComboBoxItem Content="Title Case"/>
+                        <ComboBoxItem Content="Sentence case"/>
+                    </ComboBox>
+                    
+                    <TextBlock Grid.Column="2" Text="Extension case:" VerticalAlignment="Center" Margin="20,0,8,0"/>
+                    <ComboBox Grid.Column="3" SelectedIndex="{Binding ExtensionCase}" Width="120">
+                        <ComboBoxItem Content="No change"/>
+                        <ComboBoxItem Content="lowercase"/>
+                        <ComboBoxItem Content="UPPERCASE"/>
+                        <ComboBoxItem Content="Title Case"/>
+                        <ComboBoxItem Content="Sentence case"/>
+                    </ComboBox>
+                </Grid>
+                
+                <!-- Placeholders Help -->
+                <Expander Grid.Row="4" Header="Placeholders Reference" IsExpanded="False">
+                    <TextBlock FontFamily="Consolas,Menlo,monospace" FontSize="11" Opacity="0.8">
+                        <Run Text="[N] = Original name    [N1-5] = Characters 1-5    [E] = Extension    [C] = Counter"/>
+                        <LineBreak/>
+                        <Run Text="[D] = Date (yyyyMMdd)  [T] = Time (HHmmss)    [Y] = Year         [M] = Month"/>
+                        <LineBreak/>
+                        <Run Text="[Dx] = Day             [H] = Hour             [m] = Minute       [s] = Second"/>
+                    </TextBlock>
+                </Expander>
+            </Grid>
+        </Border>
+        
+        <!-- File List -->
+        <DataGrid Grid.Row="1" 
+                  ItemsSource="{Binding Items}"
+                  SelectionMode="Extended"
+                  CanUserResizeColumns="True"
+                  GridLinesVisibility="Horizontal"
+                  IsReadOnly="True"
+                  FontSize="12">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Original Name" 
+                                    Binding="{Binding OriginalName}" 
+                                    Width="*"/>
+                <DataGridTemplateColumn Header="New Name" Width="*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:RenameItem">
+                            <TextBlock Text="{Binding NewName}" 
+                                       Margin="4,0"
+                                       VerticalAlignment="Center">
+                                <TextBlock.Foreground>
+                                    <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                        <Binding Path="HasConflict"/>
+                                        <Binding Path="HasError"/>
+                                    </MultiBinding>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Status" Width="100">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:RenameItem">
+                            <StackPanel Orientation="Horizontal" Margin="4,0">
+                                <TextBlock Text="⚠️ Conflict" 
+                                           IsVisible="{Binding HasConflict}"
+                                           Foreground="Orange"/>
+                                <TextBlock Text="❌ Error" 
+                                           IsVisible="{Binding HasError}"
+                                           Foreground="Red"
+                                           ToolTip.Tip="{Binding ErrorMessage}"/>
+                                <TextBlock Text="✓" 
+                                           IsVisible="{Binding IsRenamed}"
+                                           Foreground="Green"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="" Width="80">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:RenameItem">
+                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                <Button Content="▲" 
+                                        Command="{Binding $parent[Window].((vm:MultiRenameViewModel)DataContext).MoveItemUpCommand}"
+                                        CommandParameter="{Binding}"
+                                        Padding="4,2"
+                                        FontSize="10"/>
+                                <Button Content="▼" 
+                                        Command="{Binding $parent[Window].((vm:MultiRenameViewModel)DataContext).MoveItemDownCommand}"
+                                        CommandParameter="{Binding}"
+                                        Padding="4,2"
+                                        FontSize="10"/>
+                                <Button Content="×" 
+                                        Command="{Binding $parent[Window].((vm:MultiRenameViewModel)DataContext).RemoveItemCommand}"
+                                        CommandParameter="{Binding}"
+                                        Padding="4,2"
+                                        FontSize="10"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+        
+        <!-- Bottom Bar -->
+        <Border Grid.Row="2" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                CornerRadius="4"
+                Padding="10"
+                Margin="0,10,0,0">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <!-- Undo Controls -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Content="↩ Undo Last" 
+                            Command="{Binding UndoLastRenameCommand}"
+                            Padding="12,6"
+                            ToolTip.Tip="Undo the last rename batch"/>
+                    <Button Content="📜 History" 
+                            Click="OnShowHistoryClick"
+                            Padding="12,6"
+                            ToolTip.Tip="View and undo previous rename operations"/>
+                </StackPanel>
+                
+                <!-- Status -->
+                <TextBlock Grid.Column="1" 
+                           VerticalAlignment="Center"
+                           Margin="16,0">
+                    <Run Text="{Binding Items.Count}"/>
+                    <Run Text=" files selected"/>
+                </TextBlock>
+                
+                <!-- Buttons -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
+                    <Button Content="Reset" 
+                            Command="{Binding ResetCommand}"
+                            Padding="15,8"/>
+                    <Button Content="Preview" 
+                            Command="{Binding UpdatePreviewCommand}"
+                            Padding="15,8"/>
+                    <Button Content="Start!" 
+                            Command="{Binding ExecuteRenameCommand}"
+                            Padding="15,8"
+                            Classes="accent"/>
+                    <Button Content="Close" 
+                            Click="OnCloseClick"
+                            Padding="15,8"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+    
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Escape" Command="{Binding $parent[Window].Close}"/>
+    </Window.KeyBindings>
+</Window>

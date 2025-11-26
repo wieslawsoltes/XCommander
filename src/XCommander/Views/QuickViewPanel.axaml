@@ -1,0 +1,150 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:XCommander.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="500"
+             x:Class="XCommander.Views.QuickViewPanel"
+             x:DataType="vm:QuickViewViewModel">
+    
+    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            BorderBrush="{DynamicResource SystemControlBackgroundChromeBlackHighBrush}"
+            BorderThickness="1"
+            CornerRadius="4"
+            Margin="2">
+        <Grid RowDefinitions="Auto,*,Auto">
+            <!-- Header -->
+            <Border Grid.Row="0" 
+                    Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                    Padding="8,6">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding FileName}"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding FilePath}"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Content="×"
+                            Command="{Binding ClearCommand}"
+                            Padding="6,2"
+                            FontSize="12"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            ToolTip.Tip="Close preview"/>
+                </Grid>
+            </Border>
+            
+            <!-- Content -->
+            <Grid Grid.Row="1">
+                <!-- Loading Indicator -->
+                <Border IsVisible="{Binding IsLoading}"
+                        Background="#80000000"
+                        ZIndex="100">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ProgressBar IsIndeterminate="True" Width="150"/>
+                        <TextBlock Text="Loading preview..." 
+                                   HorizontalAlignment="Center"
+                                   Margin="0,8,0,0"
+                                   Foreground="White"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- No Content Message -->
+                <TextBlock Text="Select a file to preview"
+                           IsVisible="{Binding !HasContent}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Opacity="0.5"
+                           FontSize="13"/>
+                
+                <!-- Image Preview with Pan/Zoom Support -->
+                <ScrollViewer x:Name="ImageScrollViewer"
+                              IsVisible="{Binding IsImage}"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto">
+                    <Image x:Name="PreviewImage"
+                           Source="{Binding ImagePath}"
+                           Stretch="Uniform"
+                           MaxWidth="1000"
+                           MaxHeight="1000"
+                           Margin="4"
+                           RenderTransformOrigin="0.5,0.5"/>
+                </ScrollViewer>
+                
+                <!-- Text Preview -->
+                <TextBox Text="{Binding Content}"
+                         IsVisible="{Binding IsText}"
+                         IsReadOnly="True"
+                         TextWrapping="Wrap"
+                         FontFamily="Consolas,Menlo,Monaco,monospace"
+                         FontSize="11"
+                         AcceptsReturn="True"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         Margin="4"/>
+                
+                <!-- Hex Preview -->
+                <TextBox Text="{Binding Content}"
+                         IsVisible="{Binding IsHex}"
+                         IsReadOnly="True"
+                         TextWrapping="NoWrap"
+                         FontFamily="Consolas,Menlo,Monaco,monospace"
+                         FontSize="10"
+                         AcceptsReturn="True"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         Margin="4"/>
+                
+                <!-- Document Preview -->
+                <Grid IsVisible="{Binding IsDocument}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- PDF Thumbnail (if available) -->
+                    <Border Grid.Row="0" 
+                            IsVisible="{Binding ImagePath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                            MaxHeight="200"
+                            Margin="4"
+                            BorderBrush="{DynamicResource SystemControlBackgroundChromeBlackHighBrush}"
+                            BorderThickness="1"
+                            CornerRadius="2">
+                        <Image Source="{Binding ImagePath}"
+                               Stretch="Uniform"
+                               MaxHeight="196"/>
+                    </Border>
+                    
+                    <!-- Document Text Content -->
+                    <TextBox Grid.Row="1"
+                             Text="{Binding Content}"
+                             IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             FontFamily="Consolas,Menlo,Monaco,monospace"
+                             FontSize="11"
+                             AcceptsReturn="True"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             Margin="4"/>
+                </Grid>
+            </Grid>
+            
+            <!-- Status Bar -->
+            <Border Grid.Row="2" 
+                    Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                    Padding="8,4"
+                    IsVisible="{Binding HasContent}">
+                <TextBlock Text="{Binding StatusText}" 
+                           FontSize="10"
+                           Opacity="0.8"/>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:XCommander.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="550" d:DesignHeight="500"
+             x:Class="XCommander.Views.FileCombineDialog"
+             x:DataType="vm:FileCombineViewModel">
+    
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
+        <!-- First Part File -->
+        <StackPanel Grid.Row="0" Margin="16,16,16,8" Spacing="4">
+            <TextBlock Text="First Part File (.001):" FontWeight="SemiBold"/>
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0" Text="{Binding FirstPartFile}"/>
+                <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="12,6"
+                        Click="BrowseSource_Click"/>
+            </Grid>
+        </StackPanel>
+        
+        <!-- Destination File -->
+        <StackPanel Grid.Row="1" Margin="16,8,16,8" Spacing="4">
+            <TextBlock Text="Destination File:" FontWeight="SemiBold"/>
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0" Text="{Binding DestinationFile}"/>
+                <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="12,6"
+                        Click="BrowseDestination_Click"/>
+            </Grid>
+        </StackPanel>
+        
+        <!-- Options -->
+        <Border Grid.Row="2" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                Margin="16,8" Padding="12" CornerRadius="4">
+            <StackPanel Spacing="8">
+                <CheckBox Content="Delete parts after successful combine" IsChecked="{Binding DeletePartsAfterCombine}"
+                          Foreground="Orange"/>
+                <TextBlock>
+                    <Run Text="Detected parts: "/>
+                    <Run Text="{Binding PartCount}" FontWeight="SemiBold"/>
+                    <Run Text=" | Total size: "/>
+                    <Run Text="{Binding TotalSizeDisplay}" FontWeight="SemiBold"/>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+        
+        <!-- Parts List -->
+        <Border Grid.Row="3" Margin="16,8" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                BorderThickness="1" CornerRadius="4">
+            <Grid RowDefinitions="Auto,*">
+                <Border Grid.Row="0" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                        Padding="8,6">
+                    <TextBlock Text="Detected Parts:" FontWeight="SemiBold"/>
+                </Border>
+                <ListBox Grid.Row="1" ItemsSource="{Binding DetectedParts}" Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+        
+        <!-- Status -->
+        <Border Grid.Row="4" Margin="16,8" Padding="12" CornerRadius="4"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="{Binding Progress, StringFormat='{}{0:F1}%'}" 
+                           VerticalAlignment="Center" FontWeight="SemiBold"/>
+            </Grid>
+        </Border>
+        
+        <!-- Progress and Buttons -->
+        <Grid Grid.Row="5" Margin="16,8,16,16" ColumnDefinitions="*,Auto,Auto,Auto">
+            <ProgressBar Grid.Column="0" Value="{Binding Progress}" Maximum="100" 
+                         Height="8" VerticalAlignment="Center" Margin="0,0,16,0"/>
+            
+            <Button Grid.Column="1" Content="Combine" Command="{Binding CombineFilesCommand}"
+                    IsEnabled="{Binding !IsProcessing}"
+                    Classes="accent" Padding="24,8" Margin="0,0,8,0"/>
+            <Button Grid.Column="2" Content="Cancel" Command="{Binding CancelCommand}"
+                    IsEnabled="{Binding IsProcessing}"
+                    Padding="24,8" Margin="0,0,8,0"/>
+            <Button Grid.Column="3" Content="Close" Click="Close_Click" Padding="24,8"/>
+        </Grid>
+    </Grid>
+</UserControl>

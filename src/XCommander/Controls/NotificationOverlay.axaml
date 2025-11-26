@@ -1,0 +1,155 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:services="using:XCommander.Services"
+             xmlns:local="using:XCommander.Controls"
+             mc:Ignorable="d" d:DesignWidth="350" d:DesignHeight="400"
+             x:Class="XCommander.Controls.NotificationOverlay"
+             IsHitTestVisible="True"
+             Focusable="False">
+    
+    <UserControl.Styles>
+        <!-- Toast notification base style -->
+        <Style Selector="Border.toast">
+            <Setter Property="MinWidth" Value="280"/>
+            <Setter Property="MaxWidth" Value="350"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Margin" Value="8,4"/>
+            <Setter Property="BoxShadow" Value="0 4 12 2 #40000000"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.2"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        
+        <!-- Info toast -->
+        <Style Selector="Border.toast-info">
+            <Setter Property="Background" Value="#2196F3"/>
+        </Style>
+        
+        <!-- Success toast -->
+        <Style Selector="Border.toast-success">
+            <Setter Property="Background" Value="#4CAF50"/>
+        </Style>
+        
+        <!-- Warning toast -->
+        <Style Selector="Border.toast-warning">
+            <Setter Property="Background" Value="#FF9800"/>
+        </Style>
+        
+        <!-- Error toast -->
+        <Style Selector="Border.toast-error">
+            <Setter Property="Background" Value="#F44336"/>
+        </Style>
+        
+        <!-- Progress toast -->
+        <Style Selector="Border.toast-progress">
+            <Setter Property="Background" Value="#607D8B"/>
+        </Style>
+        
+        <!-- Close button -->
+        <Style Selector="Button.toast-close">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Opacity" Value="0.7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="4"/>
+        </Style>
+        <Style Selector="Button.toast-close:pointerover">
+            <Setter Property="Opacity" Value="1"/>
+            <Setter Property="Background" Value="#20FFFFFF"/>
+        </Style>
+        
+        <!-- Retry button -->
+        <Style Selector="Button.toast-retry">
+            <Setter Property="Background" Value="#30FFFFFF"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,8,0,0"/>
+        </Style>
+        <Style Selector="Button.toast-retry:pointerover">
+            <Setter Property="Background" Value="#50FFFFFF"/>
+        </Style>
+    </UserControl.Styles>
+    
+    <!-- Notification container - positioned in bottom-right -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  MaxHeight="400">
+        <ItemsControl x:Name="NotificationList"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Bottom">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Vertical" Spacing="4"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="services:Notification">
+                    <Border Classes="toast"
+                            Classes.toast-info="{Binding Type, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static services:NotificationType.Info}}"
+                            Classes.toast-success="{Binding Type, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static services:NotificationType.Success}}"
+                            Classes.toast-warning="{Binding Type, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static services:NotificationType.Warning}}"
+                            Classes.toast-error="{Binding Type, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static services:NotificationType.Error}}"
+                            Classes.toast-progress="{Binding IsProgress}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <!-- Icon -->
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Top"
+                                       Margin="0,0,8,0"
+                                       FontSize="18"
+                                       Text="{Binding Type, Converter={x:Static local:NotificationIconConverter.Instance}}"/>
+                            
+                            <!-- Content -->
+                            <StackPanel Grid.Column="1" Spacing="4">
+                                <TextBlock Text="{Binding Title}"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"
+                                           FontSize="13"
+                                           TextWrapping="Wrap"
+                                           IsVisible="{Binding Title, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                <TextBlock Text="{Binding Message}"
+                                           Foreground="White"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Opacity="0.9"/>
+                                
+                                <!-- Progress bar for progress notifications -->
+                                <ProgressBar Value="{Binding Progress}"
+                                             Minimum="0"
+                                             Maximum="100"
+                                             Height="4"
+                                             IsVisible="{Binding IsProgress}"
+                                             Margin="0,4,0,0"/>
+                                
+                                <!-- Retry button for errors -->
+                                <Button Classes="toast-retry"
+                                        Content="Retry"
+                                        IsVisible="{Binding RetryAction, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                        Click="OnRetryClick"
+                                        Tag="{Binding}"/>
+                            </StackPanel>
+                            
+                            <!-- Close button -->
+                            <Button Grid.Column="2"
+                                    Classes="toast-close"
+                                    Click="OnCloseClick"
+                                    Tag="{Binding}"
+                                    VerticalAlignment="Top">
+                                <TextBlock Text="✕" FontSize="12"/>
+                            </Button>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </ScrollViewer>
+</UserControl>

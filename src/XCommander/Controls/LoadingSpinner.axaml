@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="40" d:DesignHeight="40"
+             x:Class="XCommander.Controls.LoadingSpinner"
+             x:Name="Root">
+    
+    <Grid>
+        <!-- Spinning Arc -->
+        <Canvas x:Name="SpinnerCanvas"
+                Width="{Binding #Root.Width}"
+                Height="{Binding #Root.Height}"
+                RenderTransformOrigin="0.5,0.5">
+            <Canvas.RenderTransform>
+                <RotateTransform Angle="0"/>
+            </Canvas.RenderTransform>
+            
+            <!-- Arc segments using Path -->
+            <Path x:Name="SpinnerArc"
+                  Stroke="{DynamicResource SystemAccentColor}"
+                  StrokeThickness="2"
+                  StrokeLineCap="Round"/>
+            
+            <!-- Track circle -->
+            <Ellipse Width="{Binding #Root.Width}"
+                     Height="{Binding #Root.Height}"
+                     Stroke="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                     StrokeThickness="1"
+                     Opacity="0.3"/>
+        </Canvas>
+        
+        <!-- Optional text -->
+        <TextBlock x:Name="StatusText"
+                   Text="{Binding #Root.Text}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   FontSize="10"
+                   IsVisible="{Binding #Root.ShowText}"/>
+    </Grid>
+</UserControl>

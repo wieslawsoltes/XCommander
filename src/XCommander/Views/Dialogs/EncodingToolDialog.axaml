@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:XCommander.ViewModels"
+             xmlns:conv="using:XCommander.Converters"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="500"
+             x:Class="XCommander.Views.Dialogs.EncodingToolDialog"
+             x:DataType="vm:EncodingToolViewModel">
+    
+    <Grid RowDefinitions="Auto,*,Auto,*,Auto,Auto" Margin="16">
+        <!-- Mode Selection -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <ComboBox SelectedIndex="{Binding SelectedMode, Converter={x:Static conv:EnumToIntConverter.Instance}}"
+                          Width="140">
+                    <ComboBoxItem Content="Base64"/>
+                    <ComboBoxItem Content="Base64 URL"/>
+                    <ComboBoxItem Content="Hex"/>
+                    <ComboBoxItem Content="URL Encode"/>
+                    <ComboBoxItem Content="HTML Encode"/>
+                </ComboBox>
+                
+                <ToggleButton IsChecked="{Binding IsDecodeMode}" Padding="12,6">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="⟵" IsVisible="{Binding IsDecodeMode}"/>
+                        <TextBlock Text="{Binding IsDecodeMode, Converter={x:Static conv:BoolToEncodeDecodeConverter.Instance}}"/>
+                        <TextBlock Text="⟶" IsVisible="{Binding !IsDecodeMode}"/>
+                    </StackPanel>
+                </ToggleButton>
+            </StackPanel>
+            
+            <CheckBox Grid.Column="1" Content="Wrap lines" IsChecked="{Binding WrapLines}" 
+                      VerticalAlignment="Center" Margin="8,0"/>
+            <NumericUpDown Grid.Column="2" Value="{Binding WrapLength}" Minimum="20" Maximum="200"
+                           IsEnabled="{Binding WrapLines}" Width="80" VerticalAlignment="Center"/>
+            <Button Grid.Column="3" Content="⇄ Swap" Command="{Binding SwapInputOutputCommand}" 
+                    Margin="8,0,0,0" Padding="12,6"/>
+        </Grid>
+        
+        <!-- Input Label -->
+        <Grid Grid.Row="1" RowDefinitions="Auto,*">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                <TextBlock Text="Input:" FontWeight="SemiBold"/>
+                <Button Grid.Column="1" Content="📁 From File..." Command="{Binding EncodeFileCommand}"
+                        Padding="8,2" FontSize="11"/>
+            </Grid>
+            <TextBox Grid.Row="1" 
+                     Text="{Binding InputText}"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     FontFamily="Consolas,Menlo,monospace"
+                     FontSize="12"/>
+        </Grid>
+        
+        <!-- Separator -->
+        <Border Grid.Row="2" Height="1" Background="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
+                Margin="0,8"/>
+        
+        <!-- Output Label -->
+        <Grid Grid.Row="3" RowDefinitions="Auto,*">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                <TextBlock Text="Output:" FontWeight="SemiBold"/>
+                <Button Grid.Column="1" Content="💾 To File..." Command="{Binding DecodeToFileCommand}"
+                        Padding="8,2" FontSize="11"/>
+            </Grid>
+            <TextBox Grid.Row="1" 
+                     Text="{Binding OutputText}"
+                     IsReadOnly="True"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     FontFamily="Consolas,Menlo,monospace"
+                     FontSize="12"/>
+        </Grid>
+        
+        <!-- Status -->
+        <TextBlock Grid.Row="4" Text="{Binding StatusMessage}" 
+                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                   FontSize="11" Margin="0,8,0,0"/>
+        
+        <!-- Buttons -->
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" 
+                    Spacing="8" Margin="0,16,0,0">
+            <Button Content="Clear" Command="{Binding ClearAllCommand}" Padding="16,8"/>
+            <Button Content="Close" Command="{Binding CloseCommand}" Padding="16,8"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

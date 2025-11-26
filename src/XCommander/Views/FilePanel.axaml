@@ -1,0 +1,393 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:XCommander.ViewModels"
+             xmlns:converters="using:XCommander.Converters"
+             xmlns:controls="using:XCommander.Controls"
+             mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="450"
+             x:Class="XCommander.Views.FilePanel"
+             x:DataType="vm:FilePanelViewModel"
+             KeyDown="OnKeyDown"
+             Focusable="True">
+    
+    <UserControl.Resources>
+        <converters:DateTimeConverter x:Key="DateTimeConverter"/>
+        <converters:BoolToOpacityConverter x:Key="BoolToOpacityConverter"/>
+    </UserControl.Resources>
+    
+    <UserControl.Styles>
+        <!-- Panel border with smooth transition -->
+        <Style Selector="Border.panel-border">
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.panel-border.active">
+            <Setter Property="BorderBrush" Value="#007ACC"/>
+        </Style>
+        
+        <!-- DataGrid alternating rows -->
+        <Style Selector="DataGrid DataGridRow:nth-child(even)">
+            <Setter Property="Background" Value="#08000000"/>
+        </Style>
+        <Style Selector="DataGrid DataGridRow:nth-child(odd)">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        
+        <!-- DataGrid row hover effect -->
+        <Style Selector="DataGrid DataGridRow:pointerover">
+            <Setter Property="Background" Value="#20007ACC"/>
+        </Style>
+        
+        <!-- DataGrid row selection -->
+        <Style Selector="DataGrid DataGridRow:selected">
+            <Setter Property="Background" Value="#40007ACC"/>
+        </Style>
+        <Style Selector="DataGrid DataGridRow:selected:pointerover">
+            <Setter Property="Background" Value="#50007ACC"/>
+        </Style>
+        
+        <!-- Button hover transitions -->
+        <Style Selector="Button">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.1"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.1"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button:pointerover">
+            <Setter Property="RenderTransform" Value="scale(1.02)"/>
+        </Style>
+        <Style Selector="Button:pressed">
+            <Setter Property="RenderTransform" Value="scale(0.98)"/>
+        </Style>
+    </UserControl.Styles>
+    
+    <Border BorderThickness="2"
+            Classes.active="{Binding IsActive}"
+            Classes="panel-border"
+            CornerRadius="4"
+            Margin="2">
+        
+        <Panel>
+        <Grid RowDefinitions="Auto,Auto,*,Auto">
+            <!-- Drive Bar -->
+            <ScrollViewer Grid.Row="0" 
+                          HorizontalScrollBarVisibility="Auto" 
+                          VerticalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Drives}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="2"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding Name}"
+                                    Command="{Binding $parent[UserControl].((vm:FilePanelViewModel)DataContext).NavigateToCommand}"
+                                    CommandParameter="{Binding RootPath}"
+                                    Padding="8,4"
+                                    MinWidth="40"
+                                    FontSize="11"
+                                    ToolTip.Tip="{Binding DisplayName}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            
+            <!-- Breadcrumb / Path Bar -->
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,*,Auto" Margin="4">
+                <Button Grid.Column="0" 
+                        Content="←" 
+                        Command="{Binding GoBackCommand}"
+                        IsEnabled="{Binding CanGoBack}"
+                        Padding="6,2"
+                        Margin="0,0,2,0"
+                        ToolTip.Tip="Back"/>
+                <Button Grid.Column="1" 
+                        Content="→" 
+                        Command="{Binding GoForwardCommand}"
+                        IsEnabled="{Binding CanGoForward}"
+                        Padding="6,2"
+                        Margin="0,0,4,0"
+                        ToolTip.Tip="Forward"/>
+                <TextBox Grid.Column="2" 
+                         Text="{Binding CurrentPath}"
+                         VerticalContentAlignment="Center"
+                         FontSize="12"/>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" Margin="4,0,0,0">
+                    <Button Content="↑" 
+                            Command="{Binding GoToParentCommand}"
+                            Padding="6,2"
+                            ToolTip.Tip="Go to parent directory"/>
+                    <Button Content="⟳" 
+                            Command="{Binding RefreshCommand}"
+                            Padding="6,2"
+                            ToolTip.Tip="Refresh"/>
+                    <Button Content="📋" 
+                            Command="{Binding SetViewModeCommand}"
+                            CommandParameter="{x:Static vm:FilePanelViewMode.Details}"
+                            Padding="6,2"
+                            ToolTip.Tip="Details view"/>
+                    <Button Content="🗂️" 
+                            Command="{Binding SetViewModeCommand}"
+                            CommandParameter="{x:Static vm:FilePanelViewMode.Thumbnails}"
+                            Padding="6,2"
+                            ToolTip.Tip="Thumbnails view"/>
+                </StackPanel>
+            </Grid>
+            
+            <!-- File List - Details View -->
+            <DataGrid Grid.Row="2" 
+                      x:Name="FileListDataGrid"
+                      ItemsSource="{Binding Items}"
+                      SelectedItem="{Binding SelectedItem}"
+                      SelectionMode="Extended"
+                      CanUserResizeColumns="True"
+                      CanUserReorderColumns="True"
+                      CanUserSortColumns="True"
+                      GridLinesVisibility="Horizontal"
+                      BorderThickness="0"
+                      IsReadOnly="True"
+                      FontSize="12"
+                      IsVisible="{Binding ViewMode, Converter={x:Static converters:ViewModeConverter.IsDetails}}"
+                      DoubleTapped="OnItemDoubleTapped"
+                      GotFocus="OnPanelGotFocus"
+                      PointerPressed="OnDataGridPointerPressed"
+                      KeyDown="OnDataGridKeyDown"
+                      AutomationProperties.Name="File list"
+                      AutomationProperties.HelpText="List of files and folders. Use arrow keys to navigate, Space to select, Enter to open."
+                      AutomationProperties.IsRequiredForForm="False">
+                
+                <!-- Context Menu -->
+                <DataGrid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuItem Header="_View" Command="{Binding ViewSelectedCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="👁️" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="_Edit" Command="{Binding EditSelectedCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="✏️" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Open _With">
+                            <MenuItem.Icon>
+                                <TextBlock Text="🔗" FontSize="14"/>
+                            </MenuItem.Icon>
+                            <MenuItem Header="Default Application" Command="{Binding OpenWithDefaultCommand}"/>
+                            <MenuItem Header="Text Editor" Command="{Binding OpenWithTextEditorCommand}"/>
+                            <MenuItem Header="Hex Editor" Command="{Binding OpenWithHexEditorCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="Choose Application..." Command="{Binding OpenWithChooseCommand}"/>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="_Copy" InputGesture="F5" Command="{Binding CopyToOtherPanelCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="📋" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="_Move" InputGesture="F6" Command="{Binding MoveToOtherPanelCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="📦" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="_Rename" InputGesture="F2" Command="{Binding RenameSelectedCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="📝" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="_Delete" InputGesture="F8" Command="{Binding DeleteSelectedCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="🗑️" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="_Pack / Unpack">
+                            <MenuItem.Icon>
+                                <TextBlock Text="📦" FontSize="14"/>
+                            </MenuItem.Icon>
+                            <MenuItem Header="Create ZIP Archive..." Command="{Binding CreateZipArchiveCommand}">
+                                <MenuItem.Icon>
+                                    <TextBlock Text="📥" FontSize="14"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Create 7z Archive..." Command="{Binding Create7zArchiveCommand}"/>
+                            <MenuItem Header="Create TAR.GZ Archive..." Command="{Binding CreateTarGzArchiveCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="Extract Here" Command="{Binding ExtractHereCommand}">
+                                <MenuItem.Icon>
+                                    <TextBlock Text="📤" FontSize="14"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Extract to Folder..." Command="{Binding ExtractToFolderCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="Test Archive" Command="{Binding TestArchiveCommand}"/>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="New _Folder" InputGesture="F7" Command="{Binding CreateNewFolderCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="📁" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="New F_ile" Command="{Binding CreateNewFileCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="📄" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="_Selection">
+                            <MenuItem.Icon>
+                                <TextBlock Text="☑️" FontSize="14"/>
+                            </MenuItem.Icon>
+                            <MenuItem Header="Select _All" InputGesture="Ctrl+A" Command="{Binding SelectAllCommand}"/>
+                            <MenuItem Header="Select _None" Command="{Binding DeselectAllCommand}"/>
+                            <MenuItem Header="_Invert Selection" InputGesture="Ctrl+I" Command="{Binding InvertSelectionCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="Select by _Pattern..." Command="{Binding SelectByPatternCommand}">
+                                <MenuItem.Icon>
+                                    <TextBlock Text="🔍" FontSize="14"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="_Deselect by Pattern..." Command="{Binding DeselectByPatternCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="Select All _Files" Command="{Binding SelectAllFilesCommand}"/>
+                            <MenuItem Header="Select All F_olders" Command="{Binding SelectAllFoldersCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="_Save Selection" Command="{Binding SaveSelectionCommand}"/>
+                            <MenuItem Header="_Restore Selection" Command="{Binding RestoreSelectionCommand}"/>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="_Properties" InputGesture="Alt+Enter" Command="{Binding ShowPropertiesCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="ℹ️" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                    </MenuFlyout>
+                </DataGrid.ContextFlyout>
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Name" Width="*" MinWidth="150">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:FileItemViewModel">
+                                <StackPanel Orientation="Horizontal" 
+                                            Spacing="6" 
+                                            Margin="4,2"
+                                            Opacity="{Binding IsHidden, Converter={StaticResource BoolToOpacityConverter}}">
+                                    <TextBlock Text="{Binding Icon}" 
+                                               FontSize="14"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Name}" 
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               FlowDirection="{Binding NameFlowDirection}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Ext" 
+                                        Binding="{Binding Extension}" 
+                                        Width="60"/>
+                    <DataGridTextColumn Header="Size" 
+                                        Binding="{Binding DisplaySize}" 
+                                        Width="80"/>
+                    <DataGridTextColumn Header="Date Modified" 
+                                        Binding="{Binding DateModified, Converter={StaticResource DateTimeConverter}}" 
+                                        Width="130"/>
+                </DataGrid.Columns>
+            </DataGrid>
+            
+            <!-- File List - Thumbnails View -->
+            <ScrollViewer Grid.Row="2" 
+                          IsVisible="{Binding ViewMode, Converter={x:Static converters:ViewModeConverter.IsThumbnails}}"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Items}" Margin="4">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FileItemViewModel">
+                            <Border Width="120" Height="140" Margin="4"
+                                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                                    CornerRadius="4"
+                                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                    BorderThickness="1"
+                                    Opacity="{Binding IsHidden, Converter={StaticResource BoolToOpacityConverter}}"
+                                    Cursor="Hand"
+                                    PointerPressed="OnThumbnailPointerPressed"
+                                    DoubleTapped="OnThumbnailDoubleTapped">
+                                <Grid RowDefinitions="*,Auto">
+                                    <!-- Thumbnail or Icon -->
+                                    <Panel Grid.Row="0" Margin="8">
+                                        <!-- Show thumbnail for images/videos -->
+                                        <Image Source="{Binding Thumbnail}"
+                                               Stretch="Uniform"
+                                               IsVisible="{Binding Thumbnail, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                        <!-- Show icon for non-images -->
+                                        <TextBlock Text="{Binding Icon}"
+                                                   FontSize="48"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   IsVisible="{Binding Thumbnail, Converter={x:Static ObjectConverters.IsNull}}"/>
+                                        <!-- Video duration overlay -->
+                                        <Border Background="#99000000"
+                                                CornerRadius="2"
+                                                Padding="4,2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Bottom"
+                                                Margin="4"
+                                                IsVisible="{Binding VideoDuration, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                            <TextBlock Text="{Binding VideoDuration}"
+                                                       Foreground="White"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                        <!-- Loading indicator -->
+                                        <ProgressBar IsIndeterminate="True"
+                                                     Height="4"
+                                                     VerticalAlignment="Bottom"
+                                                     IsVisible="{Binding ThumbnailLoading}"/>
+                                    </Panel>
+                                    <!-- File name -->
+                                    <Border Grid.Row="1" 
+                                            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                                            Padding="4,2">
+                                        <TextBlock Text="{Binding Name}" 
+                                                   TextTrimming="CharacterEllipsis"
+                                                   TextWrapping="NoWrap"
+                                                   FontSize="11"
+                                                   HorizontalAlignment="Center"
+                                                   FlowDirection="{Binding NameFlowDirection}"
+                                                   ToolTip.Tip="{Binding Name}"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            
+            <!-- Status Bar -->
+            <Border Grid.Row="3" 
+                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                    Padding="8,4">
+                <TextBlock Text="{Binding StatusText}" 
+                           FontSize="11"
+                           VerticalAlignment="Center"/>
+            </Border>
+        </Grid>
+        
+        <!-- Rubber Band Selection Adorner -->
+        <controls:RubberBandAdorner x:Name="RubberBandAdorner"
+                                     IsVisible="False"/>
+        </Panel>
+    </Border>
+</UserControl>

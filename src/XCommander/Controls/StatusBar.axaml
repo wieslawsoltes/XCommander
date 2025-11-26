@@ -1,0 +1,113 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:XCommander.Controls"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="24"
+             x:Class="XCommander.Controls.StatusBar"
+             x:Name="Root">
+    
+    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            Padding="8,4">
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+            <!-- Selection Info with Icon -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="📁" FontSize="11" Margin="0,0,4,0" 
+                           IsVisible="{Binding #Root.HasFolders}"/>
+                <TextBlock Text="{Binding #Root.FolderCount}" FontSize="11" 
+                           IsVisible="{Binding #Root.HasFolders}" Margin="0,0,8,0"/>
+                <TextBlock Text="📄" FontSize="11" Margin="0,0,4,0"
+                           IsVisible="{Binding #Root.HasFiles}"/>
+                <TextBlock Text="{Binding #Root.FileCount}" FontSize="11"
+                           IsVisible="{Binding #Root.HasFiles}"/>
+            </StackPanel>
+            
+            <!-- Separator -->
+            <Border Grid.Column="1"
+                    Width="1" Height="14"
+                    Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    Margin="8,0"
+                    VerticalAlignment="Center"/>
+            
+            <!-- Selection Summary -->
+            <TextBlock Grid.Column="2"
+                       Text="{Binding #Root.SelectionInfo}"
+                       VerticalAlignment="Center"
+                       FontSize="11"
+                       TextTrimming="CharacterEllipsis"/>
+            
+            <!-- Separator -->
+            <Border Grid.Column="3"
+                    Width="1" Height="14"
+                    Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    Margin="8,0"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding #Root.SizeInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+            
+            <!-- Size Info with Icon -->
+            <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center"
+                        IsVisible="{Binding #Root.SizeInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="💾" FontSize="10" Margin="0,0,4,0" Opacity="0.8"/>
+                <TextBlock Text="{Binding #Root.SizeInfo}"
+                           FontSize="11"/>
+            </StackPanel>
+            
+            <!-- Separator -->
+            <Border Grid.Column="5"
+                    Width="1" Height="14"
+                    Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    Margin="8,0"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding #Root.FreeSpace, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+            
+            <!-- Free Space with Progress -->
+            <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center"
+                        IsVisible="{Binding #Root.FreeSpace, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <!-- Mini progress bar for disk usage -->
+                <Border Width="40" Height="8" 
+                        Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                        CornerRadius="4" Margin="0,0,6,0">
+                    <Border HorizontalAlignment="Left"
+                            Width="{Binding #Root.DiskUsageWidth}"
+                            Background="{Binding #Root.DiskUsageColor}"
+                            CornerRadius="4"/>
+                </Border>
+                <TextBlock Text="{Binding #Root.FreeSpace}"
+                           FontSize="11"
+                           Opacity="0.8"/>
+            </StackPanel>
+            
+            <!-- Separator -->
+            <Border Grid.Column="7"
+                    Width="1" Height="14"
+                    Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    Margin="8,0"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding #Root.IsOperationActive}"/>
+            
+            <!-- Operation Status -->
+            <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Center"
+                        IsVisible="{Binding #Root.IsOperationActive}">
+                <controls:LoadingSpinner Width="14" Height="14" 
+                                         IsSpinning="{Binding #Root.IsOperationActive}"
+                                         Margin="0,0,6,0"/>
+                <TextBlock Text="{Binding #Root.OperationStatus}"
+                           FontSize="11"
+                           MaxWidth="150"
+                           TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+            
+            <!-- Git Status -->
+            <StackPanel Grid.Column="9" Orientation="Horizontal" VerticalAlignment="Center"
+                        IsVisible="{Binding #Root.GitBranch, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                        Margin="8,0,0,0">
+                <TextBlock Text="⎇" FontSize="11" Margin="0,0,4,0" Opacity="0.7"/>
+                <TextBlock Text="{Binding #Root.GitBranch}"
+                           FontSize="11"
+                           Opacity="0.8"
+                           MaxWidth="100"
+                           TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

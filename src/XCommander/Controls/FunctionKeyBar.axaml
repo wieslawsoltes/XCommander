@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="32"
+             x:Class="XCommander.Controls.FunctionKeyBar"
+             x:Name="Root">
+    
+    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            BorderThickness="0,1,0,0"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+        <UniformGrid Rows="1" Columns="8">
+            <Button Classes="FnKey"
+                    Command="{Binding #Root.F1Command}"
+                    ToolTip.Tip="Help">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="F1" FontWeight="Bold"/>
+                    <TextBlock Text="Help"/>
+                </StackPanel>
+            </Button>
+            
+            <Button Classes="FnKey"
+                    Command="{Binding #Root.F2Command}"
+                    ToolTip.Tip="Rename (F2)">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="F2" FontWeight="Bold"/>
+                    <TextBlock Text="Rename"/>
+                </StackPanel>
+            </Button>
+            
+            <Button Classes="FnKey"
+                    Command="{Binding #Root.F3Command}"
+                    ToolTip.Tip="View (F3)">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="F3" FontWeight="Bold"/>
+                    <TextBlock Text="View"/>
+                </StackPanel>
+            </Button>
+            
+            <Button Classes="FnKey"
+                    Command="{Binding #Root.F4Command}"
+                    ToolTip.Tip="Edit (F4)">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="F4" FontWeight="Bold"/>
+                    <TextBlock Text="Edit"/>
+                </StackPanel>
+            </Button>
+            
+            <Button Classes="FnKey"
+                    Command="{Binding #Root.F5Command}"
+                    ToolTip.Tip="Copy (F5)">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="F5" FontWeight="Bold"/>
+                    <TextBlock Text="Copy"/>
+                </StackPanel>
+            </Button>
+            
+            <Button Classes="FnKey"
+                    Command="{Binding #Root.F6Command}"
+                    ToolTip.Tip="Move (F6)">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="F6" FontWeight="Bold"/>
+                    <TextBlock Text="Move"/>
+                </StackPanel>
+            </Button>
+            
+            <Button Classes="FnKey"
+                    Command="{Binding #Root.F7Command}"
+                    ToolTip.Tip="New Folder (F7)">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="F7" FontWeight="Bold"/>
+                    <TextBlock Text="NewDir"/>
+                </StackPanel>
+            </Button>
+            
+            <Button Classes="FnKey"
+                    Command="{Binding #Root.F8Command}"
+                    ToolTip.Tip="Delete (F8)">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="F8" FontWeight="Bold"/>
+                    <TextBlock Text="Delete"/>
+                </StackPanel>
+            </Button>
+        </UniformGrid>
+    </Border>
+    
+    <UserControl.Styles>
+        <Style Selector="Button.FnKey">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0,0,1,0"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="CornerRadius" Value="0"/>
+        </Style>
+        <Style Selector="Button.FnKey:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListLowBrush}"/>
+        </Style>
+        <Style Selector="Button.FnKey:pressed">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListMediumBrush}"/>
+        </Style>
+    </UserControl.Styles>
+</UserControl>

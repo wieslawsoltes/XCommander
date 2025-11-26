@@ -1,0 +1,230 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:XCommander.ViewModels"
+             xmlns:converters="using:XCommander.Converters"
+             mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="450"
+             x:Class="XCommander.Views.TabbedFilePanel"
+             x:DataType="vm:TabbedPanelViewModel">
+    
+    <UserControl.Resources>
+        <converters:DateTimeConverter x:Key="DateTimeConverter"/>
+        <converters:BoolToOpacityConverter x:Key="BoolToOpacityConverter"/>
+    </UserControl.Resources>
+    
+    <UserControl.Styles>
+        <Style Selector="Border.panel-border">
+            <Setter Property="BorderBrush" Value="Transparent"/>
+        </Style>
+        <Style Selector="Border.panel-border.active">
+            <Setter Property="BorderBrush" Value="#007ACC"/>
+        </Style>
+        <Style Selector="Border.tab-item">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="CornerRadius" Value="4,4,0,0"/>
+            <Setter Property="Padding" Value="2"/>
+            <Setter Property="Margin" Value="1,2,1,0"/>
+        </Style>
+        <Style Selector="Border.tab-item.selected">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"/>
+        </Style>
+    </UserControl.Styles>
+    
+    <Border BorderThickness="2"
+            Classes.active="{Binding IsActive}"
+            Classes="panel-border"
+            CornerRadius="4"
+            Margin="2">
+        
+        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+            <!-- Tab Bar -->
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}">
+                <ScrollViewer Grid.Column="0" 
+                              HorizontalScrollBarVisibility="Auto" 
+                              VerticalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Tabs}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="1"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TabViewModel">
+                                <Border Classes="tab-item"
+                                        Classes.selected="{Binding IsSelected}"
+                                        Tag="{Binding}"
+                                        PointerPressed="OnTabPointerPressed"
+                                        DragDrop.AllowDrop="True">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="🔒"
+                                                   IsVisible="{Binding IsLocked}"
+                                                   FontSize="10"
+                                                   VerticalAlignment="Center"/>
+                                        <Button Command="{Binding $parent[UserControl].((vm:TabbedPanelViewModel)DataContext).SetActiveTabCommand}"
+                                                CommandParameter="{Binding}"
+                                                Background="Transparent"
+                                                Padding="8,4"
+                                                BorderThickness="0">
+                                            <TextBlock Text="{Binding Title}" 
+                                                       FontSize="11"
+                                                       MaxWidth="120"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </Button>
+                                        <Button Content="×"
+                                                Command="{Binding $parent[UserControl].((vm:TabbedPanelViewModel)DataContext).CloseTabCommand}"
+                                                CommandParameter="{Binding}"
+                                                IsVisible="{Binding !IsLocked}"
+                                                Background="Transparent"
+                                                Padding="4,2"
+                                                FontSize="10"
+                                                BorderThickness="0"
+                                                VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <Button Grid.Column="1" 
+                        Content="+"
+                        Command="{Binding AddNewTabCommand}"
+                        Padding="8,4"
+                        Margin="2"
+                        FontSize="12"
+                        ToolTip.Tip="New Tab (Ctrl+T)"/>
+            </Grid>
+            
+            <!-- Drive Bar -->
+            <ScrollViewer Grid.Row="1" 
+                          HorizontalScrollBarVisibility="Auto" 
+                          VerticalScrollBarVisibility="Disabled"
+                          IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <ItemsControl ItemsSource="{Binding ActiveTab.Drives}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="2"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding Name}"
+                                    Command="{Binding $parent[UserControl].((vm:TabbedPanelViewModel)DataContext).ActiveTab.NavigateToCommand}"
+                                    CommandParameter="{Binding RootPath}"
+                                    Padding="8,4"
+                                    MinWidth="40"
+                                    FontSize="11"
+                                    ToolTip.Tip="{Binding DisplayName}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            
+            <!-- Path Bar -->
+            <Grid Grid.Row="2" 
+                  ColumnDefinitions="Auto,Auto,*,Auto" 
+                  Margin="4"
+                  IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Button Grid.Column="0" 
+                        Content="←" 
+                        Command="{Binding ActiveTab.GoBackCommand}"
+                        IsEnabled="{Binding ActiveTab.CanGoBack}"
+                        Padding="6,2"
+                        Margin="0,0,2,0"
+                        ToolTip.Tip="Back"/>
+                <Button Grid.Column="1" 
+                        Content="→" 
+                        Command="{Binding ActiveTab.GoForwardCommand}"
+                        IsEnabled="{Binding ActiveTab.CanGoForward}"
+                        Padding="6,2"
+                        Margin="0,0,4,0"
+                        ToolTip.Tip="Forward"/>
+                <TextBox Grid.Column="2" 
+                         Text="{Binding ActiveTab.CurrentPath}"
+                         VerticalContentAlignment="Center"
+                         FontSize="12"/>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" Margin="4,0,0,0">
+                    <Button Content="↑" 
+                            Command="{Binding ActiveTab.GoToParentCommand}"
+                            Padding="6,2"
+                            ToolTip.Tip="Go to parent directory"/>
+                    <Button Content="⟳" 
+                            Command="{Binding ActiveTab.RefreshCommand}"
+                            Padding="6,2"
+                            ToolTip.Tip="Refresh"/>
+                </StackPanel>
+            </Grid>
+            
+            <!-- File List -->
+            <DataGrid Grid.Row="3" 
+                      ItemsSource="{Binding ActiveTab.Items}"
+                      SelectedItem="{Binding ActiveTab.SelectedItem}"
+                      SelectionMode="Extended"
+                      CanUserResizeColumns="True"
+                      CanUserReorderColumns="True"
+                      CanUserSortColumns="True"
+                      GridLinesVisibility="Horizontal"
+                      BorderThickness="0"
+                      IsReadOnly="True"
+                      FontSize="12"
+                      DoubleTapped="OnItemDoubleTapped"
+                      GotFocus="OnPanelGotFocus"
+                      KeyDown="OnDataGridKeyDown"
+                      IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Name" Width="*" MinWidth="150">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:FileItemViewModel">
+                                <StackPanel Orientation="Horizontal" 
+                                            Spacing="6" 
+                                            Margin="4,2"
+                                            Opacity="{Binding IsHidden, Converter={StaticResource BoolToOpacityConverter}}">
+                                    <TextBlock Text="{Binding Icon}" 
+                                               FontSize="14"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Name}" 
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Ext" 
+                                        Binding="{Binding Extension}" 
+                                        Width="60"/>
+                    <DataGridTextColumn Header="Size" 
+                                        Binding="{Binding DisplaySize}" 
+                                        Width="80"/>
+                    <DataGridTextColumn Header="Date Modified" 
+                                        Binding="{Binding DateModified, Converter={StaticResource DateTimeConverter}}" 
+                                        Width="130"/>
+                </DataGrid.Columns>
+            </DataGrid>
+            
+            <!-- Status Bar -->
+            <Border Grid.Row="4" 
+                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                    Padding="8,4"
+                    IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding ActiveTab.StatusText}" 
+                               FontSize="11"
+                               VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                        <TextBox Text="{Binding ActiveTab.QuickFilter}"
+                                 Watermark="Quick filter (Ctrl+S)"
+                                 Width="150"
+                                 FontSize="11"
+                                 Padding="4,2"/>
+                        <Button Content="×"
+                                Command="{Binding ActiveTab.ClearQuickFilterCommand}"
+                                IsVisible="{Binding ActiveTab.QuickFilter, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                Padding="4,2"
+                                FontSize="10"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

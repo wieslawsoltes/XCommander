@@ -1,0 +1,105 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:XCommander.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="550" d:DesignHeight="450"
+             x:Class="XCommander.Views.FileSplitDialog"
+             x:DataType="vm:FileSplitViewModel">
+    
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
+        <!-- Source File -->
+        <StackPanel Grid.Row="0" Margin="16,16,16,8" Spacing="4">
+            <TextBlock Text="Source File:" FontWeight="SemiBold"/>
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0" Text="{Binding SourceFile}" IsReadOnly="True"/>
+                <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="12,6"
+                        Click="BrowseSource_Click"/>
+            </Grid>
+            <TextBlock Text="{Binding SourceFileSizeDisplay, StringFormat='File size: {0}'}"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+        </StackPanel>
+        
+        <!-- Destination Folder -->
+        <StackPanel Grid.Row="1" Margin="16,8,16,8" Spacing="4">
+            <TextBlock Text="Destination Folder:" FontWeight="SemiBold"/>
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0" Text="{Binding DestinationFolder}"/>
+                <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="12,6"
+                        Click="BrowseDestination_Click"/>
+            </Grid>
+        </StackPanel>
+        
+        <!-- Split Mode -->
+        <Border Grid.Row="2" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                Margin="16,8" Padding="12" CornerRadius="4">
+            <StackPanel Spacing="12">
+                <TextBlock Text="Split Method:" FontWeight="SemiBold"/>
+                
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <RadioButton Content="By Size" IsChecked="{Binding Mode, Converter={x:Static vm:EnumToBoolConverter.Instance}, ConverterParameter={x:Static vm:SplitMode.BySize}}"/>
+                    <RadioButton Content="By Number of Parts" IsChecked="{Binding Mode, Converter={x:Static vm:EnumToBoolConverter.Instance}, ConverterParameter={x:Static vm:SplitMode.ByParts}}"/>
+                </StackPanel>
+                
+                <!-- By Size options -->
+                <Grid ColumnDefinitions="Auto,100,Auto" IsVisible="{Binding Mode, Converter={x:Static vm:EnumToBoolConverter.Instance}, ConverterParameter={x:Static vm:SplitMode.BySize}}">
+                    <TextBlock Grid.Column="0" Text="Split size:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <NumericUpDown Grid.Column="1" Value="{Binding SplitSize}" Minimum="1" Maximum="99999" FormatString="0"/>
+                    <ComboBox Grid.Column="2" SelectedIndex="{Binding SizeUnit, Converter={x:Static vm:EnumToIndexConverter.Instance}}" 
+                              Margin="8,0,0,0" MinWidth="80">
+                        <ComboBoxItem Content="KB"/>
+                        <ComboBoxItem Content="MB"/>
+                        <ComboBoxItem Content="GB"/>
+                    </ComboBox>
+                </Grid>
+                
+                <!-- By Parts options -->
+                <Grid ColumnDefinitions="Auto,100" IsVisible="{Binding Mode, Converter={x:Static vm:EnumToBoolConverter.Instance}, ConverterParameter={x:Static vm:SplitMode.ByParts}}">
+                    <TextBlock Grid.Column="0" Text="Number of parts:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <NumericUpDown Grid.Column="1" Value="{Binding NumberOfParts}" Minimum="2" Maximum="9999" FormatString="0"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+        
+        <!-- Summary -->
+        <Border Grid.Row="3" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                Margin="16,8" Padding="12" CornerRadius="4">
+            <Grid ColumnDefinitions="*,*">
+                <TextBlock Grid.Column="0">
+                    <Run Text="Estimated parts: "/>
+                    <Run Text="{Binding EstimatedParts}" FontWeight="SemiBold"/>
+                </TextBlock>
+                <TextBlock Grid.Column="1">
+                    <Run Text="Part size: ~"/>
+                    <Run Text="{Binding SplitSizeDisplay}" FontWeight="SemiBold"/>
+                </TextBlock>
+            </Grid>
+        </Border>
+        
+        <!-- Status -->
+        <Border Grid.Row="4" Margin="16,8" Padding="12" CornerRadius="4"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="{Binding Progress, StringFormat='{}{0:F1}%'}" 
+                           VerticalAlignment="Center" FontWeight="SemiBold"/>
+            </Grid>
+        </Border>
+        
+        <!-- Progress bar and empty space -->
+        <ProgressBar Grid.Row="5" Value="{Binding Progress}" Maximum="100" 
+                     Margin="16,8" Height="8" VerticalAlignment="Top"/>
+        
+        <!-- Buttons -->
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right"
+                    Margin="16,8,16,16" Spacing="8">
+            <Button Content="Split" Command="{Binding SplitFileCommand}"
+                    IsEnabled="{Binding !IsProcessing}"
+                    Classes="accent" Padding="24,8"/>
+            <Button Content="Cancel" Command="{Binding CancelCommand}"
+                    IsEnabled="{Binding IsProcessing}"
+                    Padding="24,8"/>
+            <Button Content="Close" Click="Close_Click" Padding="24,8"/>
+        </StackPanel>
+    </Grid>
+</UserControl>
