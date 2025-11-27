@@ -9,7 +9,7 @@
     
     <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
             Padding="8,4">
-        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
             <!-- Selection Info with Icon -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="📁" FontSize="11" Margin="0,0,4,0" 
@@ -36,8 +36,24 @@
                        FontSize="11"
                        TextTrimming="CharacterEllipsis"/>
             
-            <!-- Separator -->
+            <!-- Type-Ahead Search Buffer (TC-style) -->
             <Border Grid.Column="3"
+                    Background="#40007ACC"
+                    CornerRadius="4"
+                    Padding="6,2"
+                    Margin="8,0"
+                    IsVisible="{Binding #Root.TypeAheadBuffer, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔍" FontSize="10" Margin="0,0,4,0"/>
+                    <TextBlock Text="{Binding #Root.TypeAheadBuffer}"
+                               FontSize="11"
+                               Foreground="#007ACC"
+                               FontWeight="SemiBold"/>
+                </StackPanel>
+            </Border>
+            
+            <!-- Separator -->
+            <Border Grid.Column="4"
                     Width="1" Height="14"
                     Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                     Margin="8,0"
@@ -45,7 +61,7 @@
                     IsVisible="{Binding #Root.SizeInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
             
             <!-- Size Info with Icon -->
-            <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center"
+            <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center"
                         IsVisible="{Binding #Root.SizeInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                 <TextBlock Text="💾" FontSize="10" Margin="0,0,4,0" Opacity="0.8"/>
                 <TextBlock Text="{Binding #Root.SizeInfo}"
@@ -53,7 +69,7 @@
             </StackPanel>
             
             <!-- Separator -->
-            <Border Grid.Column="5"
+            <Border Grid.Column="6"
                     Width="1" Height="14"
                     Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                     Margin="8,0"
@@ -61,7 +77,7 @@
                     IsVisible="{Binding #Root.FreeSpace, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
             
             <!-- Free Space with Progress -->
-            <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center"
+            <StackPanel Grid.Column="7" Orientation="Horizontal" VerticalAlignment="Center"
                         IsVisible="{Binding #Root.FreeSpace, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                 <!-- Mini progress bar for disk usage -->
                 <Border Width="40" Height="8" 
@@ -77,8 +93,19 @@
                            Opacity="0.8"/>
             </StackPanel>
             
+            <!-- Hidden Files Indicator (TC-style) -->
+            <Border Grid.Column="8"
+                    Background="#40FF8C00"
+                    CornerRadius="4"
+                    Padding="4,2"
+                    Margin="8,0,0,0"
+                    IsVisible="{Binding #Root.ShowHiddenFiles}"
+                    ToolTip.Tip="Hidden files are visible">
+                <TextBlock Text="H" FontSize="10" Foreground="#FF8C00" FontWeight="Bold"/>
+            </Border>
+            
             <!-- Separator -->
-            <Border Grid.Column="7"
+            <Border Grid.Column="9"
                     Width="1" Height="14"
                     Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                     Margin="8,0"
@@ -86,7 +113,7 @@
                     IsVisible="{Binding #Root.IsOperationActive}"/>
             
             <!-- Operation Status -->
-            <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Center"
+            <StackPanel Grid.Column="10" Orientation="Horizontal" VerticalAlignment="Center"
                         IsVisible="{Binding #Root.IsOperationActive}">
                 <controls:LoadingSpinner Width="14" Height="14" 
                                          IsSpinning="{Binding #Root.IsOperationActive}"
@@ -98,7 +125,7 @@
             </StackPanel>
             
             <!-- Git Status -->
-            <StackPanel Grid.Column="9" Orientation="Horizontal" VerticalAlignment="Center"
+            <StackPanel Grid.Column="11" Orientation="Horizontal" VerticalAlignment="Center"
                         IsVisible="{Binding #Root.GitBranch, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                         Margin="8,0,0,0">
                 <TextBlock Text="⎇" FontSize="11" Margin="0,0,4,0" Opacity="0.7"/>
@@ -108,6 +135,14 @@
                            MaxWidth="100"
                            TextTrimming="CharacterEllipsis"/>
             </StackPanel>
+            
+            <!-- Current Time (TC-style) -->
+            <TextBlock Grid.Column="12"
+                       Text="{Binding #Root.CurrentTime}"
+                       FontSize="11"
+                       Opacity="0.7"
+                       Margin="8,0,0,0"
+                       VerticalAlignment="Center"/>
         </Grid>
     </Border>
 </UserControl>

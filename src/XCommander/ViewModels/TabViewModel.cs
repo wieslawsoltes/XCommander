@@ -46,6 +46,22 @@ public partial class TabViewModel : ViewModelBase
     [ObservableProperty]
     private string _virtualModeTitle = string.Empty;
     
+    /// <summary>
+    /// Whether to show the description column (descript.ion comments).
+    /// </summary>
+    [ObservableProperty]
+    private bool _showDescriptionColumn;
+    
+    /// <summary>
+    /// Service for loading file descriptions.
+    /// </summary>
+    private readonly IDescriptionFileService? _descriptionService;
+    
+    /// <summary>
+    /// Service for selection operations including undo/redo.
+    /// </summary>
+    private readonly ISelectionService? _selectionService;
+    
     public Guid Id { get; } = Guid.NewGuid();
     
     public ObservableCollection<FileItemViewModel> Items { get; } = [];
@@ -65,9 +81,11 @@ public partial class TabViewModel : ViewModelBase
     public bool CanGoBack => _historyIndex > 0;
     public bool CanGoForward => _historyIndex < _history.Count - 1;
     
-    public TabViewModel(IFileSystemService fileSystemService)
+    public TabViewModel(IFileSystemService fileSystemService, IDescriptionFileService? descriptionService = null, ISelectionService? selectionService = null)
     {
         _fileSystemService = fileSystemService;
+        _descriptionService = descriptionService;
+        _selectionService = selectionService;
         LoadDrives();
     }
     
@@ -302,6 +320,7 @@ public partial class TabViewModel : ViewModelBase
     [RelayCommand]
     public void SelectAll()
     {
+        PushSelectionHistory();
         foreach (var item in Items.Where(i => i.ItemType != FileSystemItemType.ParentDirectory))
         {
             item.IsSelected = true;
@@ -314,6 +333,7 @@ public partial class TabViewModel : ViewModelBase
     [RelayCommand]
     public void DeselectAll()
     {
+        PushSelectionHistory();
         foreach (var item in Items)
         {
             item.IsSelected = false;
@@ -325,6 +345,7 @@ public partial class TabViewModel : ViewModelBase
     [RelayCommand]
     public void InvertSelection()
     {
+        PushSelectionHistory();
         foreach (var item in Items.Where(i => i.ItemType != FileSystemItemType.ParentDirectory))
         {
             item.IsSelected = !item.IsSelected;
@@ -477,6 +498,44 @@ public partial class TabViewModel : ViewModelBase
         }
         
         UpdateStatusText();
+        
+        // Load descriptions asynchronously if enabled
+        if (ShowDescriptionColumn && _descriptionService != null)
+        {
+            _ = LoadDescriptionsAsync();
+        }
+    }
+    
+    /// <summary>
+    /// Loads file descriptions from descript.ion file asynchronously.
+    /// </summary>
+    private async Task LoadDescriptionsAsync()
+    {
+        if (_descriptionService == null || string.IsNullOrEmpty(CurrentPath))
+            return;
+            
+        try
+        {
+            var descriptions = await _descriptionService.GetDirectoryDescriptionsAsync(CurrentPath);
+            var descriptionDict = descriptions.ToDictionary(
+                d => d.FileName, 
+                d => d.Description, 
+                StringComparer.OrdinalIgnoreCase);
+            
+            foreach (var item in Items)
+            {
+                if (item.ItemType != FileSystemItemType.ParentDirectory && 
+                    descriptionDict.TryGetValue(item.Name, out var description))
+                {
+                    item.Description = description;
+                    item.DescriptionLoaded = true;
+                }
+            }
+        }
+        catch
+        {
+            // Silently ignore description loading errors
+        }
     }
     
     private IEnumerable<FileItemViewModel> SortItems(IEnumerable<FileItemViewModel> items)
@@ -642,5 +701,75 @@ public partial class TabViewModel : ViewModelBase
             // Skip inaccessible directories
         }
         return size;
+    }
+    
+    // Selection history undo/redo support
+    
+    /// <summary>
+    /// Push current selection to history stack for undo support.
+    /// Call this before making selection changes.
+    /// </summary>
+    private void PushSelectionHistory()
+    {
+        _selectionService?.PushSelectionHistory(Id.ToString(), SelectedItems.Select(i => i.FullPath));
+    }
+    
+    /// <summary>
+    /// Undo the last selection change (Ctrl+Z for selection).
+    /// </summary>
+    [RelayCommand]
+    public void UndoSelection()
+    {
+        if (_selectionService == null) return;
+        
+        var previousSelection = _selectionService.UndoSelection(Id.ToString());
+        if (previousSelection != null)
+        {
+            ApplySelectionFromPaths(previousSelection);
+        }
+    }
+    
+    /// <summary>
+    /// Redo a previously undone selection change.
+    /// </summary>
+    [RelayCommand]
+    public void RedoSelection()
+    {
+        if (_selectionService == null) return;
+        
+        var nextSelection = _selectionService.RedoSelection(Id.ToString());
+        if (nextSelection != null)
+        {
+            ApplySelectionFromPaths(nextSelection);
+        }
+    }
+    
+    /// <summary>
+    /// Check if selection undo is available.
+    /// </summary>
+    public bool CanUndoSelection => _selectionService?.CanUndo(Id.ToString()) ?? false;
+    
+    /// <summary>
+    /// Check if selection redo is available.
+    /// </summary>
+    public bool CanRedoSelection => _selectionService?.CanRedo(Id.ToString()) ?? false;
+    
+    /// <summary>
+    /// Apply selection from a list of file paths.
+    /// </summary>
+    private void ApplySelectionFromPaths(IEnumerable<string> paths)
+    {
+        var pathSet = new HashSet<string>(paths, StringComparer.OrdinalIgnoreCase);
+        
+        SelectedItems.Clear();
+        foreach (var item in Items)
+        {
+            item.IsSelected = pathSet.Contains(item.FullPath);
+            if (item.IsSelected)
+            {
+                SelectedItems.Add(item);
+            }
+        }
+        UpdateStatusText();
     }
 }

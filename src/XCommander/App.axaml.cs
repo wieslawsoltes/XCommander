@@ -181,7 +181,11 @@ public partial class App : Application
         services.AddSingleton<ITouchModeService, TouchModeService>();
         
         // ViewModels
-        services.AddSingleton<MainWindowViewModel>();
+        services.AddSingleton<MainWindowViewModel>(sp => 
+            new MainWindowViewModel(
+                sp.GetRequiredService<IFileSystemService>(),
+                sp.GetService<IDescriptionFileService>(),
+                sp.GetService<ISelectionService>()));
         
         var provider = services.BuildServiceProvider();
         

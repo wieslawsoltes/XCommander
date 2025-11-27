@@ -10,6 +10,7 @@ namespace XCommander.ViewModels;
 public partial class SearchViewModel : ViewModelBase
 {
     private readonly IFileSystemService _fileSystemService;
+    private readonly IAdvancedSearchService? _advancedSearchService;
     private CancellationTokenSource? _cancellationTokenSource;
     
     [ObservableProperty]
@@ -69,7 +70,18 @@ public partial class SearchViewModel : ViewModelBase
     [ObservableProperty]
     private SearchResultItem? _selectedResult;
     
+    [ObservableProperty]
+    private SavedSearchQuery? _selectedTemplate;
+    
+    [ObservableProperty]
+    private string _newTemplateName = string.Empty;
+    
     public ObservableCollection<SearchResultItem> Results { get; } = [];
+    
+    /// <summary>
+    /// Saved search templates.
+    /// </summary>
+    public ObservableCollection<SavedSearchQuery> SavedTemplates { get; } = [];
     
     /// <summary>
     /// Event raised when user wants to feed results to panel.
@@ -81,9 +93,13 @@ public partial class SearchViewModel : ViewModelBase
     /// </summary>
     public event EventHandler<string>? NavigateRequested;
     
-    public SearchViewModel(IFileSystemService fileSystemService)
+    public SearchViewModel(IFileSystemService fileSystemService, IAdvancedSearchService? advancedSearchService = null)
     {
         _fileSystemService = fileSystemService;
+        _advancedSearchService = advancedSearchService;
+        
+        // Load saved templates
+        _ = LoadSavedTemplatesAsync();
     }
     
     public void Initialize(string startPath)
@@ -385,6 +401,119 @@ public partial class SearchViewModel : ViewModelBase
             return false;
         }
     }
+    
+    #region Template Management
+    
+    /// <summary>
+    /// Load saved search templates.
+    /// </summary>
+    private async Task LoadSavedTemplatesAsync()
+    {
+        if (_advancedSearchService == null) return;
+        
+        try
+        {
+            var templates = await _advancedSearchService.GetSavedQueriesAsync();
+            SavedTemplates.Clear();
+            foreach (var template in templates)
+            {
+                SavedTemplates.Add(template);
+            }
+        }
+        catch { /* Ignore errors */ }
+    }
+    
+    /// <summary>
+    /// Save current search as a template.
+    /// </summary>
+    [RelayCommand]
+    private async Task SaveAsTemplateAsync()
+    {
+        if (_advancedSearchService == null) return;
+        if (string.IsNullOrWhiteSpace(NewTemplateName)) return;
+        
+        var criteria = CreateCriteriaFromCurrentSearch();
+        var template = new SavedSearchQuery
+        {
+            Name = NewTemplateName.Trim(),
+            Criteria = criteria,
+            Created = DateTime.Now,
+            LastUsed = DateTime.Now
+        };
+        
+        await _advancedSearchService.SaveQueryAsync(template);
+        await LoadSavedTemplatesAsync();
+        NewTemplateName = string.Empty;
+        StatusText = $"Template '{template.Name}' saved.";
+    }
+    
+    /// <summary>
+    /// Load a saved template.
+    /// </summary>
+    [RelayCommand]
+    private async Task LoadTemplateAsync(SavedSearchQuery? template)
+    {
+        if (template == null) return;
+        
+        // Apply template settings
+        ApplyCriteriaToCurrentSearch(template.Criteria);
+        
+        // Update usage
+        if (_advancedSearchService != null)
+        {
+            await _advancedSearchService.UpdateQueryUsageAsync(template.Id);
+        }
+        
+        StatusText = $"Template '{template.Name}' loaded.";
+    }
+    
+    /// <summary>
+    /// Delete a saved template.
+    /// </summary>
+    [RelayCommand]
+    private async Task DeleteTemplateAsync(SavedSearchQuery? template)
+    {
+        if (template == null || _advancedSearchService == null) return;
+        
+        await _advancedSearchService.DeleteQueryAsync(template.Id);
+        await LoadSavedTemplatesAsync();
+        StatusText = $"Template '{template.Name}' deleted.";
+    }
+    
+    private AdvancedSearchCriteria CreateCriteriaFromCurrentSearch()
+    {
+        return new AdvancedSearchCriteria
+        {
+            SearchPath = SearchPath,
+            FileNamePattern = SearchPattern,
+            ContentPattern = SearchText,
+            IncludeSubdirectories = SearchInSubfolders,
+            ContentCaseSensitive = CaseSensitive,
+            ContentRegex = UseRegex,
+            IsHidden = SearchHiddenFiles ? null : false,
+            ModifiedAfter = DateFrom,
+            ModifiedBefore = DateTo,
+            MinSize = SizeFrom,
+            MaxSize = SizeTo
+        };
+    }
+    
+    private void ApplyCriteriaToCurrentSearch(AdvancedSearchCriteria criteria)
+    {
+        SearchPath = criteria.SearchPath ?? string.Empty;
+        SearchPattern = criteria.FileNamePattern ?? "*.*";
+        SearchText = criteria.ContentPattern ?? string.Empty;
+        SearchInSubfolders = criteria.IncludeSubdirectories;
+        CaseSensitive = criteria.ContentCaseSensitive;
+        UseRegex = criteria.ContentRegex;
+        SearchHiddenFiles = criteria.IsHidden != false;
+        DateFrom = criteria.ModifiedAfter;
+        DateTo = criteria.ModifiedBefore;
+        SizeFrom = criteria.MinSize;
+        SizeTo = criteria.MaxSize;
+    }
+    
+    #endregion
 }
 
 public class SearchResultItem

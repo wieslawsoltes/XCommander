@@ -1,0 +1,85 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="32"
+             x:Class="XCommander.Controls.QuickFilterBar"
+             x:Name="Root">
+    
+    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            Padding="8,4"
+            IsVisible="{Binding #Root.IsVisible}">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+            <!-- Filter Icon -->
+            <TextBlock Grid.Column="0" 
+                       Text="🔍" 
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0"/>
+            
+            <!-- Filter TextBox -->
+            <TextBox Grid.Column="1"
+                     Text="{Binding #Root.FilterText, Mode=TwoWay}"
+                     Watermark="Type to filter... (Ctrl+S)"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     FontSize="12"
+                     x:Name="FilterTextBox">
+                <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Escape" Command="{Binding #Root.ClearFilterCommand}"/>
+                    <KeyBinding Gesture="Enter" Command="{Binding #Root.ApplyFilterCommand}"/>
+                </TextBox.KeyBindings>
+            </TextBox>
+            
+            <!-- Match Count -->
+            <TextBlock Grid.Column="2"
+                       Text="{Binding #Root.MatchCount, StringFormat='{}{0} matches'}"
+                       FontSize="11"
+                       Foreground="Gray"
+                       VerticalAlignment="Center"
+                       Margin="8,0"/>
+            
+            <!-- Filter Mode Buttons -->
+            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" Margin="0,0,8,0">
+                <ToggleButton Content="Aa"
+                              IsChecked="{Binding #Root.CaseSensitive}"
+                              ToolTip.Tip="Case Sensitive"
+                              Padding="4,2"
+                              FontSize="10"/>
+                <ToggleButton Content=".*"
+                              IsChecked="{Binding #Root.UseRegex}"
+                              ToolTip.Tip="Use Regular Expression"
+                              Padding="4,2"
+                              FontSize="10"/>
+                <ToggleButton Content="📁"
+                              IsChecked="{Binding #Root.IncludeDirectories}"
+                              ToolTip.Tip="Include Directories"
+                              Padding="4,2"
+                              FontSize="10"/>
+            </StackPanel>
+            
+            <!-- Quick Presets -->
+            <ComboBox Grid.Column="4"
+                      SelectedItem="{Binding #Root.SelectedPreset}"
+                      PlaceholderText="Presets"
+                      Width="100"
+                      FontSize="11"
+                      Margin="0,0,8,0">
+                <ComboBoxItem Content="All files"/>
+                <ComboBoxItem Content="*.txt"/>
+                <ComboBoxItem Content="*.cs"/>
+                <ComboBoxItem Content="*.jpg;*.png"/>
+                <ComboBoxItem Content="*.zip;*.7z"/>
+            </ComboBox>
+            
+            <!-- Clear Button -->
+            <Button Grid.Column="5"
+                    Content="✕"
+                    Command="{Binding #Root.ClearFilterCommand}"
+                    ToolTip.Tip="Clear filter and close (Esc)"
+                    Padding="6,2"
+                    FontSize="10"
+                    Background="Transparent"/>
+        </Grid>
+    </Border>
+</UserControl>

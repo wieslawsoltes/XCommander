@@ -86,6 +86,11 @@ public partial class MainWindow : Window
             vm.EncodingToolRequested += OnEncodingToolRequested;
             vm.ToolbarConfigurationRequested += OnToolbarConfigRequested;
             vm.HelpRequested += OnHelpRequested;
+            vm.BranchViewRequested += OnBranchViewRequested;
+            
+            // TC-style dialog events
+            vm.CopyMoveDialogRequested += OnCopyMoveDialogRequested;
+            vm.DeleteConfirmationRequested += OnDeleteConfirmationRequested;
             
             // Subscribe to command palette close event
             vm.CommandPalette.RequestClose += (_, _) => vm.CloseCommandPaletteCommand.Execute(null);
@@ -192,6 +197,131 @@ public partial class MainWindow : Window
     {
         var result = await ShowConfirmDialogAsync(e.Title, e.Message);
         e.Callback(result);
+    }
+    
+    private async void OnCopyMoveDialogRequested(object? sender, CopyMoveDialogEventArgs e)
+    {
+        var result = await ShowCopyMoveDialogAsync(e.SourcePaths, e.DestinationFolder, e.IsCopy);
+        e.Callback(result);
+    }
+    
+    private async void OnDeleteConfirmationRequested(object? sender, DeleteConfirmationEventArgs e)
+    {
+        var result = await ShowDeleteConfirmationDialogAsync(e.SourcePaths);
+        e.Callback(result);
+    }
+    
+    private async Task<CopyMoveDialogResult?> ShowCopyMoveDialogAsync(
+        List<string> sourcePaths, 
+        string destinationFolder, 
+        bool isCopy)
+    {
+        var vm = new CopyMoveDialogViewModel();
+        vm.Initialize(sourcePaths, destinationFolder, isCopy ? ViewModels.FileOperationType.Copy : ViewModels.FileOperationType.Move);
+        
+        var dialog = new CopyMoveDialog
+        {
+            DataContext = vm
+        };
+        
+        CopyMoveDialogResult? result = null;
+        vm.Confirmed += (_, _) =>
+        {
+            result = new CopyMoveDialogResult
+            {
+                Confirmed = true,
+                DestinationPath = vm.DestinationPath,
+                PreserveDateTime = vm.PreserveDateTime,
+                VerifyAfterCopy = vm.VerifyAfterCopy,
+                OverwriteMode = vm.OverwriteMode
+            };
+            dialog.Close();
+        };
+        
+        vm.Cancelled += (_, _) =>
+        {
+            result = null;
+            dialog.Close();
+        };
+        
+        await dialog.ShowDialog(this);
+        return result;
+    }
+    
+    private async Task<DeleteConfirmationResult?> ShowDeleteConfirmationDialogAsync(List<string> sourcePaths)
+    {
+        var vm = new DeleteConfirmationViewModel();
+        
+        // Populate file list
+        foreach (var path in sourcePaths)
+        {
+            var isDirectory = Directory.Exists(path);
+            var info = new DeleteItemInfo
+            {
+                FullPath = path,
+                Name = Path.GetFileName(path),
+                IsDirectory = isDirectory,
+            };
+            
+            if (File.Exists(path))
+            {
+                var fi = new FileInfo(path);
+                info.Size = fi.Length;
+                info.SizeFormatted = FormatFileSize(fi.Length);
+                info.DateModified = fi.LastWriteTime;
+            }
+            else if (isDirectory)
+            {
+                info.Size = 0;
+                info.SizeFormatted = "<DIR>";
+                info.DateModified = new DirectoryInfo(path).LastWriteTime;
+            }
+            
+            vm.Items.Add(info);
+        }
+        
+        var dialog = new DeleteConfirmationDialog
+        {
+            DataContext = vm
+        };
+        
+        DeleteConfirmationResult? result = null;
+        vm.Confirmed += (_, _) =>
+        {
+            result = new DeleteConfirmationResult
+            {
+                Confirmed = true,
+                DeleteMode = vm.IsSecureDeleteMode ? DeleteMode.SecureDelete 
+                           : vm.IsPermanentMode ? DeleteMode.Permanent 
+                           : DeleteMode.RecycleBin,
+                WipePassCount = vm.WipePassCount,
+                DeleteReadOnly = vm.DeleteReadOnly,
+                DeleteHidden = vm.DeleteHidden
+            };
+            dialog.Close();
+        };
+        
+        vm.Cancelled += (_, _) =>
+        {
+            result = null;
+            dialog.Close();
+        };
+        
+        await dialog.ShowDialog(this);
+        return result;
+    }
+    
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        int order = 0;
+        double size = bytes;
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+        return $"{size:0.##} {sizes[order]}";
     }
     
     private async void OnInputRequested(object? sender, MainWindowViewModel.InputEventArgs e)
@@ -496,6 +626,37 @@ public partial class MainWindow : Window
         }
     }
     
+    private async void OnBranchViewRequested(object? sender, MainWindowViewModel.BranchViewEventArgs e)
+    {
+        await ShowBranchViewAsync(e.RootPath, e.Panel);
+    }
+    
+    private async Task ShowBranchViewAsync(string rootPath, TabbedPanelViewModel? panel)
+    {
+        if (panel?.ActiveTab == null)
+            return;
+            
+        var flatViewService = new Services.FlatViewService();
+        
+        try
+        {
+            var options = new Services.FlatViewOptions
+            {
+                IncludeHidden = panel.ActiveTab.ShowHiddenFiles
+            };
+            
+            var result = await flatViewService.GetFlatViewAsync(rootPath, options);
+            
+            // Populate the active tab with all files from subdirectories
+            var paths = result.Items.Select(i => i.FullPath).ToList();
+            panel.ActiveTab.PopulateWithPaths(paths, $"Branch: {Path.GetFileName(rootPath)}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Branch view error: {ex.Message}");
+        }
+    }
+    
     private async void OnSplitFileRequested(object? sender, MainWindowViewModel.SplitCombineEventArgs e)
     {
         await ShowFileSplitDialogAsync(e.FilePath, e.DestinationPath);
@@ -706,9 +867,41 @@ public partial class MainWindow : Window
         }
         
         // Alt+Enter for properties
-        if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Alt) && !e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
             await ShowPropertiesDialogAsync(vm.ActivePanel.GetSelectedPaths().ToList());
+            e.Handled = true;
+            return;
+        }
+        
+        // Shift+Enter: Execute selected file in background (TC compatible)
+        if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.Shift)
+        {
+            ExecuteInBackground(vm);
+            e.Handled = true;
+            return;
+        }
+        
+        // Ctrl+Enter: Copy path + filename to command line (TC compatible)
+        if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            CopyPathToCommandLine(vm, quoted: false);
+            e.Handled = true;
+            return;
+        }
+        
+        // Ctrl+Shift+Enter: Copy quoted path + filename to command line (TC compatible)
+        if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            CopyPathToCommandLine(vm, quoted: true);
+            e.Handled = true;
+            return;
+        }
+        
+        // Alt+Shift+Enter: Calculate subdirectory file count (TC compatible)
+        if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Alt) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            await CalculateSubdirectoryStatsAsync(vm);
             e.Handled = true;
             return;
         }
@@ -836,6 +1029,154 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
+    }
+    
+    /// <summary>
+    /// Copies the current path (and selected filename) to the command line (Ctrl+Enter in TC).
+    /// </summary>
+    private void CopyPathToCommandLine(MainWindowViewModel vm, bool quoted)
+    {
+        string path;
+        
+        var selectedItem = vm.ActivePanel.SelectedItem;
+        if (selectedItem != null && selectedItem.ItemType != FileSystemItemType.ParentDirectory)
+        {
+            path = selectedItem.FullPath;
+        }
+        else
+        {
+            path = vm.ActivePanel.CurrentPath;
+        }
+        
+        if (string.IsNullOrEmpty(path))
+            return;
+        
+        // Add quotes if requested or if path contains spaces
+        if (quoted || path.Contains(' '))
+        {
+            path = $"\"{path}\"";
+        }
+        
+        // Append to command line (with space if there's existing content)
+        if (!string.IsNullOrEmpty(vm.CommandLine) && !vm.CommandLine.EndsWith(' '))
+        {
+            vm.CommandLine += " " + path;
+        }
+        else
+        {
+            vm.CommandLine += path;
+        }
+        
+        // Focus the command line TextBox
+        if (CommandLineTextBox != null)
+        {
+            CommandLineTextBox.Focus();
+            CommandLineTextBox.CaretIndex = CommandLineTextBox.Text?.Length ?? 0;
+        }
+    }
+    
+    /// <summary>
+    /// Execute selected file in background (Shift+Enter in TC).
+    /// Runs executable without waiting and continues working.
+    /// </summary>
+    private void ExecuteInBackground(MainWindowViewModel vm)
+    {
+        var selectedItem = vm.ActivePanel.SelectedItem;
+        if (selectedItem == null || selectedItem.IsDirectory)
+            return;
+        
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = selectedItem.FullPath,
+                UseShellExecute = true,
+                WorkingDirectory = vm.ActivePanel.CurrentPath
+            };
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Background execute error: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// Calculates and displays subdirectory file/folder count (Alt+Shift+Enter in TC).
+    /// </summary>
+    private async Task CalculateSubdirectoryStatsAsync(MainWindowViewModel vm)
+    {
+        var selectedPaths = vm.ActivePanel.GetSelectedPaths().ToList();
+        if (selectedPaths.Count == 0)
+            return;
+        
+        foreach (var path in selectedPaths)
+        {
+            if (!Directory.Exists(path))
+                continue;
+            
+            try
+            {
+                var stats = await Task.Run(() =>
+                {
+                    long totalSize = 0;
+                    int fileCount = 0;
+                    int dirCount = 0;
+                    
+                    try
+                    {
+                        foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                        {
+                            try
+                            {
+                                var fi = new FileInfo(file);
+                                totalSize += fi.Length;
+                                fileCount++;
+                            }
+                            catch { /* Skip inaccessible files */ }
+                        }
+                        
+                        dirCount = Directory.EnumerateDirectories(path, "*", SearchOption.AllDirectories).Count();
+                    }
+                    catch { /* Handle access denied */ }
+                    
+                    return (totalSize, fileCount, dirCount);
+                });
+                
+                // Update the item's calculated size and show notification
+                var item = vm.ActivePanel.Items?.FirstOrDefault(i => 
+                    i.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase));
+                
+                if (item != null)
+                {
+                    item.CalculatedSize = stats.totalSize;
+                }
+                
+                _notificationService?.ShowInfo(
+                    $"{Path.GetFileName(path)}: {stats.fileCount} files, {stats.dirCount} folders, {FormatSize(stats.totalSize)}");
+            }
+            catch (Exception ex)
+            {
+                _notificationService?.ShowError($"Error calculating stats: {ex.Message}");
+            }
+        }
+    }
+    
+    private static string FormatSize(long bytes)
+    {
+        string[] suffixes = ["B", "KB", "MB", "GB", "TB"];
+        int suffixIndex = 0;
+        double size = bytes;
+        
+        while (size >= 1024 && suffixIndex < suffixes.Length - 1)
+        {
+            size /= 1024;
+            suffixIndex++;
+        }
+        
+        return suffixIndex == 0 
+            ? $"{size:N0} {suffixes[suffixIndex]}" 
+            : $"{size:N2} {suffixes[suffixIndex]}";
     }
     
     /// <summary>

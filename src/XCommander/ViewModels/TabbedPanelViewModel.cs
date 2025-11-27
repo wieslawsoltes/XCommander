@@ -9,6 +9,8 @@ namespace XCommander.ViewModels;
 public partial class TabbedPanelViewModel : ViewModelBase
 {
     private readonly IFileSystemService _fileSystemService;
+    private readonly IDescriptionFileService? _descriptionService;
+    private readonly ISelectionService? _selectionService;
     
     [ObservableProperty]
     private bool _isActive;
@@ -23,9 +25,11 @@ public partial class TabbedPanelViewModel : ViewModelBase
     /// </summary>
     public event EventHandler<string>? Navigated;
     
-    public TabbedPanelViewModel(IFileSystemService fileSystemService)
+    public TabbedPanelViewModel(IFileSystemService fileSystemService, IDescriptionFileService? descriptionService = null, ISelectionService? selectionService = null)
     {
         _fileSystemService = fileSystemService;
+        _descriptionService = descriptionService;
+        _selectionService = selectionService;
     }
     
     public void Initialize(string initialPath)
@@ -48,7 +52,7 @@ public partial class TabbedPanelViewModel : ViewModelBase
     
     public TabViewModel CreateNewTab()
     {
-        var tab = new TabViewModel(_fileSystemService);
+        var tab = new TabViewModel(_fileSystemService, _descriptionService, _selectionService);
         tab.Navigated += (sender, path) => Navigated?.Invoke(this, path);
         Tabs.Add(tab);
         return tab;

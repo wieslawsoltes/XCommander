@@ -1,0 +1,221 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:XCommander.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="650" d:DesignHeight="500"
+             x:Class="XCommander.Views.Dialogs.OverwriteDialog"
+             x:DataType="vm:OverwriteDialogViewModel">
+    
+    <Grid RowDefinitions="Auto,*,Auto,Auto,Auto" Margin="16">
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="File Already Exists" 
+                       FontSize="18" 
+                       FontWeight="SemiBold"/>
+            <TextBlock Text="The destination already contains a file with the same name." 
+                       Foreground="Gray" 
+                       TextWrapping="Wrap"
+                       Margin="0,4,0,0"/>
+            <TextBlock Text="{Binding RemainingConflicts, StringFormat='{}{0} more conflicts after this one'}" 
+                       Foreground="Orange"
+                       FontSize="12"
+                       IsVisible="{Binding HasMoreConflicts}"
+                       Margin="0,4,0,0"/>
+        </StackPanel>
+        
+        <!-- File Comparison -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,16,*">
+            <!-- Source File -->
+            <Border Grid.Column="0" 
+                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                    CornerRadius="8"
+                    Padding="12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Source File" 
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SystemAccentColor}"/>
+                    
+                    <!-- Image Preview (if image) -->
+                    <Border Height="120" 
+                            IsVisible="{Binding SourceIsImage}"
+                            Background="#20000000"
+                            CornerRadius="4"
+                            ClipToBounds="True">
+                        <Image Source="{Binding SourceImagePath}"
+                               Stretch="Uniform"/>
+                    </Border>
+                    
+                    <!-- File Icon (if not image) -->
+                    <TextBlock Text="📄" 
+                               FontSize="48" 
+                               HorizontalAlignment="Center"
+                               IsVisible="{Binding !SourceIsImage}"/>
+                    
+                    <TextBlock Text="{Binding SourceFileName}" 
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"/>
+                    
+                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Size:" Foreground="Gray"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SourceSizeFormatted}" Margin="8,0,0,0"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Modified:" Foreground="Gray"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SourceModified, StringFormat='{}{0:g}'}" Margin="8,0,0,0"/>
+                    </Grid>
+                    
+                    <!-- Newer/Larger indicators -->
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border Background="Green" 
+                                CornerRadius="4" 
+                                Padding="6,2"
+                                IsVisible="{Binding SourceIsNewer}">
+                            <TextBlock Text="NEWER" Foreground="White" FontSize="10"/>
+                        </Border>
+                        <Border Background="Blue" 
+                                CornerRadius="4" 
+                                Padding="6,2"
+                                IsVisible="{Binding SourceIsLarger}">
+                            <TextBlock Text="LARGER" Foreground="White" FontSize="10"/>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+            
+            <!-- Destination File -->
+            <Border Grid.Column="2" 
+                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                    CornerRadius="8"
+                    Padding="12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Destination File" 
+                               FontWeight="SemiBold"
+                               Foreground="Orange"/>
+                    
+                    <!-- Image Preview (if image) -->
+                    <Border Height="120" 
+                            IsVisible="{Binding DestinationIsImage}"
+                            Background="#20000000"
+                            CornerRadius="4"
+                            ClipToBounds="True">
+                        <Image Source="{Binding DestinationImagePath}"
+                               Stretch="Uniform"/>
+                    </Border>
+                    
+                    <!-- File Icon (if not image) -->
+                    <TextBlock Text="📄" 
+                               FontSize="48" 
+                               HorizontalAlignment="Center"
+                               IsVisible="{Binding !DestinationIsImage}"/>
+                    
+                    <TextBlock Text="{Binding DestinationFileName}" 
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"/>
+                    
+                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Size:" Foreground="Gray"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DestinationSizeFormatted}" Margin="8,0,0,0"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Modified:" Foreground="Gray"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DestinationModified, StringFormat='{}{0:g}'}" Margin="8,0,0,0"/>
+                    </Grid>
+                    
+                    <!-- Newer/Larger indicators -->
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border Background="Green" 
+                                CornerRadius="4" 
+                                Padding="6,2"
+                                IsVisible="{Binding !SourceIsNewer}">
+                            <TextBlock Text="NEWER" Foreground="White" FontSize="10"/>
+                        </Border>
+                        <Border Background="Blue" 
+                                CornerRadius="4" 
+                                Padding="6,2"
+                                IsVisible="{Binding !SourceIsLarger}">
+                            <TextBlock Text="LARGER" Foreground="White" FontSize="10"/>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
+        <!-- Comparison Summary -->
+        <Border Grid.Row="2" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                CornerRadius="4"
+                Padding="12"
+                Margin="0,16,0,0">
+            <StackPanel Spacing="4">
+                <TextBlock Text="{Binding SizeComparison}"/>
+                <TextBlock Text="{Binding DateComparison}"/>
+            </StackPanel>
+        </Border>
+        
+        <!-- Rename Option -->
+        <StackPanel Grid.Row="3" 
+                    Orientation="Horizontal" 
+                    Spacing="8"
+                    Margin="0,12,0,0">
+            <TextBlock Text="New name:" VerticalAlignment="Center"/>
+            <TextBox Text="{Binding NewFileName}" 
+                     Width="300"/>
+        </StackPanel>
+        
+        <!-- Action Buttons -->
+        <Grid Grid.Row="4" Margin="0,16,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="8"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <!-- Main Actions -->
+            <WrapPanel Grid.Row="0" HorizontalAlignment="Center">
+                <Button Content="Overwrite"
+                        Command="{Binding OverwriteCommand}"
+                        MinWidth="90"
+                        Margin="4"/>
+                <Button Content="Overwrite All"
+                        Command="{Binding OverwriteAllCommand}"
+                        MinWidth="90"
+                        Margin="4"
+                        ToolTip.Tip="Overwrite all remaining conflicts"/>
+                <Button Content="Skip"
+                        Command="{Binding SkipCommand}"
+                        MinWidth="90"
+                        Margin="4"/>
+                <Button Content="Skip All"
+                        Command="{Binding SkipAllCommand}"
+                        MinWidth="90"
+                        Margin="4"
+                        ToolTip.Tip="Skip all remaining conflicts"/>
+            </WrapPanel>
+            
+            <!-- Secondary Actions -->
+            <WrapPanel Grid.Row="2" HorizontalAlignment="Center">
+                <Button Content="Rename"
+                        Command="{Binding RenameCommand}"
+                        MinWidth="90"
+                        Margin="4"
+                        ToolTip.Tip="Save with new name"/>
+                <Button Content="Rename All"
+                        Command="{Binding RenameAllCommand}"
+                        MinWidth="90"
+                        Margin="4"/>
+                <Button Content="If Older"
+                        Command="{Binding OverwriteOlderCommand}"
+                        MinWidth="90"
+                        Margin="4"
+                        ToolTip.Tip="Overwrite only if source is newer"/>
+                <Button Content="Compare"
+                        Command="{Binding CompareCommand}"
+                        MinWidth="90"
+                        Margin="4"
+                        ToolTip.Tip="Open file comparison"/>
+                <Button Content="Cancel"
+                        Command="{Binding CancelCommand}"
+                        MinWidth="90"
+                        Margin="4"
+                        IsCancel="True"/>
+            </WrapPanel>
+        </Grid>
+    </Grid>
+</UserControl>

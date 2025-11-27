@@ -42,6 +42,18 @@ public partial class FileItemViewModel : ViewModelBase
     [ObservableProperty]
     private long _calculatedSize = -1;  // -1 means not calculated
     
+    /// <summary>
+    /// File description from descript.ion (TC-style comments).
+    /// </summary>
+    [ObservableProperty]
+    private string _description = string.Empty;
+    
+    /// <summary>
+    /// Indicates if the description has been loaded.
+    /// </summary>
+    [ObservableProperty]
+    private bool _descriptionLoaded;
+    
     public FileSystemItem Item { get; }
     
     public string Name => Item.Name;

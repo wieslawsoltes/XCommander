@@ -5,6 +5,20 @@ using XCommander.Services;
 
 namespace XCommander.ViewModels;
 
+/// <summary>
+/// Text encoding options for the lister.
+/// </summary>
+public enum TextEncodingOption
+{
+    Auto,
+    UTF8,
+    UTF16,
+    UTF16BE,
+    ASCII,
+    Latin1,
+    Windows1252
+}
+
 public partial class QuickViewViewModel : ViewModelBase
 {
     private readonly DocumentPreviewService _documentPreviewService = new();
@@ -50,6 +64,32 @@ public partial class QuickViewViewModel : ViewModelBase
     
     [ObservableProperty]
     private string _fileType = string.Empty;
+    
+    // Lister enhancement properties
+    
+    [ObservableProperty]
+    private bool _wordWrap = true;
+    
+    [ObservableProperty]
+    private int _fontSize = 12;
+    
+    [ObservableProperty]
+    private TextEncodingOption _selectedEncoding = TextEncodingOption.Auto;
+    
+    [ObservableProperty]
+    private bool _showLineNumbers;
+    
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+    
+    [ObservableProperty]
+    private int _currentMatchIndex;
+    
+    [ObservableProperty]
+    private int _totalMatches;
+    
+    private List<int> _matchPositions = new();
+    private byte[]? _rawFileBytes;
     
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -235,12 +275,14 @@ public partial class QuickViewViewModel : ViewModelBase
             using var fs = File.OpenRead(path);
             var buffer = new byte[maxPreviewSize];
             var read = await fs.ReadAsync(buffer);
+            _rawFileBytes = buffer.Take(read).ToArray();
             Content = Encoding.UTF8.GetString(buffer, 0, read);
             Content += $"\n\n--- Preview truncated ({FormatSize(FileSize)} total) ---";
         }
         else
         {
-            Content = await File.ReadAllTextAsync(path);
+            _rawFileBytes = await File.ReadAllBytesAsync(path);
+            Content = Encoding.UTF8.GetString(_rawFileBytes);
         }
     }
     
@@ -264,6 +306,7 @@ public partial class QuickViewViewModel : ViewModelBase
             await fs.ReadAsync(buffer);
         }
         
+        _rawFileBytes = buffer;
         Content = GenerateHexView(buffer);
         
         if (FileSize > maxHexSize)
@@ -365,6 +408,11 @@ public partial class QuickViewViewModel : ViewModelBase
         HasContent = false;
         FileSize = 0;
         FileType = string.Empty;
+        _rawFileBytes = null;
+        _matchPositions.Clear();
+        TotalMatches = 0;
+        CurrentMatchIndex = 0;
+        SearchText = string.Empty;
     }
     
     private static string FormatSize(long bytes)
@@ -382,5 +430,217 @@ public partial class QuickViewViewModel : ViewModelBase
         return suffixIndex == 0 
             ? $"{size:N0} {suffixes[suffixIndex]}" 
             : $"{size:N2} {suffixes[suffixIndex]}";
+    }
+    
+    // Lister enhancement commands
+    
+    [RelayCommand]
+    public void ToggleWordWrap()
+    {
+        WordWrap = !WordWrap;
+    }
+    
+    [RelayCommand]
+    public void ToggleLineNumbers()
+    {
+        ShowLineNumbers = !ShowLineNumbers;
+    }
+    
+    [RelayCommand]
+    public void IncreaseFontSize()
+    {
+        if (FontSize < 48)
+            FontSize += 2;
+    }
+    
+    [RelayCommand]
+    public void DecreaseFontSize()
+    {
+        if (FontSize > 8)
+            FontSize -= 2;
+    }
+    
+    [RelayCommand]
+    public void ResetFontSize()
+    {
+        FontSize = 12;
+    }
+    
+    [RelayCommand]
+    public async Task ChangeEncodingAsync(TextEncodingOption encoding)
+    {
+        if (string.IsNullOrEmpty(FilePath) || !IsText || _rawFileBytes == null)
+            return;
+            
+        SelectedEncoding = encoding;
+        
+        var enc = GetEncoding(encoding);
+        Content = enc.GetString(_rawFileBytes);
+    }
+    
+    private static Encoding GetEncoding(TextEncodingOption option)
+    {
+        return option switch
+        {
+            TextEncodingOption.UTF8 => Encoding.UTF8,
+            TextEncodingOption.UTF16 => Encoding.Unicode,
+            TextEncodingOption.UTF16BE => Encoding.BigEndianUnicode,
+            TextEncodingOption.ASCII => Encoding.ASCII,
+            TextEncodingOption.Latin1 => Encoding.Latin1,
+            TextEncodingOption.Windows1252 => Encoding.GetEncoding(1252),
+            _ => Encoding.UTF8
+        };
+    }
+    
+    partial void OnSelectedEncodingChanged(TextEncodingOption value)
+    {
+        if (!string.IsNullOrEmpty(FilePath) && IsText && _rawFileBytes != null)
+        {
+            var enc = GetEncoding(value);
+            Content = enc.GetString(_rawFileBytes);
+        }
+    }
+    
+    [RelayCommand]
+    public void SwitchToTextView()
+    {
+        if (string.IsNullOrEmpty(FilePath))
+            return;
+            
+        IsImage = false;
+        IsHex = false;
+        IsDocument = false;
+        IsText = true;
+        FileType = "Text";
+        
+        if (_rawFileBytes != null)
+        {
+            var enc = GetEncoding(SelectedEncoding);
+            Content = enc.GetString(_rawFileBytes);
+        }
+    }
+    
+    [RelayCommand]
+    public void SwitchToHexView()
+    {
+        if (string.IsNullOrEmpty(FilePath) || _rawFileBytes == null)
+            return;
+            
+        IsImage = false;
+        IsText = false;
+        IsDocument = false;
+        IsHex = true;
+        FileType = "Binary";
+        Content = GenerateHexView(_rawFileBytes);
+    }
+    
+    [RelayCommand]
+    public void SearchInContent()
+    {
+        if (string.IsNullOrEmpty(SearchText) || string.IsNullOrEmpty(Content))
+        {
+            _matchPositions.Clear();
+            TotalMatches = 0;
+            CurrentMatchIndex = 0;
+            return;
+        }
+        
+        _matchPositions.Clear();
+        var searchLower = SearchText.ToLower();
+        var contentLower = Content.ToLower();
+        int pos = 0;
+        
+        while ((pos = contentLower.IndexOf(searchLower, pos, StringComparison.Ordinal)) != -1)
+        {
+            _matchPositions.Add(pos);
+            pos += SearchText.Length;
+        }
+        
+        TotalMatches = _matchPositions.Count;
+        CurrentMatchIndex = TotalMatches > 0 ? 1 : 0;
+        
+        // Request view to scroll to first match
+        SearchResultChanged?.Invoke(this, _matchPositions.Count > 0 ? _matchPositions[0] : -1);
+    }
+    
+    [RelayCommand]
+    public void NextMatch()
+    {
+        if (_matchPositions.Count == 0) return;
+        
+        CurrentMatchIndex++;
+        if (CurrentMatchIndex > TotalMatches)
+            CurrentMatchIndex = 1;
+            
+        SearchResultChanged?.Invoke(this, _matchPositions[CurrentMatchIndex - 1]);
+    }
+    
+    [RelayCommand]
+    public void PreviousMatch()
+    {
+        if (_matchPositions.Count == 0) return;
+        
+        CurrentMatchIndex--;
+        if (CurrentMatchIndex < 1)
+            CurrentMatchIndex = TotalMatches;
+            
+        SearchResultChanged?.Invoke(this, _matchPositions[CurrentMatchIndex - 1]);
+    }
+    
+    partial void OnSearchTextChanged(string value)
+    {
+        SearchInContent();
+    }
+    
+    /// <summary>
+    /// Fired when search result changes, parameter is the position to scroll to.
+    /// </summary>
+    public event EventHandler<int>? SearchResultChanged;
+    
+    /// <summary>
+    /// Copy content to clipboard.
+    /// </summary>
+    [RelayCommand]
+    public void CopyToClipboard()
+    {
+        // This will be handled by the view since clipboard access requires UI thread
+        CopyRequested?.Invoke(this, Content);
+    }
+    
+    public event EventHandler<string>? CopyRequested;
+    
+    /// <summary>
+    /// Print the current preview.
+    /// </summary>
+    [RelayCommand]
+    public void Print()
+    {
+        // This will be handled by the view
+        PrintRequested?.Invoke(this, EventArgs.Empty);
+    }
+    
+    public event EventHandler? PrintRequested;
+    
+    /// <summary>
+    /// Open file in external editor.
+    /// </summary>
+    [RelayCommand]
+    public void OpenExternal()
+    {
+        if (string.IsNullOrEmpty(FilePath)) return;
+        
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = FilePath,
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch
+        {
+            // Ignore errors
+        }
     }
 }

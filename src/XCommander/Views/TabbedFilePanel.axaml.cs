@@ -3,6 +3,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using Avalonia.Threading;
+using XCommander.Models;
 using XCommander.ViewModels;
 
 namespace XCommander.Views;
@@ -13,6 +15,12 @@ public partial class TabbedFilePanel : UserControl
     private TabViewModel? _draggedTab;
     private TabbedPanelViewModel? _sourcePanel;
     
+    // Type-ahead navigation (TC-style: just start typing to jump to files)
+    private string _typeAheadBuffer = string.Empty;
+    private DateTime _lastTypeAheadTime = DateTime.MinValue;
+    private const int TypeAheadTimeoutMs = 1000; // Clear buffer after 1 second of inactivity
+    private DispatcherTimer? _typeAheadClearTimer;
+    
     public TabbedFilePanel()
     {
         InitializeComponent();
@@ -21,6 +29,17 @@ public partial class TabbedFilePanel : UserControl
         AddHandler(DragDrop.DragEnterEvent, OnTabDragEnter);
         AddHandler(DragDrop.DragLeaveEvent, OnTabDragLeave);
         AddHandler(DragDrop.DropEvent, OnTabDrop);
+        
+        // Initialize type-ahead timer
+        _typeAheadClearTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(TypeAheadTimeoutMs)
+        };
+        _typeAheadClearTimer.Tick += (_, _) =>
+        {
+            _typeAheadBuffer = string.Empty;
+            _typeAheadClearTimer.Stop();
+        };
     }
 
     private void OnItemDoubleTapped(object? sender, TappedEventArgs e)
@@ -30,6 +49,82 @@ public partial class TabbedFilePanel : UserControl
             vm.ActiveTab.OpenItemCommand.Execute(vm.ActiveTab.SelectedItem);
         }
     }
+    
+    /// <summary>
+    /// Handles text input for type-ahead file navigation (TC-style: just start typing).
+    /// </summary>
+    protected override void OnTextInput(TextInputEventArgs e)
+    {
+        base.OnTextInput(e);
+        
+        if (e.Handled || string.IsNullOrEmpty(e.Text))
+            return;
+        
+        if (DataContext is not TabbedPanelViewModel vm || vm.ActiveTab == null)
+            return;
+        
+        // Don't handle if a modifier key is pressed (except Shift for uppercase)
+        // This allows Ctrl+X, Alt+X etc. to work normally
+        var topLevel = TopLevel.GetTopLevel(this);
+        var keyModifiers = topLevel?.FocusManager?.GetFocusedElement() is Control c 
+            ? KeyModifiers.None // Simplified - we'll check in the handler
+            : KeyModifiers.None;
+        
+        // Add character to type-ahead buffer
+        _typeAheadBuffer += e.Text;
+        _lastTypeAheadTime = DateTime.Now;
+        
+        // Reset the clear timer
+        _typeAheadClearTimer?.Stop();
+        _typeAheadClearTimer?.Start();
+        
+        // Find and jump to matching file
+        JumpToMatchingFile(vm.ActiveTab);
+        
+        e.Handled = true;
+    }
+    
+    /// <summary>
+    /// Jumps to the first file matching the type-ahead buffer.
+    /// </summary>
+    private void JumpToMatchingFile(TabViewModel tab)
+    {
+        if (string.IsNullOrEmpty(_typeAheadBuffer) || tab.Items.Count == 0)
+            return;
+        
+        // Find first matching item (case-insensitive, starts with)
+        var match = tab.Items.FirstOrDefault(item => 
+            item.ItemType != FileSystemItemType.ParentDirectory &&
+            item.Name.StartsWith(_typeAheadBuffer, StringComparison.OrdinalIgnoreCase));
+        
+        // If no "starts with" match, try "contains" match
+        if (match == null)
+        {
+            match = tab.Items.FirstOrDefault(item =>
+                item.ItemType != FileSystemItemType.ParentDirectory &&
+                item.Name.Contains(_typeAheadBuffer, StringComparison.OrdinalIgnoreCase));
+        }
+        
+        if (match != null)
+        {
+            tab.SelectedItem = match;
+            // Scroll into view will be handled by the DataGrid binding
+        }
+    }
+    
+    /// <summary>
+    /// Clears the type-ahead buffer (e.g., on navigation or Escape).
+    /// </summary>
+    public void ClearTypeAheadBuffer()
+    {
+        _typeAheadBuffer = string.Empty;
+        _typeAheadClearTimer?.Stop();
+    }
+    
+    /// <summary>
+    /// Gets the current type-ahead search string for display in status bar.
+    /// </summary>
+    public string GetTypeAheadBuffer() => _typeAheadBuffer;
     
     /// <summary>
     /// Handles keyboard input on the DataGrid for Total Commander compatible shortcuts.
@@ -129,6 +224,15 @@ public partial class TabbedFilePanel : UserControl
                         tab.OpenItemCommand.Execute(tab.SelectedItem);
                         e.Handled = true;
                     }
+                }
+                break;
+                
+            case Key.Escape:
+                // Clear type-ahead buffer on Escape
+                if (!string.IsNullOrEmpty(_typeAheadBuffer))
+                {
+                    ClearTypeAheadBuffer();
+                    e.Handled = true;
                 }
                 break;
         }

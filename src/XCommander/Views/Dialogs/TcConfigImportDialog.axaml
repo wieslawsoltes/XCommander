@@ -1,0 +1,151 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:XCommander.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="550"
+        x:Class="XCommander.Views.Dialogs.TcConfigImportDialog"
+        x:DataType="vm:TcConfigImportViewModel"
+        Title="Import Total Commander Settings"
+        Width="600"
+        Height="550"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="20">
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Text="Import Total Commander Settings" 
+                       FontSize="18" 
+                       FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding StatusText}" 
+                       Opacity="0.7" 
+                       Margin="0,5,0,0"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+        
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="15">
+                <!-- File Selection -->
+                <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                        CornerRadius="4"
+                        Padding="15">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Step 1: Select wincmd.ini file" FontWeight="SemiBold"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBox Grid.Column="0" 
+                                     Text="{Binding WincmdIniPath}" 
+                                     Watermark="C:\Windows\wincmd.ini or %APPDATA%\GHISLER\wincmd.ini"/>
+                            <Button Grid.Column="1" 
+                                    Content="Browse..." 
+                                    Click="OnBrowseClick"
+                                    Padding="15,6"
+                                    Margin="10,0,0,0"/>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Content="Validate File" 
+                                    Command="{Binding ValidateFileCommand}"
+                                    Padding="15,6"/>
+                            <TextBlock Text="{Binding ValidationStatus}" 
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Import Options -->
+                <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                        CornerRadius="4"
+                        Padding="15"
+                        IsEnabled="{Binding IsValidated}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Step 2: Select settings to import" FontWeight="SemiBold"/>
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+                            <CheckBox Grid.Row="0" Grid.Column="0" 
+                                      Content="Bookmarks (Directory Hotlist)"
+                                      IsChecked="{Binding ImportBookmarks}"
+                                      IsEnabled="{Binding HasBookmarks}"/>
+                            <CheckBox Grid.Row="0" Grid.Column="1" 
+                                      Content="FTP Connections"
+                                      IsChecked="{Binding ImportFtpConnections}"
+                                      IsEnabled="{Binding HasFtpConnections}"/>
+                            <CheckBox Grid.Row="1" Grid.Column="0" 
+                                      Content="Color Schemes"
+                                      IsChecked="{Binding ImportColorSchemes}"
+                                      IsEnabled="{Binding HasColorSchemes}"/>
+                            <CheckBox Grid.Row="1" Grid.Column="1" 
+                                      Content="Custom Columns"
+                                      IsChecked="{Binding ImportCustomColumns}"
+                                      IsEnabled="{Binding HasCustomColumns}"/>
+                            <CheckBox Grid.Row="2" Grid.Column="0" 
+                                      Content="Button Bar"
+                                      IsChecked="{Binding ImportButtonBar}"
+                                      IsEnabled="{Binding HasButtonBar}"/>
+                            <CheckBox Grid.Row="2" Grid.Column="1" 
+                                      Content="User Menu"
+                                      IsChecked="{Binding ImportUserMenu}"
+                                      IsEnabled="{Binding HasUserMenu}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Import Results -->
+                <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                        CornerRadius="4"
+                        Padding="15"
+                        IsVisible="{Binding IsImportComplete}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Import Results" FontWeight="SemiBold"/>
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" 
+                                       Text="{Binding BookmarksImported, StringFormat='Bookmarks: {0}'}"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" 
+                                       Text="{Binding FtpConnectionsImported, StringFormat='FTP Connections: {0}'}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" 
+                                       Text="{Binding ColorSchemesImported, StringFormat='Color Schemes: {0}'}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" 
+                                       Text="{Binding CustomColumnsImported, StringFormat='Custom Columns: {0}'}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" 
+                                       Text="{Binding ButtonBarItemsImported, StringFormat='Button Bar Items: {0}'}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" 
+                                       Text="{Binding MenuItemsImported, StringFormat='Menu Items: {0}'}"/>
+                        </Grid>
+                        
+                        <!-- Warnings -->
+                        <Expander Header="{Binding Warnings.Count, StringFormat='Warnings ({0})'}"
+                                  IsVisible="{Binding Warnings.Count}"
+                                  Margin="0,10,0,0">
+                            <ItemsControl ItemsSource="{Binding Warnings}" Margin="10,5">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" 
+                                                   Foreground="Orange" 
+                                                   TextWrapping="Wrap"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- Progress -->
+        <ProgressBar Grid.Row="2" 
+                     IsIndeterminate="True" 
+                     IsVisible="{Binding IsImporting}"
+                     Margin="0,15"/>
+        
+        <!-- Buttons -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,15,0,0">
+            <Button Content="Import" 
+                    Command="{Binding ImportCommand}"
+                    IsEnabled="{Binding IsValidated}"
+                    Classes="accent"
+                    Padding="20,8"/>
+            <Button Content="Close" 
+                    Click="OnCloseClick"
+                    Padding="20,8"/>
+        </StackPanel>
+    </Grid>
+</Window>

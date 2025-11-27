@@ -74,12 +74,17 @@ public partial class MainWindowViewModel : ViewModelBase
     
     public TabbedPanelViewModel InactivePanel => ActivePanel == LeftPanel ? RightPanel : LeftPanel;
     
-    public MainWindowViewModel(IFileSystemService fileSystemService)
+    private readonly IDescriptionFileService? _descriptionService;
+    private readonly ISelectionService? _selectionService;
+    
+    public MainWindowViewModel(IFileSystemService fileSystemService, IDescriptionFileService? descriptionService = null, ISelectionService? selectionService = null)
     {
         _fileSystemService = fileSystemService;
+        _descriptionService = descriptionService;
+        _selectionService = selectionService;
         
-        _leftPanel = new TabbedPanelViewModel(fileSystemService) { IsActive = true };
-        _rightPanel = new TabbedPanelViewModel(fileSystemService) { IsActive = false };
+        _leftPanel = new TabbedPanelViewModel(fileSystemService, descriptionService, selectionService) { IsActive = true };
+        _rightPanel = new TabbedPanelViewModel(fileSystemService, descriptionService, selectionService) { IsActive = false };
         _activePanel = _leftPanel;
         
         // Initialize directory tree
@@ -198,6 +203,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 break;
             case "SyncDirectories":
                 SyncDirectoriesCommand.Execute(null);
+                break;
+            case "BranchView":
+                ToggleBranchViewCommand.Execute(null);
                 break;
             case "CalculateChecksum":
                 CalculateChecksumCommand.Execute(null);
@@ -326,6 +334,16 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
     
+    /// <summary>
+    /// Event raised when copy/move dialog is requested.
+    /// </summary>
+    public event EventHandler<CopyMoveDialogEventArgs>? CopyMoveDialogRequested;
+    
+    /// <summary>
+    /// Event raised when delete confirmation dialog is requested.
+    /// </summary>
+    public event EventHandler<DeleteConfirmationEventArgs>? DeleteConfirmationRequested;
+    
     [RelayCommand]
     public async Task CopySelectedAsync()
     {
@@ -335,6 +353,11 @@ public partial class MainWindowViewModel : ViewModelBase
             
         var destinationFolder = InactivePanel.CurrentPath;
         if (string.IsNullOrEmpty(destinationFolder))
+            return;
+        
+        // Request TC-style copy dialog
+        var dialogResult = await ShowCopyMoveDialogAsync(sourcePaths, destinationFolder, isCopy: true);
+        if (dialogResult == null || !dialogResult.Confirmed)
             return;
             
         IsOperationInProgress = true;
@@ -348,7 +371,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 OperationStatus = $"Copying: {p.CurrentItem}";
             });
             
-            await _fileSystemService.CopyAsync(sourcePaths, destinationFolder, progress);
+            await _fileSystemService.CopyAsync(sourcePaths, dialogResult.DestinationPath, progress);
             InactivePanel.Refresh();
         }
         catch (Exception ex)
@@ -373,6 +396,11 @@ public partial class MainWindowViewModel : ViewModelBase
         var destinationFolder = InactivePanel.CurrentPath;
         if (string.IsNullOrEmpty(destinationFolder))
             return;
+        
+        // Request TC-style move dialog
+        var dialogResult = await ShowCopyMoveDialogAsync(sourcePaths, destinationFolder, isCopy: false);
+        if (dialogResult == null || !dialogResult.Confirmed)
+            return;
             
         IsOperationInProgress = true;
         OperationStatus = "Moving files...";
@@ -385,7 +413,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 OperationStatus = $"Moving: {p.CurrentItem}";
             });
             
-            await _fileSystemService.MoveAsync(sourcePaths, destinationFolder, progress);
+            await _fileSystemService.MoveAsync(sourcePaths, dialogResult.DestinationPath, progress);
             ActivePanel.Refresh();
             InactivePanel.Refresh();
         }
@@ -408,9 +436,9 @@ public partial class MainWindowViewModel : ViewModelBase
         if (sourcePaths.Count == 0)
             return;
             
-        // Request confirmation via event
-        var confirmed = await ConfirmDeleteAsync(sourcePaths);
-        if (!confirmed)
+        // Request TC-style delete confirmation dialog
+        var dialogResult = await ShowDeleteConfirmationDialogAsync(sourcePaths);
+        if (dialogResult == null || !dialogResult.Confirmed)
             return;
         
         IsOperationInProgress = true;
@@ -424,7 +452,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 OperationStatus = $"Deleting: {p.CurrentItem}";
             });
             
-            await _fileSystemService.DeleteAsync(sourcePaths, false, progress);
+            var useRecycleBin = dialogResult.DeleteMode == DeleteMode.RecycleBin;
+            await _fileSystemService.DeleteAsync(sourcePaths, useRecycleBin, progress);
             ActivePanel.Refresh();
         }
         catch (Exception ex)
@@ -439,20 +468,58 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
     
-    private Task<bool> ConfirmDeleteAsync(List<string> paths)
+    private Task<CopyMoveDialogResult?> ShowCopyMoveDialogAsync(List<string> sourcePaths, string destinationFolder, bool isCopy)
     {
-        var tcs = new TaskCompletionSource<bool>();
+        var tcs = new TaskCompletionSource<CopyMoveDialogResult?>();
+        CopyMoveDialogRequested?.Invoke(this, new CopyMoveDialogEventArgs
+        {
+            SourcePaths = sourcePaths,
+            DestinationFolder = destinationFolder,
+            IsCopy = isCopy,
+            Callback = result => tcs.SetResult(result)
+        });
+        
+        // If no handler, return null
+        if (CopyMoveDialogRequested == null)
+        {
+            tcs.SetResult(null);
+        }
+        
+        return tcs.Task;
+    }
+    
+    private Task<DeleteConfirmationResult?> ShowDeleteConfirmationDialogAsync(List<string> sourcePaths)
+    {
+        var tcs = new TaskCompletionSource<DeleteConfirmationResult?>();
+        DeleteConfirmationRequested?.Invoke(this, new DeleteConfirmationEventArgs
+        {
+            SourcePaths = sourcePaths,
+            Callback = result => tcs.SetResult(result)
+        });
+        
+        // If no handler, use simple confirmation
+        if (DeleteConfirmationRequested == null)
+        {
+            return ConfirmDeleteLegacyAsync(sourcePaths);
+        }
+        
+        return tcs.Task;
+    }
+    
+    private Task<DeleteConfirmationResult?> ConfirmDeleteLegacyAsync(List<string> paths)
+    {
+        var tcs = new TaskCompletionSource<DeleteConfirmationResult?>();
         ConfirmationRequested?.Invoke(this, new ConfirmationEventArgs
         {
             Title = "Delete",
             Message = paths.Count == 1 
                 ? $"Delete '{Path.GetFileName(paths[0])}'?"
                 : $"Delete {paths.Count} items?",
-            Callback = result => tcs.SetResult(result)
+            Callback = result => tcs.SetResult(result ? new DeleteConfirmationResult { Confirmed = true, DeleteMode = DeleteMode.RecycleBin } : null)
         });
         return tcs.Task;
     }
-    
+
     public event EventHandler<ConfirmationEventArgs>? ConfirmationRequested;
     
     public class ConfirmationEventArgs : EventArgs
@@ -642,6 +709,31 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         public string LeftPath { get; init; } = string.Empty;
         public string RightPath { get; init; } = string.Empty;
+    }
+    
+    /// <summary>
+    /// Toggle branch/flat view for the active panel showing all files from subdirectories.
+    /// </summary>
+    [RelayCommand]
+    public void ToggleBranchView()
+    {
+        var currentPath = ActivePanel.CurrentPath;
+        if (string.IsNullOrEmpty(currentPath))
+            return;
+            
+        BranchViewRequested?.Invoke(this, new BranchViewEventArgs
+        {
+            RootPath = currentPath,
+            Panel = ActivePanel
+        });
+    }
+    
+    public event EventHandler<BranchViewEventArgs>? BranchViewRequested;
+    
+    public class BranchViewEventArgs : EventArgs
+    {
+        public string RootPath { get; init; } = string.Empty;
+        public TabbedPanelViewModel? Panel { get; init; }
     }
     
     [RelayCommand]

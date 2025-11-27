@@ -1,11 +1,14 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Threading;
 
 namespace XCommander.Controls;
 
 public partial class StatusBar : UserControl
 {
+    private DispatcherTimer? _clockTimer;
+    
     public static readonly StyledProperty<string> SelectionInfoProperty =
         AvaloniaProperty.Register<StatusBar, string>(nameof(SelectionInfo), "0 of 0 files selected");
     
@@ -41,6 +44,15 @@ public partial class StatusBar : UserControl
     
     public static readonly StyledProperty<string> GitBranchProperty =
         AvaloniaProperty.Register<StatusBar, string>(nameof(GitBranch), string.Empty);
+    
+    public static readonly StyledProperty<string> TypeAheadBufferProperty =
+        AvaloniaProperty.Register<StatusBar, string>(nameof(TypeAheadBuffer), string.Empty);
+    
+    public static readonly StyledProperty<bool> ShowHiddenFilesProperty =
+        AvaloniaProperty.Register<StatusBar, bool>(nameof(ShowHiddenFiles), false);
+    
+    public static readonly StyledProperty<string> CurrentTimeProperty =
+        AvaloniaProperty.Register<StatusBar, string>(nameof(CurrentTime), string.Empty);
     
     public string SelectionInfo
     {
@@ -114,10 +126,42 @@ public partial class StatusBar : UserControl
         set => SetValue(GitBranchProperty, value);
     }
     
+    public string TypeAheadBuffer
+    {
+        get => GetValue(TypeAheadBufferProperty);
+        set => SetValue(TypeAheadBufferProperty, value);
+    }
+    
+    public bool ShowHiddenFiles
+    {
+        get => GetValue(ShowHiddenFilesProperty);
+        set => SetValue(ShowHiddenFilesProperty, value);
+    }
+    
+    public string CurrentTime
+    {
+        get => GetValue(CurrentTimeProperty);
+        set => SetValue(CurrentTimeProperty, value);
+    }
+    
     public StatusBar()
     {
         InitializeComponent();
         DiskUsageColor = new SolidColorBrush(Color.FromRgb(60, 120, 180));
+        
+        // Start clock timer for TC-style time display
+        _clockTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _clockTimer.Tick += (_, _) => UpdateCurrentTime();
+        _clockTimer.Start();
+        UpdateCurrentTime();
+    }
+    
+    private void UpdateCurrentTime()
+    {
+        CurrentTime = DateTime.Now.ToString("HH:mm:ss");
     }
     
     public void UpdateSelection(int selectedCount, int totalCount, long selectedSize, int fileCount = 0, int folderCount = 0)

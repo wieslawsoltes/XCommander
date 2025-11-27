@@ -126,11 +126,109 @@ public interface ISelectionService
     /// Parse a selection pattern (supports wildcards and extensions)
     /// </summary>
     string PatternToRegex(string wildcardPattern);
+    
+    /// <summary>
+    /// Push current selection onto history stack for undo support
+    /// </summary>
+    void PushSelectionHistory(string panelId, IEnumerable<string> selection);
+    
+    /// <summary>
+    /// Undo last selection change, returns previous selection or null if no history
+    /// </summary>
+    IReadOnlyList<string>? UndoSelection(string panelId);
+    
+    /// <summary>
+    /// Redo previously undone selection change
+    /// </summary>
+    IReadOnlyList<string>? RedoSelection(string panelId);
+    
+    /// <summary>
+    /// Check if undo is available for panel
+    /// </summary>
+    bool CanUndo(string panelId);
+    
+    /// <summary>
+    /// Check if redo is available for panel
+    /// </summary>
+    bool CanRedo(string panelId);
+    
+    /// <summary>
+    /// Clear selection history for panel
+    /// </summary>
+    void ClearHistory(string panelId);
+}
+
+/// <summary>
+/// Selection history entry for undo/redo support
+/// </summary>
+public class SelectionHistoryEntry
+{
+    public List<string> Selection { get; init; } = new();
+    public DateTime Timestamp { get; init; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Panel-specific selection history stack
+/// </summary>
+public class PanelSelectionHistory
+{
+    private readonly Stack<SelectionHistoryEntry> _undoStack = new();
+    private readonly Stack<SelectionHistoryEntry> _redoStack = new();
+    private const int MaxHistorySize = 50;
+    
+    public void Push(IEnumerable<string> selection)
+    {
+        // Clear redo stack on new action
+        _redoStack.Clear();
+        
+        // Limit history size
+        if (_undoStack.Count >= MaxHistorySize)
+        {
+            var temp = _undoStack.ToArray();
+            _undoStack.Clear();
+            for (int i = 0; i < temp.Length - 1; i++)
+            {
+                _undoStack.Push(temp[temp.Length - 1 - i]);
+            }
+        }
+        
+        _undoStack.Push(new SelectionHistoryEntry { Selection = selection.ToList() });
+    }
+    
+    public IReadOnlyList<string>? Undo()
+    {
+        if (_undoStack.Count <= 1) return null; // Need at least 2 entries to undo
+        
+        var current = _undoStack.Pop();
+        _redoStack.Push(current);
+        
+        return _undoStack.Peek().Selection;
+    }
+    
+    public IReadOnlyList<string>? Redo()
+    {
+        if (_redoStack.Count == 0) return null;
+        
+        var entry = _redoStack.Pop();
+        _undoStack.Push(entry);
+        
+        return entry.Selection;
+    }
+    
+    public bool CanUndo => _undoStack.Count > 1;
+    public bool CanRedo => _redoStack.Count > 0;
+    
+    public void Clear()
+    {
+        _undoStack.Clear();
+        _redoStack.Clear();
+    }
 }
 
 public class SelectionService : ISelectionService
 {
     private readonly List<StoredSelection> _storedSelections = new();
+    private readonly Dictionary<string, PanelSelectionHistory> _panelHistories = new();
     private readonly object _lock = new();
     
     public SelectionResult SelectByPattern(IEnumerable<string> allItems, string pattern, bool caseSensitive = false)
@@ -452,5 +550,61 @@ public class SelectionService : ISelectionService
         if (before.HasValue)
             return $"<= {before.Value:d}";
         return "Any";
+    }
+    
+    // Selection history undo/redo methods
+    
+    private PanelSelectionHistory GetOrCreateHistory(string panelId)
+    {
+        lock (_lock)
+        {
+            if (!_panelHistories.TryGetValue(panelId, out var history))
+            {
+                history = new PanelSelectionHistory();
+                _panelHistories[panelId] = history;
+            }
+            return history;
+        }
+    }
+    
+    public void PushSelectionHistory(string panelId, IEnumerable<string> selection)
+    {
+        var history = GetOrCreateHistory(panelId);
+        history.Push(selection);
+    }
+    
+    public IReadOnlyList<string>? UndoSelection(string panelId)
+    {
+        var history = GetOrCreateHistory(panelId);
+        return history.Undo();
+    }
+    
+    public IReadOnlyList<string>? RedoSelection(string panelId)
+    {
+        var history = GetOrCreateHistory(panelId);
+        return history.Redo();
+    }
+    
+    public bool CanUndo(string panelId)
+    {
+        var history = GetOrCreateHistory(panelId);
+        return history.CanUndo;
+    }
+    
+    public bool CanRedo(string panelId)
+    {
+        var history = GetOrCreateHistory(panelId);
+        return history.CanRedo;
+    }
+    
+    public void ClearHistory(string panelId)
+    {
+        lock (_lock)
+        {
+            if (_panelHistories.TryGetValue(panelId, out var history))
+            {
+                history.Clear();
+            }
+        }
     }
 }

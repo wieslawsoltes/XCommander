@@ -1,0 +1,157 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:XCommander.ViewModels"
+        mc:Ignorable="d" 
+        Width="600" Height="550"
+        x:Class="XCommander.Views.Dialogs.CopyMoveDialog"
+        x:DataType="vm:CopyMoveDialogViewModel"
+        Title="{Binding DialogTitle}"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False">
+    
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="16">
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="{Binding DialogTitle}" 
+                       FontSize="18" 
+                       FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding SourceDescription}" 
+                       Foreground="Gray" 
+                       Margin="0,4,0,0"/>
+            <TextBlock Text="{Binding TotalSizeFormatted, StringFormat='Total size: {0}'}" 
+                       Foreground="Gray"
+                       FontSize="12"/>
+        </StackPanel>
+        
+        <!-- Destination -->
+        <StackPanel Grid.Row="1" Spacing="8">
+            <TextBlock Text="Destination:"/>
+            <Grid ColumnDefinitions="*,Auto">
+                <ComboBox Grid.Column="0"
+                          IsEditable="True"
+                          Text="{Binding DestinationPath, Mode=TwoWay}"
+                          ItemsSource="{Binding RecentDestinations}"
+                          HorizontalAlignment="Stretch"/>
+                <Button Grid.Column="1" 
+                        Content="Browse..."
+                        Command="{Binding BrowseDestinationCommand}"
+                        Margin="8,0,0,0"/>
+            </Grid>
+        </StackPanel>
+        
+        <!-- Options -->
+        <ScrollViewer Grid.Row="2" Margin="0,16,0,0">
+            <StackPanel Spacing="12">
+                <!-- Overwrite Mode -->
+                <Expander Header="Overwrite handling" IsExpanded="True">
+                    <StackPanel Margin="20,8,0,0" Spacing="4">
+                        <RadioButton Content="Ask before overwriting" 
+                                     IsChecked="{Binding OverwriteMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:OverwriteMode.Ask}}"
+                                     GroupName="OverwriteMode"/>
+                        <RadioButton Content="Overwrite all without asking"
+                                     IsChecked="{Binding OverwriteMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:OverwriteMode.OverwriteAll}}"
+                                     GroupName="OverwriteMode"/>
+                        <RadioButton Content="Overwrite only if source is newer"
+                                     IsChecked="{Binding OverwriteMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:OverwriteMode.OverwriteOlder}}"
+                                     GroupName="OverwriteMode"/>
+                        <RadioButton Content="Skip existing files"
+                                     IsChecked="{Binding OverwriteMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:OverwriteMode.SkipExisting}}"
+                                     GroupName="OverwriteMode"/>
+                        <RadioButton Content="Rename automatically (add number)"
+                                     IsChecked="{Binding OverwriteMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:OverwriteMode.RenameAuto}}"
+                                     GroupName="OverwriteMode"/>
+                    </StackPanel>
+                </Expander>
+                
+                <!-- Preservation Options -->
+                <Expander Header="Preservation" IsExpanded="True">
+                    <StackPanel Margin="20,8,0,0" Spacing="4">
+                        <CheckBox Content="Preserve date/time stamps" 
+                                  IsChecked="{Binding PreserveDateTime}"/>
+                        <CheckBox Content="Preserve file attributes"
+                                  IsChecked="{Binding PreserveAttributes}"/>
+                    </StackPanel>
+                </Expander>
+                
+                <!-- Additional Options -->
+                <Expander Header="Additional options">
+                    <StackPanel Margin="20,8,0,0" Spacing="4">
+                        <CheckBox Content="Verify after copy (slower but safer)" 
+                                  IsChecked="{Binding VerifyAfterCopy}"
+                                  IsVisible="{Binding IsCopyOperation}"/>
+                        <CheckBox Content="Copy empty directories"
+                                  IsChecked="{Binding CopyEmptyDirectories}"/>
+                        <CheckBox Content="Copy system and hidden files"
+                                  IsChecked="{Binding CopySystemAndHidden}"/>
+                        <CheckBox Content="Follow symbolic links"
+                                  IsChecked="{Binding FollowSymlinks}"/>
+                        <CheckBox Content="Use fast move (same volume only)"
+                                  IsChecked="{Binding UseFastMove}"
+                                  IsVisible="{Binding IsMoveOperation}"/>
+                        <CheckBox Content="Use background transfer (queue)"
+                                  IsChecked="{Binding UseBackgroundTransfer}"/>
+                        <CheckBox Content="Low CPU priority"
+                                  IsChecked="{Binding LowPriority}"/>
+                    </StackPanel>
+                </Expander>
+                
+                <!-- Filters -->
+                <Expander Header="Filters">
+                    <Grid Margin="20,8,0,0" RowDefinitions="Auto,8,Auto" ColumnDefinitions="Auto,8,*">
+                        <TextBlock Grid.Row="0" Grid.Column="0" 
+                                   Text="Include:" 
+                                   VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="0" Grid.Column="2"
+                                 Text="{Binding IncludeFilter}"
+                                 Watermark="*.* (all files)"/>
+                        
+                        <TextBlock Grid.Row="2" Grid.Column="0" 
+                                   Text="Exclude:" 
+                                   VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="2" Grid.Column="2"
+                                 Text="{Binding ExcludeFilter}"
+                                 Watermark="e.g., *.tmp;*.bak"/>
+                    </Grid>
+                </Expander>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- Summary -->
+        <Border Grid.Row="3" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                CornerRadius="4"
+                Padding="12"
+                Margin="0,16,0,0">
+            <Grid ColumnDefinitions="Auto,*,Auto,*">
+                <TextBlock Grid.Column="0" Text="Files:" Foreground="Gray"/>
+                <TextBlock Grid.Column="1" Text="{Binding SelectedFilesCount}" Margin="4,0,16,0"/>
+                <TextBlock Grid.Column="2" Text="Folders:" Foreground="Gray"/>
+                <TextBlock Grid.Column="3" Text="{Binding SelectedFoldersCount}" Margin="4,0,0,0"/>
+            </Grid>
+        </Border>
+        
+        <!-- Buttons -->
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,16,0,0">
+            <Button Grid.Column="1" 
+                    Content="{Binding ActionButtonText}"
+                    Command="{Binding ConfirmCommand}"
+                    IsDefault="True"
+                    MinWidth="80"/>
+            <Button Grid.Column="2" 
+                    Content="Queue"
+                    Command="{Binding QueueCommand}"
+                    ToolTip.Tip="Add to background transfer queue"
+                    Margin="8,0,0,0"
+                    MinWidth="80"/>
+            <Button Grid.Column="3" 
+                    Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    IsCancel="True"
+                    Margin="8,0,0,0"
+                    MinWidth="80"/>
+        </Grid>
+    </Grid>
+</Window>
