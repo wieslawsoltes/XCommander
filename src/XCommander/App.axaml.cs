@@ -201,7 +201,10 @@ public partial class App : Application
             };
             
             // Initialize services
-            mainWindow.InitializeServices(notificationService, selectionHistoryService);
+            mainWindow.InitializeServices(
+                notificationService,
+                selectionHistoryService,
+                provider.GetService<IDirectoryHotlistService>());
             
             desktop.MainWindow = mainWindow;
         }

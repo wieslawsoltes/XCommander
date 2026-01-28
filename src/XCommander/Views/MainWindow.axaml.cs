@@ -1,6 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using AvaloniaMenuItem = Avalonia.Controls.MenuItem;
+using AvaloniaSeparator = Avalonia.Controls.Separator;
 using XCommander.Controls;
 using XCommander.Models;
 using XCommander.Plugins;
@@ -14,6 +19,10 @@ public partial class MainWindow : Window
 {
     private INotificationService? _notificationService;
     private ISelectionHistoryService? _selectionHistoryService;
+    private IDirectoryHotlistService? _directoryHotlistService;
+    private ContextMenu? _hotlistMenu;
+    private Dictionary<string, HotlistItem> _hotlistShortcutMap = new(StringComparer.OrdinalIgnoreCase);
+    private bool _hotlistMenuOpen;
     
     public MainWindow()
     {
@@ -30,10 +39,14 @@ public partial class MainWindow : Window
     /// <summary>
     /// Initializes services that require dependency injection.
     /// </summary>
-    public void InitializeServices(INotificationService? notificationService, ISelectionHistoryService? selectionHistoryService)
+    public void InitializeServices(
+        INotificationService? notificationService,
+        ISelectionHistoryService? selectionHistoryService,
+        IDirectoryHotlistService? directoryHotlistService)
     {
         _notificationService = notificationService;
         _selectionHistoryService = selectionHistoryService;
+        _directoryHotlistService = directoryHotlistService;
         
         // Bind notification overlay to service
         if (_notificationService != null)
@@ -841,6 +854,9 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainWindowViewModel vm)
             return;
+
+        if (TryHandleHotlistShortcut(e, vm))
+            return;
             
         // Handle Tab key for panel switching (since it can't be bound in XAML easily)
         if (e.Key == Key.Tab && !e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -914,11 +930,10 @@ public partial class MainWindow : Window
             return;
         }
         
-        // Ctrl+D for drive selector (focus drive bar)
+        // Ctrl+D for directory hotlist (TC compatible)
         if (e.Key == Key.D && e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
-            // TODO: Focus the drive bar - for now, go to root
-            vm.ActivePanel.GoToRoot();
+            await ShowHotlistMenuAsync(vm);
             e.Handled = true;
             return;
         }
@@ -926,9 +941,7 @@ public partial class MainWindow : Window
         // Ctrl+S for quick filter
         if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
-            // TODO: Implement quick filter UI activation
-            // For now, show search dialog
-            await ShowSearchDialogAsync(vm);
+            ToggleQuickFilter(vm);
             e.Handled = true;
             return;
         }
@@ -963,7 +976,7 @@ public partial class MainWindow : Window
         {
             // Focus left panel and show drives
             vm.SetActivePanelCommand.Execute(vm.LeftPanel);
-            vm.LeftPanel.ShowDrivesCommand.Execute(null);
+            FocusDriveBar(vm.LeftPanel);
             e.Handled = true;
             return;
         }
@@ -973,7 +986,7 @@ public partial class MainWindow : Window
         {
             // Focus right panel and show drives
             vm.SetActivePanelCommand.Execute(vm.RightPanel);
-            vm.RightPanel.ShowDrivesCommand.Execute(null);
+            FocusDriveBar(vm.RightPanel);
             e.Handled = true;
             return;
         }
@@ -1342,6 +1355,14 @@ public partial class MainWindow : Window
             await ShowSearchDialogAsync(vm);
         }
     }
+
+    private async void OnHotlistClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm)
+        {
+            await ShowHotlistDialogAsync(vm);
+        }
+    }
     
     public async Task ShowSearchDialogAsync(MainWindowViewModel vm)
     {
@@ -1470,5 +1491,227 @@ public partial class MainWindow : Window
                 vm.CloseCommandPaletteCommand.Execute(null);
             }
         }
+    }
+
+    private void ToggleQuickFilter(MainWindowViewModel vm)
+    {
+        var panelControl = vm.ActivePanel == vm.LeftPanel ? LeftPanelControl : RightPanelControl;
+        panelControl?.ToggleQuickFilter();
+    }
+
+    private void FocusDriveBar(TabbedPanelViewModel panel)
+    {
+        var panelControl = DataContext is MainWindowViewModel vm && panel == vm.LeftPanel
+            ? LeftPanelControl
+            : RightPanelControl;
+
+        panelControl?.FocusDriveBar();
+    }
+
+    private async Task ShowHotlistDialogAsync(MainWindowViewModel vm)
+    {
+        if (_directoryHotlistService == null)
+        {
+            _notificationService?.ShowWarning("Directory hotlist service not available.");
+            return;
+        }
+
+        var hotlistVm = new DirectoryHotlistViewModel(_directoryHotlistService)
+        {
+            CurrentPath = vm.ActivePanel.CurrentPath
+        };
+
+        hotlistVm.NavigateRequested += (_, path) =>
+        {
+            vm.ActivePanel.NavigateTo(path);
+        };
+
+        var dialog = new DirectoryHotlistDialog
+        {
+            DataContext = hotlistVm
+        };
+
+        var window = new Window
+        {
+            Title = "Directory Hotlist",
+            Content = dialog,
+            Width = 420,
+            Height = 520,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+
+        hotlistVm.RequestClose += (_, _) => window.Close();
+
+        await hotlistVm.LoadAsync();
+        await window.ShowDialog(this);
+    }
+
+    private async Task ShowHotlistMenuAsync(MainWindowViewModel vm)
+    {
+        if (_directoryHotlistService == null)
+        {
+            _notificationService?.ShowWarning("Directory hotlist service not available.");
+            return;
+        }
+
+        var items = (await _directoryHotlistService.GetItemsAsync()).ToList();
+        var categories = await _directoryHotlistService.GetCategoryTreeAsync();
+
+        _hotlistShortcutMap = items
+            .Where(i => !string.IsNullOrEmpty(i.KeyboardShortcut))
+            .GroupBy(i => i.KeyboardShortcut!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        var menu = new ContextMenu();
+        var rootItems = new List<object>();
+
+        foreach (var item in items.Where(i => i.ParentCategoryId == null).OrderBy(i => i.Order))
+        {
+            var menuItem = CreateHotlistMenuItem(item, vm);
+            if (menuItem != null)
+                rootItems.Add(menuItem);
+        }
+
+        foreach (var category in categories.OrderBy(c => c.Order))
+        {
+            rootItems.Add(CreateCategoryMenuItem(category, vm));
+        }
+
+        rootItems.Add(new AvaloniaSeparator());
+        var addCurrent = new AvaloniaMenuItem { Header = "Add current directory" };
+        addCurrent.Click += async (_, _) =>
+        {
+            if (!string.IsNullOrWhiteSpace(vm.ActivePanel.CurrentPath))
+            {
+                await _directoryHotlistService.AddDirectoryAsync(vm.ActivePanel.CurrentPath);
+            }
+        };
+        rootItems.Add(addCurrent);
+
+        var configure = new AvaloniaMenuItem { Header = "Configure hotlist..." };
+        configure.Click += async (_, _) => await ShowHotlistDialogAsync(vm);
+        rootItems.Add(configure);
+
+        menu.ItemsSource = rootItems;
+        menu.PlacementTarget = this;
+        menu.Closed += (_, _) => _hotlistMenuOpen = false;
+        menu.KeyDown += (_, e) => TryHandleHotlistShortcut(e, vm);
+
+        _hotlistMenu = menu;
+        _hotlistMenuOpen = true;
+        menu.Open(this);
+    }
+
+    private bool TryHandleHotlistShortcut(KeyEventArgs e, MainWindowViewModel vm)
+    {
+        if (!_hotlistMenuOpen || e.KeyModifiers != KeyModifiers.None)
+            return false;
+
+        var shortcut = KeyToShortcut(e.Key);
+        if (string.IsNullOrEmpty(shortcut) || !_hotlistShortcutMap.TryGetValue(shortcut, out var item))
+            return false;
+
+        if (!string.IsNullOrEmpty(item.Path))
+        {
+            vm.ActivePanel.NavigateTo(item.Path);
+            _ = _directoryHotlistService?.RecordAccessAsync(item.Id);
+        }
+
+        _hotlistMenu?.Close();
+        e.Handled = true;
+        return true;
+    }
+
+    private Control? CreateHotlistMenuItem(HotlistItem item, MainWindowViewModel vm)
+    {
+        if (item.Type == HotlistItemType.Separator)
+            return new AvaloniaSeparator();
+
+        if (item.Type != HotlistItemType.Directory || string.IsNullOrEmpty(item.Path))
+            return null;
+
+        var menuItem = new AvaloniaMenuItem
+        {
+            Header = item.Name
+        };
+
+        var gesture = ShortcutToGesture(item.KeyboardShortcut);
+        if (gesture != null)
+        {
+            menuItem.InputGesture = gesture;
+        }
+
+        menuItem.Click += (_, _) =>
+        {
+            vm.ActivePanel.NavigateTo(item.Path);
+            _ = _directoryHotlistService?.RecordAccessAsync(item.Id);
+        };
+
+        return menuItem;
+    }
+
+    private AvaloniaMenuItem CreateCategoryMenuItem(HotlistCategory category, MainWindowViewModel vm)
+    {
+        var menuItem = new AvaloniaMenuItem { Header = category.Name };
+        var items = new List<object>();
+
+        foreach (var subCategory in category.SubCategories.OrderBy(c => c.Order))
+        {
+            items.Add(CreateCategoryMenuItem(subCategory, vm));
+        }
+
+        foreach (var item in category.Items.OrderBy(i => i.Order))
+        {
+            var child = CreateHotlistMenuItem(item, vm);
+            if (child != null)
+                items.Add(child);
+        }
+
+        menuItem.ItemsSource = items;
+        return menuItem;
+    }
+
+    private static string? KeyToShortcut(Key key)
+    {
+        if (key is >= Key.A and <= Key.Z)
+        {
+            var offset = key - Key.A;
+            return ((char)('A' + offset)).ToString();
+        }
+
+        if (key is >= Key.D0 and <= Key.D9)
+        {
+            var offset = key - Key.D0;
+            return ((char)('0' + offset)).ToString();
+        }
+
+        if (key is >= Key.NumPad0 and <= Key.NumPad9)
+        {
+            var offset = key - Key.NumPad0;
+            return ((char)('0' + offset)).ToString();
+        }
+
+        return null;
+    }
+
+    private static KeyGesture? ShortcutToGesture(string? shortcut)
+    {
+        if (string.IsNullOrWhiteSpace(shortcut))
+            return null;
+
+        var ch = shortcut.Trim()[0];
+        if (char.IsLetter(ch))
+        {
+            var key = Key.A + (char.ToUpperInvariant(ch) - 'A');
+            return new KeyGesture(key);
+        }
+
+        if (char.IsDigit(ch))
+        {
+            var key = Key.D0 + (ch - '0');
+            return new KeyGesture(key);
+        }
+
+        return null;
     }
 }

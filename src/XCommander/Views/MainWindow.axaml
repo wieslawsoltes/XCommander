@@ -127,6 +127,7 @@
                 <MenuItem Header="Se_ttings..." Command="{Binding OpenSettingsCommand}" InputGesture="Ctrl+,"/>
             </MenuItem>
             <MenuItem Header="_Bookmarks">
+                <MenuItem Header="_Directory Hotlist..." Click="OnHotlistClick" InputGesture="Ctrl+D"/>
                 <MenuItem Header="_Show Bookmarks Panel" 
                           Command="{Binding ToggleBookmarksPanelCommand}" 
                           InputGesture="Ctrl+B"/>
@@ -355,6 +356,7 @@
                     </StackPanel>
                 </Button>
                 <Button Grid.Column="6" 
+                        Classes="fn-key"
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center"
                         Command="{Binding CreateNewFolderCommand}"
@@ -367,6 +369,7 @@
                     </StackPanel>
                 </Button>
                 <Button Grid.Column="7" 
+                        Classes="fn-key"
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center"
                         Command="{Binding DeleteSelectedCommand}"
@@ -379,7 +382,7 @@
                     </StackPanel>
                 </Button>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
     </Grid>
     
     <!-- Command Palette Overlay -->

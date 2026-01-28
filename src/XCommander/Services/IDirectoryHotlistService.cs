@@ -94,6 +94,11 @@ public interface IDirectoryHotlistService
     /// Add a directory to hotlist
     /// </summary>
     Task<HotlistItem> AddDirectoryAsync(string path, string? name = null, string? categoryId = null);
+
+    /// <summary>
+    /// Add a separator to hotlist
+    /// </summary>
+    Task<HotlistItem> AddSeparatorAsync(string? categoryId = null);
     
     /// <summary>
     /// Update a hotlist item

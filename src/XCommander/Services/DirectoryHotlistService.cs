@@ -146,6 +146,28 @@ public class DirectoryHotlistService : IDirectoryHotlistService
         
         return item;
     }
+
+    public async Task<HotlistItem> AddSeparatorAsync(string? categoryId = null)
+    {
+        var maxOrder = _items.Where(i => i.ParentCategoryId == categoryId)
+            .Select(i => i.Order)
+            .DefaultIfEmpty(-1)
+            .Max();
+
+        var item = new HotlistItem
+        {
+            Type = HotlistItemType.Separator,
+            Name = string.Empty,
+            ParentCategoryId = categoryId,
+            Order = maxOrder + 1,
+            Created = DateTime.Now
+        };
+
+        _items.Add(item);
+        await SaveHotlistAsync();
+
+        return item;
+    }
     
     public async Task UpdateItemAsync(HotlistItem item)
     {

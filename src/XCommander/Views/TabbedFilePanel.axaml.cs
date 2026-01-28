@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
+using System.Linq;
 using XCommander.Models;
 using XCommander.ViewModels;
 
@@ -14,6 +15,15 @@ public partial class TabbedFilePanel : UserControl
     private const string TabDragDataFormat = "XCommander.Tab";
     private TabViewModel? _draggedTab;
     private TabbedPanelViewModel? _sourcePanel;
+
+    public static readonly StyledProperty<string> TypeAheadBufferProperty =
+        AvaloniaProperty.Register<TabbedFilePanel, string>(nameof(TypeAheadBuffer), string.Empty);
+
+    public string TypeAheadBuffer
+    {
+        get => GetValue(TypeAheadBufferProperty);
+        set => SetValue(TypeAheadBufferProperty, value);
+    }
     
     // Type-ahead navigation (TC-style: just start typing to jump to files)
     private string _typeAheadBuffer = string.Empty;
@@ -38,6 +48,7 @@ public partial class TabbedFilePanel : UserControl
         _typeAheadClearTimer.Tick += (_, _) =>
         {
             _typeAheadBuffer = string.Empty;
+            TypeAheadBuffer = string.Empty;
             _typeAheadClearTimer.Stop();
         };
     }
@@ -57,22 +68,21 @@ public partial class TabbedFilePanel : UserControl
     {
         base.OnTextInput(e);
         
-        if (e.Handled || string.IsNullOrEmpty(e.Text))
+        if (e.Handled || string.IsNullOrWhiteSpace(e.Text))
             return;
         
         if (DataContext is not TabbedPanelViewModel vm || vm.ActiveTab == null)
             return;
         
-        // Don't handle if a modifier key is pressed (except Shift for uppercase)
-        // This allows Ctrl+X, Alt+X etc. to work normally
-        var topLevel = TopLevel.GetTopLevel(this);
-        var keyModifiers = topLevel?.FocusManager?.GetFocusedElement() is Control c 
-            ? KeyModifiers.None // Simplified - we'll check in the handler
-            : KeyModifiers.None;
+        // Don't handle when editing text or quick filter is visible.
+        var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+        if (focused is TextBox || QuickFilterBar?.IsVisible == true)
+            return;
         
         // Add character to type-ahead buffer
         _typeAheadBuffer += e.Text;
         _lastTypeAheadTime = DateTime.Now;
+        TypeAheadBuffer = _typeAheadBuffer;
         
         // Reset the clear timer
         _typeAheadClearTimer?.Stop();
@@ -118,6 +128,7 @@ public partial class TabbedFilePanel : UserControl
     public void ClearTypeAheadBuffer()
     {
         _typeAheadBuffer = string.Empty;
+        TypeAheadBuffer = string.Empty;
         _typeAheadClearTimer?.Stop();
     }
     
@@ -125,6 +136,33 @@ public partial class TabbedFilePanel : UserControl
     /// Gets the current type-ahead search string for display in status bar.
     /// </summary>
     public string GetTypeAheadBuffer() => _typeAheadBuffer;
+
+    public void ToggleQuickFilter()
+    {
+        QuickFilterBar?.Toggle();
+    }
+
+    public void ShowQuickFilter()
+    {
+        QuickFilterBar?.Show();
+    }
+
+    public void HideQuickFilter()
+    {
+        QuickFilterBar?.Hide();
+    }
+
+    public void FocusDriveBar()
+    {
+        if (DriveBarItems == null)
+            return;
+
+        var button = DriveBarItems.GetVisualDescendants()
+            .OfType<Button>()
+            .FirstOrDefault(b => b.IsVisible && b.IsEnabled);
+
+        button?.Focus();
+    }
     
     /// <summary>
     /// Handles keyboard input on the DataGrid for Total Commander compatible shortcuts.
@@ -228,6 +266,13 @@ public partial class TabbedFilePanel : UserControl
                 break;
                 
             case Key.Escape:
+                if (QuickFilterBar?.IsVisible == true)
+                {
+                    QuickFilterBar.Hide();
+                    e.Handled = true;
+                    break;
+                }
+
                 // Clear type-ahead buffer on Escape
                 if (!string.IsNullOrEmpty(_typeAheadBuffer))
                 {

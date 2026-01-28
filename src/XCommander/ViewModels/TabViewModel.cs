@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using XCommander.Models;
@@ -39,6 +40,15 @@ public partial class TabViewModel : ViewModelBase
     
     [ObservableProperty]
     private string _quickFilter = string.Empty;
+
+    [ObservableProperty]
+    private bool _quickFilterCaseSensitive;
+
+    [ObservableProperty]
+    private bool _quickFilterUseRegex;
+
+    [ObservableProperty]
+    private bool _quickFilterIncludeDirectories = true;
     
     [ObservableProperty]
     private bool _isVirtualMode;
@@ -104,6 +114,21 @@ public partial class TabViewModel : ViewModelBase
     }
     
     partial void OnQuickFilterChanged(string value)
+    {
+        RefreshItems();
+    }
+
+    partial void OnQuickFilterCaseSensitiveChanged(bool value)
+    {
+        RefreshItems();
+    }
+
+    partial void OnQuickFilterUseRegexChanged(bool value)
+    {
+        RefreshItems();
+    }
+
+    partial void OnQuickFilterIncludeDirectoriesChanged(bool value)
     {
         RefreshItems();
     }
@@ -484,9 +509,23 @@ public partial class TabViewModel : ViewModelBase
         // Apply quick filter
         if (!string.IsNullOrEmpty(QuickFilter))
         {
-            items = items.Where(i => 
-                i.ItemType == FileSystemItemType.ParentDirectory || 
-                i.Name.Contains(QuickFilter, StringComparison.OrdinalIgnoreCase));
+            var comparison = QuickFilterCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            var hasWildcard = QuickFilter.Contains('*') || QuickFilter.Contains('?');
+            Regex? regex = null;
+            if (QuickFilterUseRegex)
+            {
+                try
+                {
+                    var options = QuickFilterCaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase;
+                    regex = new Regex(QuickFilter, options);
+                }
+                catch
+                {
+                    regex = null;
+                }
+            }
+
+            items = items.Where(i => MatchesQuickFilter(i, comparison, hasWildcard, regex));
         }
             
         // Sort items
@@ -771,5 +810,42 @@ public partial class TabViewModel : ViewModelBase
             }
         }
         UpdateStatusText();
+    }
+
+    private bool MatchesQuickFilter(
+        FileItemViewModel item,
+        StringComparison comparison,
+        bool hasWildcard,
+        Regex? regex)
+    {
+        if (item.ItemType == FileSystemItemType.ParentDirectory)
+            return true;
+
+        if (!QuickFilterIncludeDirectories && item.IsDirectory)
+            return false;
+
+        var name = item.Name ?? string.Empty;
+
+        if (QuickFilterUseRegex && regex != null)
+        {
+            return regex.IsMatch(name);
+        }
+
+        if (hasWildcard)
+        {
+            return WildcardMatch(name, QuickFilter, comparison);
+        }
+
+        return name.IndexOf(QuickFilter, comparison) >= 0;
+    }
+
+    private static bool WildcardMatch(string text, string pattern, StringComparison comparison)
+    {
+        var regexPattern = "^" + Regex.Escape(pattern)
+            .Replace("\\*", ".*")
+            .Replace("\\?", ".") + "$";
+
+        var options = comparison == StringComparison.OrdinalIgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
+        return Regex.IsMatch(text, regexPattern, options);
     }
 }
