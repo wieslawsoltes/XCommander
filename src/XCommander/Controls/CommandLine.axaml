@@ -2,13 +2,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:XCommander.Controls"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="32"
              x:Class="XCommander.Controls.CommandLine"
              x:Name="Root">
     
-    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            CornerRadius="4"
-            Padding="8,4">
+    <controls:TcBevelPanel Padding="8,4">
         <Grid ColumnDefinitions="Auto,*,Auto">
             <!-- Current Directory Label -->
             <TextBlock Grid.Column="0"
@@ -45,8 +44,7 @@
                     Padding="8,4"
                     Margin="4,0,0,0"
                     ToolTip.Tip="Execute Command (Enter)"
-                    Background="Transparent"
-                    BorderThickness="0"/>
+                    Classes="flat"/>
         </Grid>
-    </Border>
+    </controls:TcBevelPanel>
 </UserControl>

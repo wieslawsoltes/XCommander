@@ -2,13 +2,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:XCommander.Controls"
              mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="32"
              x:Class="XCommander.Controls.QuickFilterBar"
              x:Name="Root">
     
-    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            Padding="8,4"
-            IsVisible="{Binding #Root.IsVisible}">
+    <controls:TcBevelPanel Padding="8,4"
+                           IsVisible="{Binding #Root.IsVisible}">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
             <!-- Filter Icon -->
             <TextBlock Grid.Column="0" 
@@ -79,7 +79,7 @@
                     ToolTip.Tip="Clear filter and close (Esc)"
                     Padding="6,2"
                     FontSize="10"
-                    Background="Transparent"/>
+                    Classes="flat"/>
         </Grid>
-    </Border>
+    </controls:TcBevelPanel>
 </UserControl>

@@ -61,7 +61,7 @@
                 </ListBox>
             </Border>
             
-            <GridSplitter Grid.Column="1" Width="8" Background="Transparent"/>
+            <GridSplitter Grid.Column="1" Width="8"/>
             
             <!-- Plugin Details -->
             <Border Grid.Column="2" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"

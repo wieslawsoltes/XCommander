@@ -7,9 +7,9 @@
              x:Class="XCommander.Controls.DriveBar"
              x:Name="Root">
     
-    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            Padding="4">
-        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+    <controls:TcBevelPanel Padding="4">
+        <ScrollViewer Theme="{StaticResource TcHorizontalMenuScrollViewer}"
+                      HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Disabled">
             <ItemsControl ItemsSource="{Binding #Root.Drives}">
                 <ItemsControl.ItemsPanel>
@@ -21,20 +21,10 @@
                     <DataTemplate x:DataType="controls:DriveDisplayItem">
                         <Button Command="{Binding #Root.SelectDriveCommand}"
                                 CommandParameter="{Binding RootPath}"
-                                Padding="8,4"
+                                Classes="drive-button"
                                 MinWidth="50"
                                 HorizontalContentAlignment="Center"
                                 ToolTip.Tip="{Binding ToolTip}">
-                            <Button.Styles>
-                                <Style Selector="Button">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="BorderThickness" Value="1"/>
-                                    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"/>
-                                </Style>
-                                <Style Selector="Button:pointerover">
-                                    <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListLowBrush}"/>
-                                </Style>
-                            </Button.Styles>
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <TextBlock Text="{Binding Icon}" FontSize="14"/>
                                 <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"/>
@@ -44,5 +34,5 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
-    </Border>
+    </controls:TcBevelPanel>
 </UserControl>

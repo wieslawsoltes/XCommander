@@ -14,10 +14,11 @@
         <Style Selector="Border.toast">
             <Setter Property="MinWidth" Value="280"/>
             <Setter Property="MaxWidth" Value="350"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="12"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Padding" Value="8"/>
             <Setter Property="Margin" Value="8,4"/>
-            <Setter Property="BoxShadow" Value="0 4 12 2 #40000000"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Transitions">
                 <Transitions>
                     <DoubleTransition Property="Opacity" Duration="0:0:0.2"/>
@@ -28,27 +29,27 @@
         
         <!-- Info toast -->
         <Style Selector="Border.toast-info">
-            <Setter Property="Background" Value="#2196F3"/>
+            <Setter Property="Background" Value="{DynamicResource TcSelectionBackgroundBrush}"/>
         </Style>
         
         <!-- Success toast -->
         <Style Selector="Border.toast-success">
-            <Setter Property="Background" Value="#4CAF50"/>
+            <Setter Property="Background" Value="#3F7F3F"/>
         </Style>
         
         <!-- Warning toast -->
         <Style Selector="Border.toast-warning">
-            <Setter Property="Background" Value="#FF9800"/>
+            <Setter Property="Background" Value="#B37A00"/>
         </Style>
         
         <!-- Error toast -->
         <Style Selector="Border.toast-error">
-            <Setter Property="Background" Value="#F44336"/>
+            <Setter Property="Background" Value="#A04040"/>
         </Style>
         
         <!-- Progress toast -->
         <Style Selector="Border.toast-progress">
-            <Setter Property="Background" Value="#607D8B"/>
+            <Setter Property="Background" Value="#606060"/>
         </Style>
         
         <!-- Close button -->
@@ -70,7 +71,7 @@
             <Setter Property="Background" Value="#30FFFFFF"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="CornerRadius" Value="0"/>
             <Setter Property="Padding" Value="8,4"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Margin" Value="0,8,0,0"/>

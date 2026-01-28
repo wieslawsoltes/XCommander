@@ -7,8 +7,7 @@
              x:Class="XCommander.Controls.StatusBar"
              x:Name="Root">
     
-    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            Padding="8,4">
+    <controls:TcBevelPanel Padding="8,4">
         <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
             <!-- Selection Info with Icon -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
@@ -144,5 +143,5 @@
                        Margin="8,0,0,0"
                        VerticalAlignment="Center"/>
         </Grid>
-    </Border>
+    </controls:TcBevelPanel>
 </UserControl>

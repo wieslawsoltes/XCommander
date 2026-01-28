@@ -1,0 +1,563 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:XCommander.Controls"
+        xmlns:converters="using:Avalonia.Controls.Converters"
+        xmlns:sys="using:System">
+  <Styles.Resources>
+    <ResourceDictionary>
+  <!-- TC palette -->
+  <Color x:Key="TcWindowBackgroundColor">#D4D0C8</Color>
+  <Color x:Key="TcPanelBackgroundColor">#FFFFFF</Color>
+  <Color x:Key="TcChromeBackgroundColor">#D4D0C8</Color>
+  <Color x:Key="TcHeaderBackgroundColor">#C0C0C0</Color>
+  <Color x:Key="TcBorderLightColor">#FFFFFF</Color>
+  <Color x:Key="TcBorderMidColor">#A0A0A0</Color>
+  <Color x:Key="TcBorderDarkColor">#808080</Color>
+  <Color x:Key="TcShadowColor">#4A4A4A</Color>
+  <Color x:Key="TcTextColor">#1E1E1E</Color>
+  <Color x:Key="TcMutedTextColor">#5A5A5A</Color>
+  <Color x:Key="TcDisabledTextColor">#808080</Color>
+  <Color x:Key="TcSelectionBackgroundColor">#0A64AD</Color>
+  <Color x:Key="TcSelectionForegroundColor">#FFFFFF</Color>
+  <Color x:Key="TcHoverBackgroundColor">#C9DEFF</Color>
+  <Color x:Key="TcPressedBackgroundColor">#B7D0F5</Color>
+  <Color x:Key="TcToolTipBackgroundColor">#FFFFE1</Color>
+
+  <SolidColorBrush x:Key="TcWindowBackgroundBrush" Color="{StaticResource TcWindowBackgroundColor}" />
+  <SolidColorBrush x:Key="TcPanelBackgroundBrush" Color="{StaticResource TcPanelBackgroundColor}" />
+  <SolidColorBrush x:Key="TcChromeBackgroundBrush" Color="{StaticResource TcChromeBackgroundColor}" />
+  <SolidColorBrush x:Key="TcHeaderBackgroundBrush" Color="{StaticResource TcHeaderBackgroundColor}" />
+  <SolidColorBrush x:Key="TcBorderLightBrush" Color="{StaticResource TcBorderLightColor}" />
+  <SolidColorBrush x:Key="TcBorderMidBrush" Color="{StaticResource TcBorderMidColor}" />
+  <SolidColorBrush x:Key="TcBorderDarkBrush" Color="{StaticResource TcBorderDarkColor}" />
+  <SolidColorBrush x:Key="TcShadowBrush" Color="{StaticResource TcShadowColor}" />
+  <SolidColorBrush x:Key="TcTextBrush" Color="{StaticResource TcTextColor}" />
+  <SolidColorBrush x:Key="TcMutedTextBrush" Color="{StaticResource TcMutedTextColor}" />
+  <SolidColorBrush x:Key="TcDisabledTextBrush" Color="{StaticResource TcDisabledTextColor}" />
+  <SolidColorBrush x:Key="TcSelectionBackgroundBrush" Color="{StaticResource TcSelectionBackgroundColor}" />
+  <SolidColorBrush x:Key="TcSelectionForegroundBrush" Color="{StaticResource TcSelectionForegroundColor}" />
+  <SolidColorBrush x:Key="TcHoverBackgroundBrush" Color="{StaticResource TcHoverBackgroundColor}" />
+  <SolidColorBrush x:Key="TcPressedBackgroundBrush" Color="{StaticResource TcPressedBackgroundColor}" />
+  <SolidColorBrush x:Key="TcToolTipBackgroundBrush" Color="{StaticResource TcToolTipBackgroundColor}" />
+
+  <!-- Override key Fluent resources used by templates (dynamic lookups) -->
+  <SolidColorBrush x:Key="SystemControlBackgroundBaseLowBrush" Color="{StaticResource TcWindowBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="{StaticResource TcPanelBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlBackgroundAltMediumHighBrush" Color="#F2F2F2" />
+  <SolidColorBrush x:Key="SystemControlBackgroundAltMediumBrush" Color="#E6E6E6" />
+  <SolidColorBrush x:Key="SystemControlBackgroundAltMediumLowBrush" Color="#DEDEDE" />
+  <SolidColorBrush x:Key="SystemControlBackgroundBaseMediumLowBrush" Color="{StaticResource TcChromeBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlBackgroundBaseMediumBrush" Color="#E0E0E0" />
+  <SolidColorBrush x:Key="SystemControlBackgroundBaseHighBrush" Color="{StaticResource TcPanelBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumLowBrush" Color="{StaticResource TcChromeBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumBrush" Color="{StaticResource TcHeaderBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlBackgroundListLowBrush" Color="{StaticResource TcPanelBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush" Color="{StaticResource TcTextColor}" />
+  <SolidColorBrush x:Key="SystemControlForegroundAltHighBrush" Color="{StaticResource TcTextColor}" />
+  <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="{StaticResource TcMutedTextColor}" />
+  <SolidColorBrush x:Key="SystemControlForegroundBaseMediumLowBrush" Color="{StaticResource TcBorderMidColor}" />
+  <SolidColorBrush x:Key="SystemControlForegroundBaseLowBrush" Color="{StaticResource TcBorderDarkColor}" />
+  <SolidColorBrush x:Key="SystemControlHighlightListLowBrush" Color="{StaticResource TcHoverBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlHighlightListMediumBrush" Color="{StaticResource TcPressedBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlHighlightAccentBrush" Color="{StaticResource TcSelectionBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlHighlightListAccentHighBrush" Color="{StaticResource TcSelectionBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlHighlightListAccentMediumBrush" Color="{StaticResource TcSelectionBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlHighlightListAccentLowBrush" Color="{StaticResource TcSelectionBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlForegroundAccentBrush" Color="{StaticResource TcSelectionBackgroundColor}" />
+  <SolidColorBrush x:Key="SystemControlBackgroundAccentBrush" Color="{StaticResource TcSelectionBackgroundColor}" />
+
+  <!-- Typography and spacing -->
+  <FontFamily x:Key="ContentControlThemeFontFamily">Segoe UI, Tahoma, Verdana, sans-serif</FontFamily>
+  <sys:Double x:Key="ControlContentThemeFontSize">12</sys:Double>
+  <Thickness x:Key="TextControlThemePadding">6,3,6,3</Thickness>
+  <sys:Double x:Key="TextControlThemeMinHeight">22</sys:Double>
+  <Thickness x:Key="ButtonPadding">6,3,6,3</Thickness>
+  <CornerRadius x:Key="ControlCornerRadius">0</CornerRadius>
+  <CornerRadius x:Key="OverlayCornerRadius">0</CornerRadius>
+
+  <!-- Bevel tokens -->
+  <Thickness x:Key="TcBevelHighlightThickness">1,1,0,0</Thickness>
+  <Thickness x:Key="TcBevelShadowThickness">0,0,1,1</Thickness>
+  <Thickness x:Key="TcBevelInnerMargin">1</Thickness>
+
+  <!-- Beveled container -->
+  <ControlTheme x:Key="{x:Type controls:TcBevelPanel}"
+                TargetType="controls:TcBevelPanel">
+    <Setter Property="Background" Value="{DynamicResource TcChromeBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderMidBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HighlightBrush" Value="{DynamicResource TcBorderLightBrush}" />
+    <Setter Property="ShadowBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid>
+          <Border Name="PART_Highlight"
+                  BorderBrush="{TemplateBinding HighlightBrush}"
+                  BorderThickness="{DynamicResource TcBevelHighlightThickness}" />
+          <Border Name="PART_Shadow"
+                  BorderBrush="{TemplateBinding ShadowBrush}"
+                  BorderThickness="{DynamicResource TcBevelShadowThickness}" />
+          <Border Name="PART_Background"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  Margin="{DynamicResource TcBevelInnerMargin}">
+            <ContentPresenter
+              Name="PART_ContentPresenter"
+              Padding="{TemplateBinding Padding}"
+              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+              Content="{TemplateBinding Content}"
+              ContentTemplate="{TemplateBinding ContentTemplate}" />
+          </Border>
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <!-- Inset (sunken) container -->
+  <ControlTheme x:Key="{x:Type controls:TcInsetPanel}"
+                TargetType="controls:TcInsetPanel">
+    <Setter Property="Background" Value="{DynamicResource TcPanelBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HighlightBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="ShadowBrush" Value="{DynamicResource TcBorderLightBrush}" />
+    <Setter Property="Padding" Value="2" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid>
+          <Border Name="PART_Shadow"
+                  BorderBrush="{TemplateBinding HighlightBrush}"
+                  BorderThickness="{DynamicResource TcBevelHighlightThickness}" />
+          <Border Name="PART_Highlight"
+                  BorderBrush="{TemplateBinding ShadowBrush}"
+                  BorderThickness="{DynamicResource TcBevelShadowThickness}" />
+          <Border Name="PART_Background"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  Margin="{DynamicResource TcBevelInnerMargin}">
+            <ContentPresenter
+              Name="PART_ContentPresenter"
+              Padding="{TemplateBinding Padding}"
+              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+              Content="{TemplateBinding Content}"
+              ContentTemplate="{TemplateBinding ContentTemplate}" />
+          </Border>
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <!-- Button theme (classic bevel) -->
+  <ControlTheme x:Key="{x:Type Button}" TargetType="Button">
+    <Setter Property="Background" Value="{DynamicResource TcChromeBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderMidBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource TcTextBrush}" />
+    <Setter Property="Padding" Value="{DynamicResource ButtonPadding}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid>
+          <Border Name="PART_Highlight"
+                  BorderBrush="{DynamicResource TcBorderLightBrush}"
+                  BorderThickness="{DynamicResource TcBevelHighlightThickness}" />
+          <Border Name="PART_Shadow"
+                  BorderBrush="{DynamicResource TcBorderDarkBrush}"
+                  BorderThickness="{DynamicResource TcBevelShadowThickness}" />
+          <Border Name="PART_Background"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  Margin="{DynamicResource TcBevelInnerMargin}">
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Padding="{TemplateBinding Padding}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              TextElement.Foreground="{TemplateBinding Foreground}" />
+          </Border>
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+
+    <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="RecognizesAccessKey" Value="True" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#PART_Background">
+      <Setter Property="Background" Value="{DynamicResource TcHoverBackgroundBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#PART_Background">
+      <Setter Property="Background" Value="{DynamicResource TcPressedBackgroundBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#PART_Highlight">
+      <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#PART_Shadow">
+      <Setter Property="BorderBrush" Value="{DynamicResource TcBorderLightBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Margin" Value="1,1,0,0" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource TcDisabledTextBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type ToggleButton}" TargetType="ToggleButton">
+    <Setter Property="Background" Value="{DynamicResource TcChromeBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderMidBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource TcTextBrush}" />
+    <Setter Property="Padding" Value="{DynamicResource ButtonPadding}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid>
+          <Border Name="PART_Highlight"
+                  BorderBrush="{DynamicResource TcBorderLightBrush}"
+                  BorderThickness="{DynamicResource TcBevelHighlightThickness}" />
+          <Border Name="PART_Shadow"
+                  BorderBrush="{DynamicResource TcBorderDarkBrush}"
+                  BorderThickness="{DynamicResource TcBevelShadowThickness}" />
+          <Border Name="PART_Background"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  Margin="{DynamicResource TcBevelInnerMargin}">
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Padding="{TemplateBinding Padding}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              TextElement.Foreground="{TemplateBinding Foreground}" />
+          </Border>
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+
+    <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="RecognizesAccessKey" Value="True" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#PART_Background">
+      <Setter Property="Background" Value="{DynamicResource TcHoverBackgroundBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#PART_Background">
+      <Setter Property="Background" Value="{DynamicResource TcPressedBackgroundBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#PART_Highlight">
+      <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#PART_Shadow">
+      <Setter Property="BorderBrush" Value="{DynamicResource TcBorderLightBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Margin" Value="1,1,0,0" />
+    </Style>
+    <Style Selector="^:checked /template/ Border#PART_Background">
+      <Setter Property="Background" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+    </Style>
+    <Style Selector="^:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TcSelectionForegroundBrush}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource TcDisabledTextBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Horizontal scroll viewer with menu-style scrollers (left/right) -->
+  <ControlTheme x:Key="TcHorizontalMenuScrollViewer"
+                TargetType="ScrollViewer">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <DockPanel>
+          <RepeatButton Background="Transparent"
+                        BorderThickness="0"
+                        Command="{Binding LineLeft, RelativeSource={RelativeSource TemplatedParent}}"
+                        DockPanel.Dock="Left"
+                        Padding="4,0">
+            <RepeatButton.IsVisible>
+              <MultiBinding Converter="{x:Static converters:MenuScrollingVisibilityConverter.Instance}"
+                            ConverterParameter="0">
+                <Binding Path="HorizontalScrollBarVisibility"
+                         RelativeSource="{RelativeSource TemplatedParent}" />
+                <Binding Path="Offset.X"
+                         RelativeSource="{RelativeSource TemplatedParent}" />
+                <Binding Path="Extent.Width"
+                         RelativeSource="{RelativeSource TemplatedParent}" />
+                <Binding Path="Viewport.Width"
+                         RelativeSource="{RelativeSource TemplatedParent}" />
+              </MultiBinding>
+            </RepeatButton.IsVisible>
+            <Path Data="M 4 0 L 0 4 L 4 8 Z" />
+          </RepeatButton>
+          <RepeatButton Background="Transparent"
+                        BorderThickness="0"
+                        Command="{Binding LineRight, RelativeSource={RelativeSource TemplatedParent}}"
+                        DockPanel.Dock="Right"
+                        Padding="4,0">
+            <RepeatButton.IsVisible>
+              <MultiBinding Converter="{x:Static converters:MenuScrollingVisibilityConverter.Instance}"
+                            ConverterParameter="100">
+                <Binding Path="HorizontalScrollBarVisibility"
+                         RelativeSource="{RelativeSource TemplatedParent}" />
+                <Binding Path="Offset.X"
+                         RelativeSource="{RelativeSource TemplatedParent}" />
+                <Binding Path="Extent.Width"
+                         RelativeSource="{RelativeSource TemplatedParent}" />
+                <Binding Path="Viewport.Width"
+                         RelativeSource="{RelativeSource TemplatedParent}" />
+              </MultiBinding>
+            </RepeatButton.IsVisible>
+            <Path Data="M 0 0 L 4 4 L 0 8 Z" />
+          </RepeatButton>
+          <ScrollContentPresenter Name="PART_ContentPresenter"
+                                  Margin="{TemplateBinding Padding}" />
+        </DockPanel>
+      </ControlTemplate>
+    </Setter>
+
+    <Style Selector="^ /template/ RepeatButton > Path">
+      <Setter Property="Fill" Value="{DynamicResource TcBorderDarkBrush}" />
+    </Style>
+    <Style Selector="^ /template/ RepeatButton:pointerover > Path">
+      <Setter Property="Fill" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+    </Style>
+  </ControlTheme>
+
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <!-- Global type styles -->
+  <Style Selector="Control">
+    <Setter Property="TextElement.FontFamily" Value="Segoe UI, Tahoma, Verdana, sans-serif" />
+    <Setter Property="TextElement.FontSize" Value="12" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource TcTextBrush}" />
+  </Style>
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{DynamicResource TcWindowBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TcTextBrush}" />
+  </Style>
+
+  <Style Selector="Button.fn-key">
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+
+  <Style Selector="Button.flat">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}">
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Padding="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            TextElement.Foreground="{TemplateBinding Foreground}" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Button.flat:pointerover">
+    <Setter Property="Background" Value="{DynamicResource TcHoverBackgroundBrush}" />
+  </Style>
+  <Style Selector="Button.flat:pressed">
+    <Setter Property="Background" Value="{DynamicResource TcPressedBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="Button.toolbar-button">
+    <Setter Property="Padding" Value="6,2" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="MinWidth" Value="24" />
+  </Style>
+
+  <Style Selector="Button.drive-button">
+    <Setter Property="Padding" Value="6,2" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="MinWidth" Value="40" />
+  </Style>
+
+  <Style Selector="Button.breadcrumb-highlighted">
+    <Setter Property="Background" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TcSelectionForegroundBrush}" />
+  </Style>
+
+  <Style Selector="TextBox">
+    <Setter Property="Background" Value="{DynamicResource TcPanelBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+    <Setter Property="SelectionForegroundBrush" Value="{DynamicResource TcSelectionForegroundBrush}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource TcTextBrush}" />
+  </Style>
+  <Style Selector="TextBox:focus">
+    <Setter Property="BorderBrush" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+  </Style>
+  <Style Selector="TextBox:focus-visible">
+    <Setter Property="BorderBrush" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+  </Style>
+  <Style Selector="TextBox:disabled">
+    <Setter Property="Foreground" Value="{DynamicResource TcDisabledTextBrush}" />
+    <Setter Property="Background" Value="#F0F0F0" />
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="Background" Value="{DynamicResource TcPanelBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="4,2" />
+  </Style>
+
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="{DynamicResource TcChromeBackgroundBrush}" />
+  </Style>
+  <Style Selector="MenuItem">
+    <Setter Property="Padding" Value="8,2" />
+  </Style>
+  <Style Selector="MenuItem:pointerover">
+    <Setter Property="Background" Value="{DynamicResource TcHoverBackgroundBrush}" />
+  </Style>
+  <Style Selector="MenuItem:selected">
+    <Setter Property="Background" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TcSelectionForegroundBrush}" />
+  </Style>
+
+  <Style Selector="ContextMenu">
+    <Setter Property="Background" Value="{DynamicResource TcPanelBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="MenuFlyoutPresenter">
+    <Setter Property="Background" Value="{DynamicResource TcPanelBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="TabItem">
+    <Setter Property="Background" Value="{DynamicResource TcChromeBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="8,3" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+  <Style Selector="TabItem:pointerover">
+    <Setter Property="Background" Value="{DynamicResource TcHoverBackgroundBrush}" />
+  </Style>
+  <Style Selector="TabItem:selected">
+    <Setter Property="Background" Value="{DynamicResource TcPanelBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="Border.panel-border">
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Background" Value="{DynamicResource TcPanelBackgroundBrush}" />
+  </Style>
+  <Style Selector="Border.panel-border.active">
+    <Setter Property="BorderBrush" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="Border.tab-item">
+    <Setter Property="Background" Value="{DynamicResource TcChromeBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1,1,1,0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="2" />
+    <Setter Property="Margin" Value="1,2,1,0" />
+  </Style>
+  <Style Selector="Border.tab-item.selected">
+    <Setter Property="Background" Value="{DynamicResource TcPanelBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="DataGrid">
+    <Setter Property="Background" Value="{DynamicResource TcPanelBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TcTextBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="RowBackground" Value="{DynamicResource TcPanelBackgroundBrush}" />
+    <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource TcBorderMidBrush}" />
+    <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource TcBorderMidBrush}" />
+  </Style>
+  <Style Selector="DataGridRow:pointerover">
+    <Setter Property="Background" Value="{DynamicResource TcHoverBackgroundBrush}" />
+  </Style>
+  <Style Selector="DataGridRow:selected">
+    <Setter Property="Background" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TcSelectionForegroundBrush}" />
+  </Style>
+  <Style Selector="DataGridRow:selected:pointerover">
+    <Setter Property="Background" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+  </Style>
+  <Style Selector="DataGridColumnHeader">
+    <Setter Property="Background" Value="{DynamicResource TcHeaderBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,1,1" />
+    <Setter Property="Padding" Value="6,2" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="ListBoxItem">
+    <Setter Property="Padding" Value="4,2" />
+  </Style>
+  <Style Selector="ListBoxItem:selected">
+    <Setter Property="Background" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TcSelectionForegroundBrush}" />
+  </Style>
+
+  <Style Selector="TreeViewItem:selected">
+    <Setter Property="Background" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TcSelectionForegroundBrush}" />
+  </Style>
+
+  <Style Selector="ScrollBar">
+    <Setter Property="Background" Value="{DynamicResource TcChromeBackgroundBrush}" />
+  </Style>
+  <Style Selector="ScrollBar /template/ Thumb">
+    <Setter Property="Background" Value="{DynamicResource TcBorderMidBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="Separator">
+    <Setter Property="Background" Value="{DynamicResource TcBorderDarkBrush}" />
+  </Style>
+
+  <Style Selector="ToolTip">
+    <Setter Property="Background" Value="{DynamicResource TcToolTipBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="6,3" />
+  </Style>
+
+  <Style Selector="ProgressBar">
+    <Setter Property="Background" Value="{DynamicResource TcPanelBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TcSelectionBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TcBorderDarkBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="GridSplitter">
+    <Setter Property="Background" Value="{DynamicResource TcBorderDarkBrush}" />
+  </Style>
+</Styles>

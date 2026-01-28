@@ -18,7 +18,7 @@
             
             <!-- Arc segments using Path -->
             <Path x:Name="SpinnerArc"
-                  Stroke="{DynamicResource SystemAccentColor}"
+                  Stroke="{DynamicResource TcSelectionBackgroundBrush}"
                   StrokeThickness="2"
                   StrokeLineCap="Round"/>
             

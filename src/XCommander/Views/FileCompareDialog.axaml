@@ -93,7 +93,7 @@
             </Grid>
 
             <!-- Splitter -->
-            <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="Gray"/>
+            <GridSplitter Grid.Column="1" ResizeDirection="Columns"/>
 
             <!-- Right Panel -->
             <Grid Grid.Column="2" RowDefinitions="Auto,*">

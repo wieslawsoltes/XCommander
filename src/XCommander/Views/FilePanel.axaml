@@ -16,62 +16,8 @@
         <converters:BoolToOpacityConverter x:Key="BoolToOpacityConverter"/>
     </UserControl.Resources>
     
-    <UserControl.Styles>
-        <!-- Panel border with smooth transition -->
-        <Style Selector="Border.panel-border">
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="Transitions">
-                <Transitions>
-                    <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
-                </Transitions>
-            </Setter>
-        </Style>
-        <Style Selector="Border.panel-border.active">
-            <Setter Property="BorderBrush" Value="#007ACC"/>
-        </Style>
-        
-        <!-- DataGrid alternating rows -->
-        <Style Selector="DataGrid DataGridRow:nth-child(even)">
-            <Setter Property="Background" Value="#08000000"/>
-        </Style>
-        <Style Selector="DataGrid DataGridRow:nth-child(odd)">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        
-        <!-- DataGrid row hover effect -->
-        <Style Selector="DataGrid DataGridRow:pointerover">
-            <Setter Property="Background" Value="#20007ACC"/>
-        </Style>
-        
-        <!-- DataGrid row selection -->
-        <Style Selector="DataGrid DataGridRow:selected">
-            <Setter Property="Background" Value="#40007ACC"/>
-        </Style>
-        <Style Selector="DataGrid DataGridRow:selected:pointerover">
-            <Setter Property="Background" Value="#50007ACC"/>
-        </Style>
-        
-        <!-- Button hover transitions -->
-        <Style Selector="Button">
-            <Setter Property="Transitions">
-                <Transitions>
-                    <BrushTransition Property="Background" Duration="0:0:0.1"/>
-                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.1"/>
-                </Transitions>
-            </Setter>
-        </Style>
-        <Style Selector="Button:pointerover">
-            <Setter Property="RenderTransform" Value="scale(1.02)"/>
-        </Style>
-        <Style Selector="Button:pressed">
-            <Setter Property="RenderTransform" Value="scale(0.98)"/>
-        </Style>
-    </UserControl.Styles>
-    
-    <Border BorderThickness="2"
-            Classes.active="{Binding IsActive}"
+    <Border Classes.active="{Binding IsActive}"
             Classes="panel-border"
-            CornerRadius="4"
             Margin="2">
         
         <Panel>
@@ -89,10 +35,9 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button Content="{Binding Name}"
+                                    Classes="drive-button"
                                     Command="{Binding $parent[UserControl].((vm:FilePanelViewModel)DataContext).NavigateToCommand}"
                                     CommandParameter="{Binding RootPath}"
-                                    Padding="8,4"
-                                    MinWidth="40"
                                     FontSize="11"
                                     ToolTip.Tip="{Binding DisplayName}"/>
                         </DataTemplate>

@@ -7,18 +7,8 @@
              x:Class="XCommander.Controls.BreadcrumbBar"
              x:Name="Root">
     
-    <UserControl.Styles>
-        <!-- Style for highlighted segment during drag -->
-        <Style Selector="Button.breadcrumb-highlighted">
-            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightAccentBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-    </UserControl.Styles>
-    
-    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            CornerRadius="4"
-            Padding="4,2"
-            DragDrop.AllowDrop="True">
+    <controls:TcBevelPanel Padding="4,2"
+                           DragDrop.AllowDrop="True">
         <ScrollViewer HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Disabled">
             <ItemsControl x:Name="BreadcrumbItems"
@@ -35,17 +25,10 @@
                                     Command="{Binding #Root.NavigateCommand}"
                                     CommandParameter="{Binding Path}"
                                     Padding="8,4"
-                                    Background="Transparent"
-                                    BorderThickness="0"
                                     Cursor="Hand"
                                     ToolTip.Tip="{Binding Path}"
-                                    Classes.breadcrumb-highlighted="{Binding IsHighlighted}">
-                                <Button.Styles>
-                                    <Style Selector="Button:pointerover">
-                                        <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListLowBrush}"/>
-                                    </Style>
-                                </Button.Styles>
-                            </Button>
+                                    Classes="flat"
+                                    Classes.breadcrumb-highlighted="{Binding IsHighlighted}"/>
                             <TextBlock Text="›"
                                        VerticalAlignment="Center"
                                        Margin="4,0"
@@ -56,5 +39,5 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
-    </Border>
+    </controls:TcBevelPanel>
 </UserControl>
