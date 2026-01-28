@@ -1,216 +1,109 @@
 # XCommander
 
-A cross-platform file manager inspired by Total Commander, built with Avalonia UI and C#.
+A professional, cross‑platform, dual‑pane file manager inspired by Total Commander. Built with Avalonia UI and C# to deliver a fast, keyboard‑first workflow on Windows, macOS, and Linux.
 
-![XCommander Screenshot](docs/screenshot.png)
 
-## Features
+## Highlights
 
-### Current Features (v0.3)
+- Dual‑pane interface with tabbed panels and tab locking
+- Keyboard‑centric workflow with TC‑style shortcuts
+- Powerful file operations (copy/move/delete/rename) with confirmations
+- Integrated tools: search, multi‑rename, compare, checksum, and viewer
+- FTP client for remote browsing and transfers
+- Quick View, quick filter, and status details for high‑density navigation
 
-- **Dual Panel Interface**: Two side-by-side file panels for efficient file management
-- **Tabbed Interface**: Multiple tabs per panel with tab locking
-- **Cross-Platform**: Works on Windows, macOS, and Linux
-- **File Navigation**: 
-  - Browse directories
-  - Navigate with back/forward history
-  - Breadcrumb path bar
-  - Drive/volume selector
-  - Go to parent directory
-- **File Operations**:
-  - Copy files/folders (F5)
-  - Move files/folders (F6)
-  - Delete files/folders (F8) with confirmation
-  - Create new folder (F7)
-  - Create new file (Shift+F4)
-  - Rename files (F2)
-- **Selection**:
-  - Single and multiple file selection
-  - Select all (Ctrl+A)
-  - Invert selection (Ctrl+I)
-  - Quick filter
-- **View Options**:
-  - Show/hide hidden files (Ctrl+H)
-  - Sortable columns (Name, Size, Date)
-  - File icons based on type
-  - Quick View Panel (Ctrl+Q)
-- **Built-in File Viewer (F3)**:
-  - Text mode with encoding selection
-  - Hex mode for binary files
-  - Image preview
-  - Text search with navigation
-  - Word wrap toggle
-- **Search Tool (Alt+F7)**:
-  - Search by filename pattern
-  - Search in file content
-  - Date and size filters
-  - Regular expression support
-  - Hidden files option
-- **Multi-Rename Tool (Ctrl+M)**:
-  - Search and replace with regex
-  - Case transformation
-  - Counter placeholders
-  - Date/time placeholders
-  - Preview before renaming
-- **FTP Client (Ctrl+F)**:
-  - Connect to FTP servers
-  - Browse remote directories
-  - Upload and download files
-  - Create and delete remote files/folders
-- **Directory Comparison (Shift+F6)**:
-  - Compare two directories side-by-side
-  - Compare by content, date, or size
-  - Include subdirectories
-  - Copy to left/right
-  - Select by status (left only, right only, different)
-- **File Comparison (Ctrl+D)**:
-  - Side-by-side diff view
-  - Text comparison with syntax highlighting
-  - Binary/hex comparison mode
-  - Ignore whitespace/case/empty lines
-  - Navigate between differences
-- **Checksum Calculator (Ctrl+Shift+C)**:
-  - MD5, SHA1, SHA256, SHA512, CRC32
-  - Verify checksums against input
-  - Copy to clipboard
-  - Export results
-- **Settings (Ctrl+,)**:
-  - Appearance (theme, fonts)
-  - File display options
-  - Behavior settings
-  - External programs configuration
-  - Tab settings
-  - Quick view settings
-  - File operations settings
-  - Search settings
-- **Keyboard Shortcuts**: Comprehensive keyboard shortcuts for power users
-- **Function Key Bar**: Quick access to common operations
-- **Command Line**: Built-in command line for executing commands
+## Feature Set
 
-### Planned Features
+### Navigation & Panels
+- Dual panels with independent tabs
+- Back/forward history and parent navigation
+- Drive/volume selector and path bar
+- Quick filter and selection tools
 
-- [ ] Archive support (ZIP, 7z, RAR, TAR)
-- [ ] SFTP support
-- [ ] Directory synchronization
-- [ ] Plugin system
-- [ ] Customizable themes
-- [ ] Localization
+### File Operations
+- Copy (F5), Move (F6), Delete (F8), Rename (F2)
+- Create new folder (F7) and file (Shift+F4)
+- Selection helpers: select all, invert, range selection
+
+### Tools
+- Search (Alt+F7): name/content, size/date filters, regex
+- Multi‑Rename (Ctrl+M): regex, counters, placeholders, preview
+- Compare directories (Shift+F6) and files (Ctrl+D)
+- Checksum calculator (Ctrl+Shift+C)
+
+### Viewer
+- Built‑in file viewer (F3)
+- Text, hex, and image modes
+- Encoding selection, search, and word‑wrap
+
+### Network
+- FTP client (Ctrl+F)
+
+### Customization
+- Appearance, behavior, tabs, and tool settings
+- Configurable toolbar and keyboard shortcuts
 
 ## Requirements
 
 - .NET 8.0 or later
 - Windows 10/11, macOS 10.15+, or Linux
 
-## Building from Source
+## Build & Run
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/XCommander.git
+# (use your fork or the canonical repo URL)
+
+git clone <repo-url>
 cd XCommander
 
-# Build the project
+# Build
+
 dotnet build
 
-# Run the application
+# Run
+
 dotnet run --project src/XCommander
 ```
 
-## Keyboard Shortcuts
+## Keyboard Shortcuts (Common)
 
 ### Navigation
 | Key | Action |
 |-----|--------|
-| Tab | Switch between panels |
-| Enter | Open folder/execute file |
-| Backspace | Go to parent directory |
-| Alt+Left | Go back in history |
-| Alt+Right | Go forward in history |
+| Tab | Switch panels |
+| Enter | Open folder / execute file |
+| Backspace | Parent directory |
+| Alt+Left | Back |
+| Alt+Right | Forward |
 
-### Selection
-| Key | Action |
-|-----|--------|
-| Space | Select/deselect item |
-| Ctrl+A | Select all |
-| Ctrl+Shift+A | Deselect all |
-| Ctrl+I | Invert selection |
-
-### File Operations
+### Operations
 | Key | Action |
 |-----|--------|
 | F2 | Rename |
-| F3 | View file |
-| F4 | Edit file |
-| F5 | Copy to other panel |
-| F6 | Move to other panel |
-| F7 | Create new folder |
+| F3 | View |
+| F4 | Edit |
+| F5 | Copy |
+| F6 | Move |
+| F7 | New folder |
 | F8 / Delete | Delete |
-| Shift+F4 | Create new file |
-
-### View
-| Key | Action |
-|-----|--------|
-| Ctrl+H | Toggle hidden files |
-| Ctrl+R | Refresh |
-| Ctrl+Q | Toggle Quick View panel |
+| Shift+F4 | New file |
 
 ### Tools
 | Key | Action |
 |-----|--------|
 | Alt+F7 | Search |
-| Ctrl+M | Multi-Rename Tool |
-| Shift+F6 | Compare Directories |
-| Ctrl+D | Compare Files |
-| Ctrl+Shift+C | Checksum Calculator |
-| Ctrl+F | FTP Connect |
+| Ctrl+M | Multi‑Rename |
+| Shift+F6 | Compare dirs |
+| Ctrl+D | Compare files |
+| Ctrl+Shift+C | Checksum |
+| Ctrl+F | FTP |
 | Ctrl+, | Settings |
-
-### Tabs
-| Key | Action |
-|-----|--------|
-| Ctrl+T | New tab |
-| Ctrl+W | Close tab |
-| Ctrl+Tab | Next tab |
-| Ctrl+Shift+Tab | Previous tab |
-
-## Project Structure
-
-```
-XCommander/
-├── src/
-│   └── XCommander/           # Main application
-│       ├── ViewModels/       # MVVM ViewModels
-│       ├── Views/            # Avalonia XAML Views
-│       ├── Models/           # Data Models
-│       ├── Services/         # Business Logic
-│       ├── Controls/         # Custom Controls
-│       └── Converters/       # Value Converters
-├── tests/                    # Unit tests
-├── docs/                     # Documentation
-├── DESIGN.md                 # Design document
-├── README.md                 # This file
-└── XCommander.sln           # Solution file
-```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+Contributions are welcome. Please open an issue or submit a pull request with a clear description of changes and rationale.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Inspired by [Total Commander](https://www.ghisler.com/)
-- Built with [Avalonia UI](https://avaloniaui.net/)
-- Icons from various open-source icon sets
-
-## Screenshots
-
-*Coming soon*
+See `LICENSE` for details.
