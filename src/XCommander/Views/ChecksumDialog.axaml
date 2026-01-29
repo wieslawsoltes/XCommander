@@ -1,159 +1,141 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:XCommander.Controls"
              xmlns:vm="using:XCommander.ViewModels"
              x:Class="XCommander.Views.ChecksumDialog"
              x:DataType="vm:ChecksumViewModel"
              MinWidth="700"
              MinHeight="500">
-    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
-        <!-- Header -->
-        <Border Grid.Row="0" Background="{DynamicResource SystemAccentColor}" Padding="16">
-            <TextBlock Text="Checksum Calculator" FontSize="18" FontWeight="Bold" Foreground="White"/>
-        </Border>
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="10">
+        <controls:TcBevelPanel Grid.Row="0" Padding="6,4">
+            <TextBlock Text="Checksum Calculator" FontWeight="Bold"/>
+        </controls:TcBevelPanel>
 
-        <!-- Options -->
-        <Border Grid.Row="1" Background="{DynamicResource SystemRegionBrush}" Padding="12">
+        <controls:TcBevelPanel Grid.Row="1" Padding="6,4" Margin="0,6,0,0">
             <Grid RowDefinitions="Auto,Auto,Auto">
-                <!-- Algorithm Selection -->
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="16" Margin="0,0,0,8">
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" Margin="0,0,0,6">
                     <TextBlock Text="Algorithms:" VerticalAlignment="Center" FontWeight="SemiBold"/>
                     <CheckBox Content="MD5" IsChecked="{Binding CalculateMd5}" IsEnabled="{Binding !IsCalculating}"/>
                     <CheckBox Content="SHA1" IsChecked="{Binding CalculateSha1}" IsEnabled="{Binding !IsCalculating}"/>
                     <CheckBox Content="SHA256" IsChecked="{Binding CalculateSha256}" IsEnabled="{Binding !IsCalculating}"/>
                     <CheckBox Content="SHA512" IsChecked="{Binding CalculateSha512}" IsEnabled="{Binding !IsCalculating}"/>
                     <CheckBox Content="CRC32" IsChecked="{Binding CalculateCrc32}" IsEnabled="{Binding !IsCalculating}"/>
-                    <Separator Width="1" Background="Gray" Margin="8,0"/>
+                    <TextBlock Text="|" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="4,0"/>
                     <CheckBox Content="Uppercase" IsChecked="{Binding UppercaseHex}"/>
                 </StackPanel>
 
-                <!-- Action Buttons -->
-                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="0,0,0,6">
                     <Button Content="Calculate" Command="{Binding CalculateCommand}" IsEnabled="{Binding !IsCalculating}"/>
                     <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding IsCalculating}"/>
                     <Button Content="Export Results" Command="{Binding ExportResultsCommand}" IsEnabled="{Binding !IsCalculating}"/>
                 </StackPanel>
 
-                <!-- Verify Checksum -->
                 <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto">
-                    <TextBlock Grid.Column="0" Text="Verify:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <TextBox Grid.Column="1" Text="{Binding VerifyChecksum}" 
-                             Watermark="Paste a checksum to verify..." 
-                             Margin="0,0,8,0"/>
-                    <TextBlock Grid.Column="2" Text="{Binding VerifyResult}" 
+                    <TextBlock Grid.Column="0" Text="Verify:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBox Grid.Column="1" Text="{Binding VerifyChecksum}"
+                             Watermark="Paste a checksum to verify..."
+                             Margin="0,0,6,0"/>
+                    <TextBlock Grid.Column="2" Text="{Binding VerifyResult}"
                                VerticalAlignment="Center"
                                FontWeight="Bold"/>
                 </Grid>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
 
-        <!-- Results -->
-        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" Margin="8">
-            <ItemsControl ItemsSource="{Binding Results}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="vm:ChecksumResult">
-                        <Border Background="{DynamicResource SystemRegionBrush}" 
-                                Margin="0,0,0,8" 
-                                Padding="12"
-                                CornerRadius="4">
-                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
-                                <!-- File Name -->
-                                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
-                                    <TextBlock Text="{Binding FileName}" 
-                                               FontWeight="Bold" 
-                                               FontSize="14"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding FileSize}" 
-                                               Foreground="Gray"/>
+        <controls:TcInsetPanel Grid.Row="2" Padding="0" Margin="0,6,0,0">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" Margin="6">
+                <ItemsControl ItemsSource="{Binding Results}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:ChecksumResult">
+                            <Border BorderBrush="{DynamicResource TcBorderMidBrush}"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource TcWindowBackgroundBrush}"
+                                    Margin="0,0,0,6"
+                                    Padding="8">
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                                        <TextBlock Text="{Binding FileName}" FontWeight="Bold"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding FileSize}"
+                                                   Foreground="{DynamicResource TcMutedTextBrush}"/>
+                                    </Grid>
+
+                                    <TextBlock Grid.Row="1"
+                                               Text="{Binding Error}"
+                                               Foreground="Red"
+                                               IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+                                    <Grid Grid.Row="2" ColumnDefinitions="80,*,Auto"
+                                          IsVisible="{Binding Md5, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                          Margin="0,2">
+                                        <TextBlock Grid.Column="0" Text="MD5:" Foreground="{DynamicResource TcMutedTextBrush}"/>
+                                        <SelectableTextBlock Grid.Column="1" Text="{Binding Md5}" FontFamily="{DynamicResource MonoFontFamily}"/>
+                                        <Button Grid.Column="2" Content="Copy"
+                                                Command="{Binding $parent[ItemsControl].((vm:ChecksumViewModel)DataContext).CopyToClipboardCommand}"
+                                                CommandParameter="{Binding Md5}"
+                                                Padding="4,2" Margin="4,0,0,0"/>
+                                    </Grid>
+
+                                    <Grid Grid.Row="3" ColumnDefinitions="80,*,Auto"
+                                          IsVisible="{Binding Sha1, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                          Margin="0,2">
+                                        <TextBlock Grid.Column="0" Text="SHA1:" Foreground="{DynamicResource TcMutedTextBrush}"/>
+                                        <SelectableTextBlock Grid.Column="1" Text="{Binding Sha1}" FontFamily="{DynamicResource MonoFontFamily}"/>
+                                        <Button Grid.Column="2" Content="Copy"
+                                                Command="{Binding $parent[ItemsControl].((vm:ChecksumViewModel)DataContext).CopyToClipboardCommand}"
+                                                CommandParameter="{Binding Sha1}"
+                                                Padding="4,2" Margin="4,0,0,0"/>
+                                    </Grid>
+
+                                    <Grid Grid.Row="4" ColumnDefinitions="80,*,Auto"
+                                          IsVisible="{Binding Sha256, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                          Margin="0,2">
+                                        <TextBlock Grid.Column="0" Text="SHA256:" Foreground="{DynamicResource TcMutedTextBrush}"/>
+                                        <SelectableTextBlock Grid.Column="1" Text="{Binding Sha256}" FontFamily="{DynamicResource MonoFontFamily}"/>
+                                        <Button Grid.Column="2" Content="Copy"
+                                                Command="{Binding $parent[ItemsControl].((vm:ChecksumViewModel)DataContext).CopyToClipboardCommand}"
+                                                CommandParameter="{Binding Sha256}"
+                                                Padding="4,2" Margin="4,0,0,0"/>
+                                    </Grid>
+
+                                    <Grid Grid.Row="5" ColumnDefinitions="80,*,Auto"
+                                          IsVisible="{Binding Sha512, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                          Margin="0,2">
+                                        <TextBlock Grid.Column="0" Text="SHA512:" Foreground="{DynamicResource TcMutedTextBrush}"/>
+                                        <SelectableTextBlock Grid.Column="1" Text="{Binding Sha512}" FontFamily="{DynamicResource MonoFontFamily}" TextWrapping="Wrap"/>
+                                        <Button Grid.Column="2" Content="Copy"
+                                                Command="{Binding $parent[ItemsControl].((vm:ChecksumViewModel)DataContext).CopyToClipboardCommand}"
+                                                CommandParameter="{Binding Sha512}"
+                                                Padding="4,2" Margin="4,0,0,0"/>
+                                    </Grid>
+
+                                    <Grid Grid.Row="6" ColumnDefinitions="80,*,Auto"
+                                          IsVisible="{Binding Crc32, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                          Margin="0,2">
+                                        <TextBlock Grid.Column="0" Text="CRC32:" Foreground="{DynamicResource TcMutedTextBrush}"/>
+                                        <SelectableTextBlock Grid.Column="1" Text="{Binding Crc32}" FontFamily="{DynamicResource MonoFontFamily}"/>
+                                        <Button Grid.Column="2" Content="Copy"
+                                                Command="{Binding $parent[ItemsControl].((vm:ChecksumViewModel)DataContext).CopyToClipboardCommand}"
+                                                CommandParameter="{Binding Crc32}"
+                                                Padding="4,2" Margin="4,0,0,0"/>
+                                    </Grid>
                                 </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </controls:TcInsetPanel>
 
-                                <!-- Error -->
-                                <TextBlock Grid.Row="1" 
-                                           Text="{Binding Error}" 
-                                           Foreground="Red"
-                                           IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-
-                                <!-- MD5 -->
-                                <Grid Grid.Row="2" ColumnDefinitions="80,*,Auto" 
-                                      IsVisible="{Binding Md5, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                      Margin="0,2">
-                                    <TextBlock Grid.Column="0" Text="MD5:" Foreground="Gray"/>
-                                    <SelectableTextBlock Grid.Column="1" Text="{Binding Md5}" FontFamily="Consolas,Monaco,monospace"/>
-                                    <Button Grid.Column="2" Content="📋" 
-                                            Command="{Binding $parent[ItemsControl].((vm:ChecksumViewModel)DataContext).CopyToClipboardCommand}"
-                                            CommandParameter="{Binding Md5}"
-                                            Padding="4,2" Margin="4,0,0,0"
-                                            ToolTip.Tip="Copy to clipboard"/>
-                                </Grid>
-
-                                <!-- SHA1 -->
-                                <Grid Grid.Row="3" ColumnDefinitions="80,*,Auto" 
-                                      IsVisible="{Binding Sha1, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                      Margin="0,2">
-                                    <TextBlock Grid.Column="0" Text="SHA1:" Foreground="Gray"/>
-                                    <SelectableTextBlock Grid.Column="1" Text="{Binding Sha1}" FontFamily="Consolas,Monaco,monospace"/>
-                                    <Button Grid.Column="2" Content="📋" 
-                                            Command="{Binding $parent[ItemsControl].((vm:ChecksumViewModel)DataContext).CopyToClipboardCommand}"
-                                            CommandParameter="{Binding Sha1}"
-                                            Padding="4,2" Margin="4,0,0,0"
-                                            ToolTip.Tip="Copy to clipboard"/>
-                                </Grid>
-
-                                <!-- SHA256 -->
-                                <Grid Grid.Row="4" ColumnDefinitions="80,*,Auto" 
-                                      IsVisible="{Binding Sha256, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                      Margin="0,2">
-                                    <TextBlock Grid.Column="0" Text="SHA256:" Foreground="Gray"/>
-                                    <SelectableTextBlock Grid.Column="1" Text="{Binding Sha256}" FontFamily="Consolas,Monaco,monospace"/>
-                                    <Button Grid.Column="2" Content="📋" 
-                                            Command="{Binding $parent[ItemsControl].((vm:ChecksumViewModel)DataContext).CopyToClipboardCommand}"
-                                            CommandParameter="{Binding Sha256}"
-                                            Padding="4,2" Margin="4,0,0,0"
-                                            ToolTip.Tip="Copy to clipboard"/>
-                                </Grid>
-
-                                <!-- SHA512 -->
-                                <Grid Grid.Row="5" ColumnDefinitions="80,*,Auto" 
-                                      IsVisible="{Binding Sha512, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                      Margin="0,2">
-                                    <TextBlock Grid.Column="0" Text="SHA512:" Foreground="Gray"/>
-                                    <SelectableTextBlock Grid.Column="1" Text="{Binding Sha512}" FontFamily="Consolas,Monaco,monospace" TextWrapping="Wrap"/>
-                                    <Button Grid.Column="2" Content="📋" 
-                                            Command="{Binding $parent[ItemsControl].((vm:ChecksumViewModel)DataContext).CopyToClipboardCommand}"
-                                            CommandParameter="{Binding Sha512}"
-                                            Padding="4,2" Margin="4,0,0,0"
-                                            ToolTip.Tip="Copy to clipboard"/>
-                                </Grid>
-
-                                <!-- CRC32 -->
-                                <Grid Grid.Row="6" ColumnDefinitions="80,*,Auto" 
-                                      IsVisible="{Binding Crc32, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                      Margin="0,2">
-                                    <TextBlock Grid.Column="0" Text="CRC32:" Foreground="Gray"/>
-                                    <SelectableTextBlock Grid.Column="1" Text="{Binding Crc32}" FontFamily="Consolas,Monaco,monospace"/>
-                                    <Button Grid.Column="2" Content="📋" 
-                                            Command="{Binding $parent[ItemsControl].((vm:ChecksumViewModel)DataContext).CopyToClipboardCommand}"
-                                            CommandParameter="{Binding Crc32}"
-                                            Padding="4,2" Margin="4,0,0,0"
-                                            ToolTip.Tip="Copy to clipboard"/>
-                                </Grid>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
-
-        <!-- Progress -->
-        <Border Grid.Row="3" Background="{DynamicResource SystemRegionBrush}" Padding="8" 
-                IsVisible="{Binding IsCalculating}">
+        <controls:TcBevelPanel Grid.Row="3" Padding="6,4" Margin="0,6,0,0"
+                               IsVisible="{Binding IsCalculating}">
             <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="4"/>
-        </Border>
+        </controls:TcBevelPanel>
 
-        <!-- Status Bar -->
-        <Border Grid.Row="4" Background="{DynamicResource SystemRegionBrush}" Padding="8">
+        <controls:TcBevelPanel Grid.Row="4" Padding="6,4" Margin="0,6,0,0">
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="{Binding Status}" VerticalAlignment="Center"/>
                 <Button Grid.Column="1" Content="Close" Click="Close_Click" Width="80"/>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
     </Grid>
 </UserControl>

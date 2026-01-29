@@ -60,17 +60,12 @@
             
             <!-- Quick Presets -->
             <ComboBox Grid.Column="4"
+                      ItemsSource="{Binding #Root.Presets}"
                       SelectedItem="{Binding #Root.SelectedPreset}"
                       PlaceholderText="Presets"
-                      Width="100"
+                      Width="120"
                       FontSize="11"
-                      Margin="0,0,8,0">
-                <ComboBoxItem Content="All files"/>
-                <ComboBoxItem Content="*.txt"/>
-                <ComboBoxItem Content="*.cs"/>
-                <ComboBoxItem Content="*.jpg;*.png"/>
-                <ComboBoxItem Content="*.zip;*.7z"/>
-            </ComboBox>
+                      Margin="0,0,8,0"/>
             
             <!-- Clear Button -->
             <Button Grid.Column="5"

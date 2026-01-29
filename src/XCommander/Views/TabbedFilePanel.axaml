@@ -11,8 +11,97 @@
              x:DataType="vm:TabbedPanelViewModel">
     
     <UserControl.Resources>
-        <converters:DateTimeConverter x:Key="DateTimeConverter"/>
+        <converters:DateTimeFormatConverter x:Key="DateTimeFormatConverter"/>
         <converters:BoolToOpacityConverter x:Key="BoolToOpacityConverter"/>
+        <converters:BoolToGridLinesVisibilityConverter x:Key="GridLinesVisibilityConverter"/>
+        <converters:FileNameDisplayConverter x:Key="FileNameDisplayConverter"/>
+        <DataTemplate x:Key="FileItemNameTemplate"
+                      x:DataType="vm:FileItemViewModel">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="6"
+                        Margin="4,2"
+                        Opacity="{Binding IsHidden, Converter={StaticResource BoolToOpacityConverter}}">
+                <TextBlock Text="{Binding Icon}"
+                           FontSize="14"
+                           VerticalAlignment="Center"/>
+                <TextBlock VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           FlowDirection="{Binding NameFlowDirection}">
+                    <TextBlock.Text>
+                        <MultiBinding Converter="{StaticResource FileNameDisplayConverter}">
+                            <Binding Path="Name"/>
+                            <Binding Path="DataContext.Settings.ShowFileExtensions" ElementName="Root"/>
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="FileItemDateTemplate"
+                      x:DataType="vm:FileItemViewModel">
+            <TextBlock>
+                <TextBlock.Text>
+                    <MultiBinding Converter="{StaticResource DateTimeFormatConverter}">
+                        <Binding Path="DateModified"/>
+                        <Binding Path="DataContext.Settings.DateFormat" ElementName="Root"/>
+                    </MultiBinding>
+                </TextBlock.Text>
+            </TextBlock>
+        </DataTemplate>
+        <Flyout x:Key="FilePanelNameFilterFlyout"
+                x:DataType="vm:TabbedPanelViewModel"
+                Placement="Bottom"
+                FlyoutPresenterTheme="{StaticResource DataGridFilterFlyoutPresenterTheme}"
+                Content="{Binding ActiveTab.NameFilter}"
+                ContentTemplate="{StaticResource DataGridFilterTextEditorTemplate}" />
+        <Flyout x:Key="FilePanelExtensionFilterFlyout"
+                x:DataType="vm:TabbedPanelViewModel"
+                Placement="Bottom"
+                FlyoutPresenterTheme="{StaticResource DataGridFilterFlyoutPresenterTheme}"
+                Content="{Binding ActiveTab.ExtensionFilter}"
+                ContentTemplate="{StaticResource DataGridFilterTextEditorTemplate}" />
+        <Flyout x:Key="FilePanelSizeFilterFlyout"
+                x:DataType="vm:TabbedPanelViewModel"
+                Placement="Bottom"
+                FlyoutPresenterTheme="{StaticResource DataGridFilterFlyoutPresenterTheme}"
+                Content="{Binding ActiveTab.SizeFilter}"
+                ContentTemplate="{StaticResource DataGridFilterNumberEditorTemplate}" />
+        <Flyout x:Key="FilePanelDescriptionFilterFlyout"
+                x:DataType="vm:TabbedPanelViewModel"
+                Placement="Bottom"
+                FlyoutPresenterTheme="{StaticResource DataGridFilterFlyoutPresenterTheme}"
+                Content="{Binding ActiveTab.DescriptionFilter}"
+                ContentTemplate="{StaticResource DataGridFilterTextEditorTemplate}" />
+        <Flyout x:Key="FilePanelDateFilterFlyout"
+                x:DataType="vm:TabbedPanelViewModel"
+                Placement="Bottom"
+                FlyoutPresenterTheme="{StaticResource DataGridFilterFlyoutPresenterTheme}"
+                Content="{Binding ActiveTab.DateFilter}"
+                ContentTemplate="{StaticResource DataGridFilterDateEditorTemplate}" />
+        <ControlTheme x:Key="FilePanelNameColumnHeaderTheme"
+                      TargetType="DataGridColumnHeader"
+                      BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="FilterFlyout" Value="{StaticResource FilePanelNameFilterFlyout}" />
+        </ControlTheme>
+        <ControlTheme x:Key="FilePanelExtensionColumnHeaderTheme"
+                      TargetType="DataGridColumnHeader"
+                      BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="FilterFlyout" Value="{StaticResource FilePanelExtensionFilterFlyout}" />
+        </ControlTheme>
+        <ControlTheme x:Key="FilePanelSizeColumnHeaderTheme"
+                      TargetType="DataGridColumnHeader"
+                      BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="FilterFlyout" Value="{StaticResource FilePanelSizeFilterFlyout}" />
+        </ControlTheme>
+        <ControlTheme x:Key="FilePanelDescriptionColumnHeaderTheme"
+                      TargetType="DataGridColumnHeader"
+                      BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="FilterFlyout" Value="{StaticResource FilePanelDescriptionFilterFlyout}" />
+        </ControlTheme>
+        <ControlTheme x:Key="FilePanelDateColumnHeaderTheme"
+                      TargetType="DataGridColumnHeader"
+                      BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="FilterFlyout" Value="{StaticResource FilePanelDateFilterFlyout}" />
+        </ControlTheme>
     </UserControl.Resources>
     
     <Border Classes.active="{Binding IsActive}"
@@ -56,7 +145,7 @@
                                         <Button Content="×"
                                                 Command="{Binding $parent[UserControl].((vm:TabbedPanelViewModel)DataContext).CloseTabCommand}"
                                                 CommandParameter="{Binding}"
-                                                IsVisible="{Binding !IsLocked}"
+                                                IsVisible="{Binding IsCloseButtonVisible}"
                                                 Classes="flat"
                                                 Padding="4,2"
                                                 FontSize="10"
@@ -81,7 +170,7 @@
                           Theme="{StaticResource TcHorizontalMenuScrollViewer}"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Disabled"
-                          IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.IsNotNull}}">
+                          IsVisible="{Binding Settings.ShowDriveBar}">
                 <ItemsControl x:Name="DriveBarItems"
                               ItemsSource="{Binding ActiveTab.Drives}">
                     <ItemsControl.ItemsPanel>
@@ -93,7 +182,7 @@
                         <DataTemplate>
                             <Button Content="{Binding Name}"
                                     Classes="drive-button"
-                                    Command="{Binding $parent[UserControl].((vm:TabbedPanelViewModel)DataContext).ActiveTab.NavigateToCommand}"
+                                    Command="{Binding $parent[UserControl].((vm:TabbedPanelViewModel)DataContext).NavigateToDriveCommand}"
                                     CommandParameter="{Binding RootPath}"
                                     FontSize="11"
                                     ToolTip.Tip="{Binding DisplayName}"/>
@@ -106,7 +195,7 @@
             <Grid Grid.Row="2" 
                   ColumnDefinitions="Auto,Auto,*,Auto" 
                   Margin="4"
-                  IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.IsNotNull}}">
+                  IsVisible="{Binding Settings.ShowPathBar}">
                 <Button Grid.Column="0" 
                         Content="←" 
                         Command="{Binding ActiveTab.GoBackCommand}"
@@ -141,56 +230,108 @@
             <controls:TcInsetPanel Grid.Row="3"
                                    Padding="0"
                                    Margin="4,2"
-                                   IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                   IsVisible="{Binding ActiveTab.IsGridView}">
                 <DataGrid ItemsSource="{Binding ActiveTab.Items}"
+                          ColumnDefinitionsSource="{Binding ActiveTab.ColumnDefinitions}"
+                          FilteringModel="{Binding ActiveTab.FilteringModel}"
+                          SortingModel="{Binding ActiveTab.SortingModel}"
+                          SearchModel="{Binding ActiveTab.SearchModel}"
                           SelectedItem="{Binding ActiveTab.SelectedItem}"
                           SelectionMode="Extended"
                           CanUserResizeColumns="True"
                           CanUserReorderColumns="True"
                           CanUserSortColumns="True"
-                          GridLinesVisibility="Horizontal"
+                          GridLinesVisibility="{Binding Settings.ShowGridLines, Converter={StaticResource GridLinesVisibilityConverter}}"
                           BorderThickness="0"
                           IsReadOnly="True"
                           FontSize="12"
+                          IsVisible="{Binding ActiveTab.IsGridView}"
                           DoubleTapped="OnItemDoubleTapped"
                           GotFocus="OnPanelGotFocus"
-                          KeyDown="OnDataGridKeyDown">
-                    <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="Name" Width="*" MinWidth="150">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate x:DataType="vm:FileItemViewModel">
-                                    <StackPanel Orientation="Horizontal" 
-                                                Spacing="6" 
-                                                Margin="4,2"
-                                                Opacity="{Binding IsHidden, Converter={StaticResource BoolToOpacityConverter}}">
-                                        <TextBlock Text="{Binding Icon}" 
-                                                   FontSize="14"
-                                                   VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Name}" 
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"/>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Ext" 
-                                            Binding="{Binding Extension}" 
-                                            Width="60"/>
-                        <DataGridTextColumn Header="Size" 
-                                            Binding="{Binding DisplaySize}" 
-                                            Width="80"/>
-                        <DataGridTextColumn Header="Date Modified" 
-                                            Binding="{Binding DateModified, Converter={StaticResource DateTimeConverter}}" 
-                                            Width="130"/>
-                    </DataGrid.Columns>
+                          KeyDown="OnDataGridKeyDown"
+                          PointerPressed="OnDataGridPointerPressed">
+                    <DataGrid.FastPathOptions>
+                        <DataGridFastPathOptions UseAccessorsOnly="True"
+                                                 ThrowOnMissingAccessor="True" />
+                    </DataGrid.FastPathOptions>
                 </DataGrid>
             </controls:TcInsetPanel>
+
+            <!-- Thumbnails View -->
+            <ScrollViewer Grid.Row="3"
+                          IsVisible="{Binding ActiveTab.IsThumbnailsView}"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          Margin="4,2">
+                <ItemsControl ItemsSource="{Binding ActiveTab.Items}" Margin="4">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FileItemViewModel">
+                            <Border Width="{Binding DataContext.Settings.ThumbnailSize, ElementName=Root}"
+                                    Height="{Binding DataContext.Settings.ThumbnailSize, ElementName=Root, Converter={x:Static converters:AddValueConverter.Instance}, ConverterParameter=24}"
+                                    Margin="4"
+                                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                                    CornerRadius="4"
+                                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                    BorderThickness="1"
+                                    Opacity="{Binding IsHidden, Converter={StaticResource BoolToOpacityConverter}}"
+                                    Cursor="Hand"
+                                    PointerPressed="OnThumbnailPointerPressed"
+                                    DoubleTapped="OnThumbnailDoubleTapped">
+                                <Grid RowDefinitions="*,Auto">
+                                    <Panel Grid.Row="0" Margin="8">
+                                        <Image Source="{Binding Thumbnail}"
+                                               Stretch="Uniform"
+                                               IsVisible="{Binding Thumbnail, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                        <TextBlock Text="{Binding Icon}"
+                                                   FontSize="48"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   IsVisible="{Binding Thumbnail, Converter={x:Static ObjectConverters.IsNull}}"/>
+                                        <Border Background="#99000000"
+                                                CornerRadius="2"
+                                                Padding="4,2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Bottom"
+                                                Margin="4"
+                                                IsVisible="{Binding VideoDuration, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                            <TextBlock Text="{Binding VideoDuration}"
+                                                       Foreground="White"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                        <ProgressBar IsIndeterminate="True"
+                                                     Height="4"
+                                                     VerticalAlignment="Bottom"
+                                                     IsVisible="{Binding ThumbnailLoading}"/>
+                                    </Panel>
+                                    <Border Grid.Row="1"
+                                            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                                            Padding="4,2">
+                                        <TextBlock Text="{Binding Name}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   TextWrapping="NoWrap"
+                                                   FontSize="11"
+                                                   HorizontalAlignment="Center"
+                                                   FlowDirection="{Binding NameFlowDirection}"
+                                                   ToolTip.Tip="{Binding Name}"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
             
             <!-- Status Bar -->
             <Border Grid.Row="4" 
                     Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
                     Padding="8,4"
-                    IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    IsVisible="{Binding Settings.ShowStatusBar}">
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <TextBlock Text="{Binding ActiveTab.StatusText}" 
@@ -213,7 +354,9 @@
                                              MatchCount="{Binding ActiveTab.Items.Count}"
                                              CaseSensitive="{Binding ActiveTab.QuickFilterCaseSensitive, Mode=TwoWay}"
                                              UseRegex="{Binding ActiveTab.QuickFilterUseRegex, Mode=TwoWay}"
-                                             IncludeDirectories="{Binding ActiveTab.QuickFilterIncludeDirectories, Mode=TwoWay}"/>
+                                             IncludeDirectories="{Binding ActiveTab.QuickFilterIncludeDirectories, Mode=TwoWay}"
+                                             Presets="{Binding ActiveTab.QuickFilterPresets}"
+                                             FilterAppliedCommand="{Binding ActiveTab.ApplyQuickFilterCommand}"/>
                 </Grid>
             </Border>
         </Grid>

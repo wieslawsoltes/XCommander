@@ -1,6 +1,12 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Data.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using XCommander.Helpers;
 using XCommander.Models;
 using XCommander.Services;
 
@@ -8,6 +14,11 @@ namespace XCommander.ViewModels;
 
 public partial class SftpViewModel : ViewModelBase
 {
+    private const string NameColumnKey = "name";
+    private const string SizeColumnKey = "size";
+    private const string DateColumnKey = "date";
+    private const string PermissionsColumnKey = "permissions";
+
     private readonly ISftpService _sftpService;
 
     [ObservableProperty]
@@ -51,10 +62,101 @@ public partial class SftpViewModel : ViewModelBase
 
     public ObservableCollection<SftpItem> Items { get; } = new();
     public ObservableCollection<SftpItem> SelectedItems { get; } = new();
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
 
     public SftpViewModel(ISftpService sftpService)
     {
         _sftpService = sftpService;
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<SftpItem>();
+
+        IPropertyInfo displaySizeProperty = DataGridColumnHelper.CreateProperty(
+            nameof(SftpItem.DisplaySize),
+            (SftpItem item) => item.DisplaySize);
+        IPropertyInfo dateProperty = DataGridColumnHelper.CreateProperty(
+            nameof(SftpItem.DateModified),
+            (SftpItem item) => item.DateModified);
+        IPropertyInfo permissionsProperty = DataGridColumnHelper.CreateProperty(
+            nameof(SftpItem.Permissions),
+            (SftpItem item) => item.Permissions);
+
+        var dateColumn = builder.Text(
+            header: "Modified",
+            property: dateProperty,
+            getter: item => item.DateModified,
+            configure: column =>
+            {
+                column.ColumnKey = DateColumnKey;
+                column.Width = new DataGridLength(140);
+                column.IsReadOnly = true;
+                column.ShowFilterButton = true;
+            });
+
+        if (dateColumn.Binding != null)
+        {
+            dateColumn.Binding.StringFormat = "yyyy-MM-dd HH:mm";
+        }
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Name",
+                cellTemplateKey: "SftpItemNameTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = NameColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.MinWidth = 200;
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<SftpItem, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                }),
+            builder.Text(
+                header: "Size",
+                property: displaySizeProperty,
+                getter: item => item.DisplaySize,
+                configure: column =>
+                {
+                    column.ColumnKey = SizeColumnKey;
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<SftpItem, long>(
+                            item => item.Size)
+                    };
+                }),
+            dateColumn,
+            builder.Text(
+                header: "Permissions",
+                property: permissionsProperty,
+                getter: item => item.Permissions,
+                configure: column =>
+                {
+                    column.ColumnKey = PermissionsColumnKey;
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                })
+        };
     }
 
     [RelayCommand]

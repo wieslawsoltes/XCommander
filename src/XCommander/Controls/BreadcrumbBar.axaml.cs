@@ -126,7 +126,7 @@ public partial class BreadcrumbBar : UserControl
         
         if (segment != null)
         {
-            var files = e.Data.GetFiles();
+            var files = e.DataTransfer?.TryGetFiles();
             if (files != null)
             {
                 var paths = files.Select(f => f.Path.LocalPath).ToList();

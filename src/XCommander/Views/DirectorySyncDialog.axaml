@@ -2,19 +2,44 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:XCommander.Controls"
              xmlns:vm="using:XCommander.ViewModels"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="650"
              x:Class="XCommander.Views.DirectorySyncDialog"
              x:DataType="vm:DirectorySyncViewModel">
-    
-    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="SyncItemSelectTemplate"
+                      x:DataType="vm:SyncItemViewModel">
+            <CheckBox IsChecked="{Binding IsSelected}" HorizontalAlignment="Center"/>
+        </DataTemplate>
+        <DataTemplate x:Key="SyncItemNameTemplate"
+                      x:DataType="vm:SyncItemViewModel">
+            <StackPanel Orientation="Horizontal" Spacing="4" Margin="4,2">
+                <TextBlock Text="{Binding Icon}"/>
+                <TextBlock Text="{Binding RelativePath}" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Status}" Foreground="Green" Margin="8,0,0,0"
+                           IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="SyncItemActionTemplate"
+                      x:DataType="vm:SyncItemViewModel">
+            <Border Padding="6,2"
+                    HorizontalAlignment="Center"
+                    Background="{Binding Action, Converter={x:Static vm:SyncActionToColorConverter.Instance}}">
+                <TextBlock Text="{Binding ActionDisplay}" FontWeight="SemiBold"/>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="10">
         <!-- Path inputs -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,8,*" Margin="16,16,16,8">
+        <Grid Grid.Row="0" ColumnDefinitions="*,8,*" Margin="0,0,0,6">
             <StackPanel Grid.Column="0" Spacing="4">
                 <TextBlock Text="Left Directory:" FontWeight="SemiBold"/>
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBox Grid.Column="0" Text="{Binding LeftPath}" Watermark="Select left directory..."/>
-                    <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="12,6"
+                    <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="10,4"
                             Click="BrowseLeft_Click"/>
                 </Grid>
             </StackPanel>
@@ -23,15 +48,14 @@
                 <TextBlock Text="Right Directory:" FontWeight="SemiBold"/>
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBox Grid.Column="0" Text="{Binding RightPath}" Watermark="Select right directory..."/>
-                    <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="12,6"
+                    <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="10,4"
                             Click="BrowseRight_Click"/>
                 </Grid>
             </StackPanel>
         </Grid>
         
         <!-- Options panel -->
-        <Border Grid.Row="1" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                Margin="16,8" Padding="12" CornerRadius="4">
+        <controls:TcBevelPanel Grid.Row="1" Padding="6,4" Margin="0,0,0,6">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <!-- Sync Direction -->
                 <StackPanel Grid.Column="0" Spacing="4">
@@ -45,7 +69,7 @@
                 </StackPanel>
                 
                 <!-- Options -->
-                <StackPanel Grid.Column="1" Margin="24,0" Spacing="4">
+                <StackPanel Grid.Column="1" Margin="20,0" Spacing="4">
                     <CheckBox Content="Include subdirectories" IsChecked="{Binding SyncSubdirectories}"/>
                     <CheckBox Content="Compare by content (slower)" IsChecked="{Binding CompareByContent}"/>
                     <CheckBox Content="Delete extra files in destination" IsChecked="{Binding DeleteExtraFiles}"
@@ -58,63 +82,42 @@
                     <TextBox Text="{Binding FileFilter}" MinWidth="150" Watermark="*.*"/>
                 </StackPanel>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
         
         <!-- Sync items list -->
-        <Border Grid.Row="2" Margin="16,8" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                BorderThickness="1" CornerRadius="4">
+        <controls:TcInsetPanel Grid.Row="2" Padding="0" Margin="0,0,0,6">
             <Grid RowDefinitions="Auto,*">
-                <!-- Header -->
-                <Border Grid.Row="0" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
-                        Padding="8,6">
-                    <Grid ColumnDefinitions="32,*,100,100,140,140,80">
-                        <CheckBox Grid.Column="0" IsChecked="True" Click="SelectAll_Click"/>
-                        <TextBlock Grid.Column="1" Text="Name" FontWeight="SemiBold"/>
-                        <TextBlock Grid.Column="2" Text="Left Size" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                        <TextBlock Grid.Column="3" Text="Right Size" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                        <TextBlock Grid.Column="4" Text="Left Modified" FontWeight="SemiBold"/>
-                        <TextBlock Grid.Column="5" Text="Right Modified" FontWeight="SemiBold"/>
-                        <TextBlock Grid.Column="6" Text="Action" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                    </Grid>
+                <Border Grid.Row="0" Background="{DynamicResource TcChromeBackgroundBrush}"
+                        Padding="6,3">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <CheckBox Content="Select All" IsChecked="True" Click="SelectAll_Click"/>
+                    </StackPanel>
                 </Border>
-                
-                <!-- Items -->
-                <ListBox Grid.Row="1" ItemsSource="{Binding SyncItems}" 
-                         SelectionMode="Multiple"
-                         Background="Transparent">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="{x:Type vm:SyncItemViewModel}">
-                            <Grid ColumnDefinitions="32,*,100,100,140,140,80" Margin="0,2">
-                                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}"/>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                                    <TextBlock Text="{Binding Icon}"/>
-                                    <TextBlock Text="{Binding RelativePath}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding Status}" Foreground="Green" Margin="8,0,0,0"
-                                               IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                                </StackPanel>
-                                <TextBlock Grid.Column="2" Text="{Binding LeftSizeDisplay}" 
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="3" Text="{Binding RightSizeDisplay}" 
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="4" Text="{Binding LeftModifiedDisplay}" 
-                                           VerticalAlignment="Center" FontSize="11"/>
-                                <TextBlock Grid.Column="5" Text="{Binding RightModifiedDisplay}" 
-                                           VerticalAlignment="Center" FontSize="11"/>
-                                <Border Grid.Column="6" CornerRadius="4" Padding="6,2"
-                                        HorizontalAlignment="Center"
-                                        Background="{Binding Action, Converter={x:Static vm:SyncActionToColorConverter.Instance}}">
-                                    <TextBlock Text="{Binding ActionDisplay}" FontWeight="SemiBold"/>
-                                </Border>
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+
+                <DataGrid Grid.Row="1"
+                          ItemsSource="{Binding SyncItems}"
+                          ColumnDefinitionsSource="{Binding ColumnDefinitions}"
+                          FilteringModel="{Binding FilteringModel}"
+                          SortingModel="{Binding SortingModel}"
+                          SearchModel="{Binding SearchModel}"
+                          SelectionMode="Extended"
+                          Background="Transparent"
+                          CanUserResizeColumns="True"
+                          CanUserReorderColumns="False"
+                          CanUserSortColumns="True"
+                          GridLinesVisibility="Horizontal"
+                          BorderThickness="0"
+                          IsReadOnly="True">
+                    <DataGrid.FastPathOptions>
+                        <DataGridFastPathOptions UseAccessorsOnly="True"
+                                                 ThrowOnMissingAccessor="True" />
+                    </DataGrid.FastPathOptions>
+                </DataGrid>
             </Grid>
-        </Border>
+        </controls:TcInsetPanel>
         
         <!-- Status and summary -->
-        <Border Grid.Row="3" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                Margin="16,0" Padding="12,8" CornerRadius="4">
+        <controls:TcBevelPanel Grid.Row="3" Padding="6,4" Margin="0,0,0,6">
             <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center"/>
                 <TextBlock Grid.Column="1" Margin="16,0">
@@ -134,27 +137,29 @@
                     <Run Text="{Binding TotalBytesDisplay}" FontWeight="SemiBold"/>
                 </TextBlock>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
         
         <!-- Progress and buttons -->
-        <Grid Grid.Row="4" Margin="16,8,16,16" ColumnDefinitions="*,Auto,Auto,Auto,Auto">
-            <ProgressBar Grid.Column="0" Value="{Binding Progress}" Maximum="100" 
-                         Height="8" VerticalAlignment="Center" Margin="0,0,16,0"/>
-            
-            <Button Grid.Column="1" Content="Analyze" Command="{Binding AnalyzeCommand}"
-                    IsEnabled="{Binding !IsAnalyzing}"
-                    Padding="24,8" Margin="0,0,8,0"/>
-            
-            <Button Grid.Column="2" Content="Synchronize" Command="{Binding SynchronizeCommand}"
-                    IsEnabled="{Binding CanSync}"
-                    Classes="accent" Padding="24,8" Margin="0,0,8,0"/>
-            
-            <Button Grid.Column="3" Content="Cancel" Command="{Binding CancelCommand}"
-                    IsEnabled="{Binding IsSynchronizing}"
-                    Padding="24,8" Margin="0,0,8,0"/>
-            
-            <Button Grid.Column="4" Content="Close" Click="Close_Click"
-                    Padding="24,8"/>
-        </Grid>
+        <controls:TcBevelPanel Grid.Row="4" Padding="6,4">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                <ProgressBar Grid.Column="0" Value="{Binding Progress}" Maximum="100"
+                             Height="8" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                
+                <Button Grid.Column="1" Content="Analyze" Command="{Binding AnalyzeCommand}"
+                        IsEnabled="{Binding !IsAnalyzing}"
+                        Padding="10,4" Margin="0,0,6,0"/>
+                
+                <Button Grid.Column="2" Content="Synchronize" Command="{Binding SynchronizeCommand}"
+                        IsEnabled="{Binding CanSync}"
+                        Padding="10,4" Margin="0,0,6,0"/>
+                
+                <Button Grid.Column="3" Content="Cancel" Command="{Binding CancelCommand}"
+                        IsEnabled="{Binding IsSynchronizing}"
+                        Padding="10,4" Margin="0,0,6,0"/>
+                
+                <Button Grid.Column="4" Content="Close" Click="Close_Click"
+                        Padding="10,4"/>
+            </Grid>
+        </controls:TcBevelPanel>
     </Grid>
 </UserControl>

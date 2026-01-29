@@ -1,4 +1,3 @@
-using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using XCommander.ViewModels;
@@ -12,28 +11,20 @@ public partial class BookmarksPanel : UserControl
         InitializeComponent();
     }
 
-    public event EventHandler<string>? NavigateRequested;
-    public event EventHandler? AddCurrentRequested;
-
     private void OnBookmarkDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
     {
         if (DataContext is BookmarksViewModel vm && vm.SelectedBookmark != null)
         {
-            NavigateRequested?.Invoke(this, vm.SelectedBookmark.Path);
+            vm.NavigateToBookmarkCommand.Execute(vm.SelectedBookmark);
         }
     }
 
     private void OnRecentDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
     {
-        if (sender is ListBox listBox && listBox.SelectedItem is string path)
+        if (sender is DataGrid dataGrid && dataGrid.SelectedItem is string path && DataContext is BookmarksViewModel vm)
         {
-            NavigateRequested?.Invoke(this, path);
+            vm.NavigateToRecentCommand.Execute(path);
         }
-    }
-
-    private void OnAddCurrentClick(object? sender, RoutedEventArgs e)
-    {
-        AddCurrentRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private async void OnBrowseClick(object? sender, RoutedEventArgs e)

@@ -2,13 +2,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:XCommander.Controls"
              xmlns:vm="using:XCommander.ViewModels"
              xmlns:conv="using:XCommander.Converters"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="500"
              x:Class="XCommander.Views.Dialogs.EncodingToolDialog"
              x:DataType="vm:EncodingToolViewModel">
     
-    <Grid RowDefinitions="Auto,*,Auto,*,Auto,Auto" Margin="16">
+    <Grid RowDefinitions="Auto,*,Auto,*,Auto,Auto" Margin="10">
         <!-- Mode Selection -->
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,8">
             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -21,7 +22,7 @@
                     <ComboBoxItem Content="HTML Encode"/>
                 </ComboBox>
                 
-                <ToggleButton IsChecked="{Binding IsDecodeMode}" Padding="12,6">
+                <ToggleButton IsChecked="{Binding IsDecodeMode}" Padding="8,4">
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <TextBlock Text="⟵" IsVisible="{Binding IsDecodeMode}"/>
                         <TextBlock Text="{Binding IsDecodeMode, Converter={x:Static conv:BoolToEncodeDecodeConverter.Instance}}"/>
@@ -34,55 +35,60 @@
                       VerticalAlignment="Center" Margin="8,0"/>
             <NumericUpDown Grid.Column="2" Value="{Binding WrapLength}" Minimum="20" Maximum="200"
                            IsEnabled="{Binding WrapLines}" Width="80" VerticalAlignment="Center"/>
-            <Button Grid.Column="3" Content="⇄ Swap" Command="{Binding SwapInputOutputCommand}" 
-                    Margin="8,0,0,0" Padding="12,6"/>
+            <Button Grid.Column="3" Content="Swap" Command="{Binding SwapInputOutputCommand}" 
+                    Margin="8,0,0,0" Padding="8,4"/>
         </Grid>
         
         <!-- Input Label -->
         <Grid Grid.Row="1" RowDefinitions="Auto,*">
             <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
                 <TextBlock Text="Input:" FontWeight="SemiBold"/>
-                <Button Grid.Column="1" Content="📁 From File..." Command="{Binding EncodeFileCommand}"
-                        Padding="8,2" FontSize="11"/>
+                <Button Grid.Column="1" Content="From File..." Command="{Binding EncodeFileCommand}"
+                        Padding="6,2" FontSize="11"/>
             </Grid>
-            <TextBox Grid.Row="1" 
-                     Text="{Binding InputText}"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     FontFamily="Consolas,Menlo,monospace"
-                     FontSize="12"/>
+            <controls:TcInsetPanel Grid.Row="1" Padding="0">
+                <TextBox Text="{Binding InputText}"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         FontFamily="{DynamicResource MonoFontFamily}"
+                         FontSize="12"
+                         BorderThickness="0"/>
+            </controls:TcInsetPanel>
         </Grid>
         
         <!-- Separator -->
-        <Border Grid.Row="2" Height="1" Background="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
-                Margin="0,8"/>
+        <Border Grid.Row="2" Height="1" Background="{DynamicResource TcBorderMidBrush}" 
+                Margin="0,6"/>
         
         <!-- Output Label -->
         <Grid Grid.Row="3" RowDefinitions="Auto,*">
             <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
                 <TextBlock Text="Output:" FontWeight="SemiBold"/>
-                <Button Grid.Column="1" Content="💾 To File..." Command="{Binding DecodeToFileCommand}"
-                        Padding="8,2" FontSize="11"/>
+                <Button Grid.Column="1" Content="To File..." Command="{Binding DecodeToFileCommand}"
+                        Padding="6,2" FontSize="11"/>
             </Grid>
-            <TextBox Grid.Row="1" 
-                     Text="{Binding OutputText}"
-                     IsReadOnly="True"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     FontFamily="Consolas,Menlo,monospace"
-                     FontSize="12"/>
+            <controls:TcInsetPanel Grid.Row="1" Padding="0">
+                <TextBox Text="{Binding OutputText}"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         FontFamily="{DynamicResource MonoFontFamily}"
+                         FontSize="12"
+                         BorderThickness="0"/>
+            </controls:TcInsetPanel>
         </Grid>
         
         <!-- Status -->
         <TextBlock Grid.Row="4" Text="{Binding StatusMessage}" 
-                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                   FontSize="11" Margin="0,8,0,0"/>
+                   Foreground="{DynamicResource TcMutedTextBrush}"
+                   FontSize="11" Margin="0,6,0,0"/>
         
         <!-- Buttons -->
-        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" 
-                    Spacing="8" Margin="0,16,0,0">
-            <Button Content="Clear" Command="{Binding ClearAllCommand}" Padding="16,8"/>
-            <Button Content="Close" Command="{Binding CloseCommand}" Padding="16,8"/>
-        </StackPanel>
+        <controls:TcBevelPanel Grid.Row="5" Padding="6,4" Margin="0,6,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+                <Button Content="Clear" Command="{Binding ClearAllCommand}"/>
+                <Button Content="Close" Command="{Binding CloseCommand}"/>
+            </StackPanel>
+        </controls:TcBevelPanel>
     </Grid>
 </UserControl>

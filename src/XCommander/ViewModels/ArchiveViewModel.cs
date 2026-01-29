@@ -4,14 +4,28 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Data.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using XCommander.Helpers;
 using XCommander.Services;
 
 namespace XCommander.ViewModels;
 
 public partial class ArchiveViewModel : ViewModelBase
 {
+    private const string SelectedColumnKey = "selected";
+    private const string IconColumnKey = "icon";
+    private const string NameColumnKey = "name";
+    private const string SizeColumnKey = "size";
+    private const string PackedColumnKey = "packed";
+    private const string RatioColumnKey = "ratio";
+    private const string DateColumnKey = "date";
+
     private readonly IArchiveService _archiveService;
     private CancellationTokenSource? _cancellationTokenSource;
 
@@ -50,6 +64,10 @@ public partial class ArchiveViewModel : ViewModelBase
 
     public ObservableCollection<ArchiveEntryViewModel> Entries { get; } = new();
     public ObservableCollection<ArchiveEntryViewModel> SelectedEntries { get; } = new();
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
 
     public string TotalSizeDisplay => FormatSize(TotalSize);
     public string TotalCompressedSizeDisplay => FormatSize(TotalCompressedSize);
@@ -59,6 +77,136 @@ public partial class ArchiveViewModel : ViewModelBase
     public ArchiveViewModel(IArchiveService archiveService)
     {
         _archiveService = archiveService;
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<ArchiveEntryViewModel>();
+
+        IPropertyInfo isSelectedProperty = DataGridColumnHelper.CreateProperty(
+            nameof(ArchiveEntryViewModel.IsSelected),
+            (ArchiveEntryViewModel item) => item.IsSelected,
+            (item, value) => item.IsSelected = value);
+        IPropertyInfo iconProperty = DataGridColumnHelper.CreateProperty(
+            nameof(ArchiveEntryViewModel.Icon),
+            (ArchiveEntryViewModel item) => item.Icon);
+        IPropertyInfo nameProperty = DataGridColumnHelper.CreateProperty(
+            nameof(ArchiveEntryViewModel.Name),
+            (ArchiveEntryViewModel item) => item.Name);
+        IPropertyInfo sizeProperty = DataGridColumnHelper.CreateProperty(
+            nameof(ArchiveEntryViewModel.SizeDisplay),
+            (ArchiveEntryViewModel item) => item.SizeDisplay);
+        IPropertyInfo packedProperty = DataGridColumnHelper.CreateProperty(
+            nameof(ArchiveEntryViewModel.CompressedSizeDisplay),
+            (ArchiveEntryViewModel item) => item.CompressedSizeDisplay);
+        IPropertyInfo ratioProperty = DataGridColumnHelper.CreateProperty(
+            nameof(ArchiveEntryViewModel.RatioDisplay),
+            (ArchiveEntryViewModel item) => item.RatioDisplay);
+        IPropertyInfo dateProperty = DataGridColumnHelper.CreateProperty(
+            nameof(ArchiveEntryViewModel.DateDisplay),
+            (ArchiveEntryViewModel item) => item.DateDisplay);
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.CheckBox(
+                header: string.Empty,
+                property: isSelectedProperty,
+                getter: item => item.IsSelected,
+                setter: (item, value) => item.IsSelected = value,
+                configure: column =>
+                {
+                    column.ColumnKey = SelectedColumnKey;
+                    column.Width = new DataGridLength(30);
+                    column.CanUserSort = false;
+                    column.ShowFilterButton = false;
+                }),
+            builder.Text(
+                header: string.Empty,
+                property: iconProperty,
+                getter: item => item.Icon,
+                configure: column =>
+                {
+                    column.ColumnKey = IconColumnKey;
+                    column.Width = new DataGridLength(30);
+                    column.IsReadOnly = true;
+                    column.CanUserSort = false;
+                    column.ShowFilterButton = false;
+                }),
+            builder.Text(
+                header: "Name",
+                property: nameProperty,
+                getter: item => item.Name,
+                configure: column =>
+                {
+                    column.ColumnKey = NameColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Size",
+                property: sizeProperty,
+                getter: item => item.SizeDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = SizeColumnKey;
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<ArchiveEntryViewModel, long>(
+                            item => item.Size)
+                    };
+                }),
+            builder.Text(
+                header: "Packed",
+                property: packedProperty,
+                getter: item => item.CompressedSizeDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = PackedColumnKey;
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<ArchiveEntryViewModel, long>(
+                            item => item.CompressedSize)
+                    };
+                }),
+            builder.Text(
+                header: "Ratio",
+                property: ratioProperty,
+                getter: item => item.RatioDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = RatioColumnKey;
+                    column.Width = new DataGridLength(60);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Date",
+                property: dateProperty,
+                getter: item => item.DateDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = DateColumnKey;
+                    column.Width = new DataGridLength(130);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                })
+        };
     }
 
     public async Task LoadArchiveAsync(string path)

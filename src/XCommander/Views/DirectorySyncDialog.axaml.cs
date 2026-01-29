@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -130,7 +131,7 @@ namespace XCommander.ViewModels
 
         public object? ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return BindingOperations.DoNothing;
         }
     }
 }

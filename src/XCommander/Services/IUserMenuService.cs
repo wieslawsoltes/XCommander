@@ -167,6 +167,11 @@ public class MenuExecutionContext
     public IReadOnlyList<string>? SelectedFilesTarget { get; init; }
     public string? SourceListFile { get; init; }
     public string? TargetListFile { get; init; }
+    public IReadOnlyDictionary<string, string>? Variables { get; init; }
+    public Func<string, Task>? ChangeSourcePathAsync { get; init; }
+    public Func<string, Task>? ChangeTargetPathAsync { get; init; }
+    public Func<string, Task>? ChangeActivePathAsync { get; init; }
+    public Func<string, Task>? InternalCommandHandlerAsync { get; init; }
 }
 
 /// <summary>

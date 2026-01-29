@@ -2,17 +2,27 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:XCommander.Controls"
              xmlns:vm="using:XCommander.ViewModels"
              xmlns:services="using:XCommander.Services"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="XCommander.Views.SftpDialog"
              x:DataType="vm:SftpViewModel">
-    
-    <Grid RowDefinitions="Auto,*,Auto,Auto">
+    <UserControl.Resources>
+        <DataTemplate x:Key="SftpItemNameTemplate"
+                      x:DataType="services:SftpItem">
+            <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,2">
+                <TextBlock Text="{Binding Icon}" FontSize="14" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="10">
         <!-- Connection Panel -->
-        <Border Grid.Row="0" 
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                Padding="12" Margin="16,16,16,8">
+        <controls:TcBevelPanel Grid.Row="0"
+                               Padding="6,4"
+                               Margin="0,0,0,6">
             <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*,*,Auto">
                 <!-- Row 1: Host, Port, Username -->
                 <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4" Margin="0,0,8,8">
@@ -47,7 +57,7 @@
                         <TextBox Grid.Column="0" Text="{Binding PrivateKeyPath}" 
                                  Watermark="Path to private key file"
                                  IsEnabled="{Binding !IsConnected}"/>
-                        <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="12,6"
+                        <Button Grid.Column="1" Content="..." Margin="4,0,0,0" Padding="10,4"
                                 IsEnabled="{Binding !IsConnected}"
                                 Click="BrowseKey_Click"/>
                     </Grid>
@@ -60,29 +70,32 @@
                             Command="{Binding ConnectCommand}"
                             IsVisible="{Binding !IsConnected}"
                             IsEnabled="{Binding !IsConnecting}"
-                            Classes="accent" Padding="24,12"/>
+                            Padding="12,6"/>
                     <Button Content="Disconnect" 
                             Command="{Binding DisconnectCommand}"
                             IsVisible="{Binding IsConnected}"
-                            Padding="24,12"/>
+                            Padding="12,6"/>
                 </StackPanel>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
         
         <!-- File Browser -->
-        <Grid Grid.Row="1" RowDefinitions="Auto,*" Margin="16,8">
+        <Grid Grid.Row="1" RowDefinitions="Auto,*" Margin="0,0,0,6">
             <!-- Path Bar -->
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
                 <TextBlock Grid.Column="0" Text="Path:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <TextBox Grid.Column="1" Text="{Binding CurrentPath}" IsReadOnly="True"/>
-                <Button Grid.Column="2" Content="⟳" Command="{Binding RefreshCommand}"
-                        Padding="8,6" Margin="4,0,0,0" ToolTip.Tip="Refresh"/>
+                <Button Grid.Column="2" Content="Refresh" Command="{Binding RefreshCommand}"
+                        Padding="8,4" Margin="4,0,0,0" ToolTip.Tip="Refresh"/>
             </Grid>
             
             <!-- File List -->
-            <Border Grid.Row="1" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                    BorderThickness="1" CornerRadius="4">
+            <controls:TcInsetPanel Grid.Row="1" Padding="0">
                 <DataGrid ItemsSource="{Binding Items}"
+                          ColumnDefinitionsSource="{Binding ColumnDefinitions}"
+                          FilteringModel="{Binding FilteringModel}"
+                          SortingModel="{Binding SortingModel}"
+                          SearchModel="{Binding SearchModel}"
                           SelectedItem="{Binding SelectedItem}"
                           SelectionMode="Extended"
                           CanUserResizeColumns="True"
@@ -92,48 +105,36 @@
                           IsReadOnly="True"
                           IsEnabled="{Binding IsConnected}"
                           DoubleTapped="OnItemDoubleTapped">
-                    <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="Name" Width="*" MinWidth="200">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type services:SftpItem}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,2">
-                                        <TextBlock Text="{Binding Icon}" FontSize="14" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Size" Binding="{Binding DisplaySize}" Width="100"/>
-                        <DataGridTextColumn Header="Modified" Binding="{Binding DateModified, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" Width="140"/>
-                        <DataGridTextColumn Header="Permissions" Binding="{Binding Permissions}" Width="100"/>
-                    </DataGrid.Columns>
+                    <DataGrid.FastPathOptions>
+                        <DataGridFastPathOptions UseAccessorsOnly="True"
+                                                 ThrowOnMissingAccessor="True" />
+                    </DataGrid.FastPathOptions>
                 </DataGrid>
-            </Border>
+            </controls:TcInsetPanel>
         </Grid>
         
         <!-- Progress Bar -->
-        <Grid Grid.Row="2" Margin="16,8" ColumnDefinitions="*,Auto" IsVisible="{Binding IsOperationInProgress}">
+        <Grid Grid.Row="2" Margin="0,0,0,6" ColumnDefinitions="*,Auto" IsVisible="{Binding IsOperationInProgress}">
             <ProgressBar Grid.Column="0" Value="{Binding Progress}" Maximum="100" Height="8"/>
             <TextBlock Grid.Column="1" Text="{Binding Progress, StringFormat='{}{0:F1}%'}" 
                        Margin="8,0,0,0" VerticalAlignment="Center"/>
         </Grid>
         
         <!-- Status Bar and Buttons -->
-        <Border Grid.Row="3" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                Padding="12" Margin="16,8,16,16">
+        <controls:TcBevelPanel Grid.Row="3" Padding="6,4">
             <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center"/>
                 
                 <Button Grid.Column="1" Content="Upload" Click="Upload_Click"
-                        IsEnabled="{Binding IsConnected}" Padding="16,8" Margin="0,0,8,0"/>
+                        IsEnabled="{Binding IsConnected}" Padding="8,4" Margin="0,0,6,0"/>
                 <Button Grid.Column="2" Content="Download" Click="Download_Click"
-                        IsEnabled="{Binding IsConnected}" Padding="16,8" Margin="0,0,8,0"/>
+                        IsEnabled="{Binding IsConnected}" Padding="8,4" Margin="0,0,6,0"/>
                 <Button Grid.Column="3" Content="New Folder" Click="NewFolder_Click"
-                        IsEnabled="{Binding IsConnected}" Padding="16,8" Margin="0,0,8,0"/>
+                        IsEnabled="{Binding IsConnected}" Padding="8,4" Margin="0,0,6,0"/>
                 <Button Grid.Column="4" Content="Delete" Command="{Binding DeleteSelectedCommand}"
-                        IsEnabled="{Binding IsConnected}" Padding="16,8" Margin="0,0,8,0"/>
-                <Button Grid.Column="5" Content="Close" Click="Close_Click" Padding="16,8"/>
+                        IsEnabled="{Binding IsConnected}" Padding="8,4" Margin="0,0,6,0"/>
+                <Button Grid.Column="5" Content="Close" Click="Close_Click" Padding="8,4"/>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
     </Grid>
 </UserControl>

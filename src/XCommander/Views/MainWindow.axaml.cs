@@ -4,6 +4,7 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using AvaloniaMenuItem = Avalonia.Controls.MenuItem;
 using AvaloniaSeparator = Avalonia.Controls.Separator;
 using XCommander.Controls;
@@ -20,6 +21,8 @@ public partial class MainWindow : Window
     private INotificationService? _notificationService;
     private ISelectionHistoryService? _selectionHistoryService;
     private IDirectoryHotlistService? _directoryHotlistService;
+    private IAppSettingsService? _settingsService;
+    private ISettingsNavigationService? _settingsNavigationService;
     private ContextMenu? _hotlistMenu;
     private Dictionary<string, HotlistItem> _hotlistShortcutMap = new(StringComparer.OrdinalIgnoreCase);
     private bool _hotlistMenuOpen;
@@ -30,10 +33,7 @@ public partial class MainWindow : Window
         
         KeyDown += OnKeyDown;
         DataContextChanged += OnDataContextChanged;
-        
-        // Wire up bookmarks panel events
-        BookmarksPanel.NavigateRequested += OnBookmarkNavigateRequested;
-        BookmarksPanel.AddCurrentRequested += OnBookmarkAddCurrentRequested;
+        Closing += OnWindowClosing;
     }
     
     /// <summary>
@@ -42,11 +42,15 @@ public partial class MainWindow : Window
     public void InitializeServices(
         INotificationService? notificationService,
         ISelectionHistoryService? selectionHistoryService,
-        IDirectoryHotlistService? directoryHotlistService)
+        IDirectoryHotlistService? directoryHotlistService,
+        IAppSettingsService? settingsService,
+        ISettingsNavigationService? settingsNavigationService)
     {
         _notificationService = notificationService;
         _selectionHistoryService = selectionHistoryService;
         _directoryHotlistService = directoryHotlistService;
+        _settingsService = settingsService;
+        _settingsNavigationService = settingsNavigationService;
         
         // Bind notification overlay to service
         if (_notificationService != null)
@@ -55,20 +59,9 @@ public partial class MainWindow : Window
         }
     }
     
-    private void OnBookmarkNavigateRequested(object? sender, string path)
+    private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (DataContext is MainWindowViewModel vm)
-        {
-            vm.NavigateToBookmark(path);
-        }
-    }
-    
-    private void OnBookmarkAddCurrentRequested(object? sender, EventArgs e)
-    {
-        if (DataContext is MainWindowViewModel vm)
-        {
-            vm.AddCurrentFolderToBookmarksCommand.Execute(null);
-        }
+        _settingsService?.Save();
     }
     
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -100,6 +93,7 @@ public partial class MainWindow : Window
             vm.ToolbarConfigurationRequested += OnToolbarConfigRequested;
             vm.HelpRequested += OnHelpRequested;
             vm.BranchViewRequested += OnBranchViewRequested;
+            vm.SearchRequested += OnSearchRequested;
             
             // TC-style dialog events
             vm.CopyMoveDialogRequested += OnCopyMoveDialogRequested;
@@ -153,6 +147,14 @@ public partial class MainWindow : Window
     private async void OnHelpRequested(object? sender, EventArgs e)
     {
         await ShowHelpDialogAsync();
+    }
+
+    private async void OnSearchRequested(object? sender, EventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm)
+        {
+            await ShowSearchDialogAsync(vm);
+        }
     }
     
     private async Task ShowHelpDialogAsync()
@@ -245,8 +247,11 @@ public partial class MainWindow : Window
                 Confirmed = true,
                 DestinationPath = vm.DestinationPath,
                 PreserveDateTime = vm.PreserveDateTime,
+                PreserveAttributes = vm.PreserveAttributes,
                 VerifyAfterCopy = vm.VerifyAfterCopy,
-                OverwriteMode = vm.OverwriteMode
+                OverwriteMode = vm.OverwriteMode,
+                UseBackgroundTransfer = vm.UseBackgroundTransfer || vm.QueueOperation,
+                LowPriority = vm.LowPriority
             };
             dialog.Close();
         };
@@ -773,7 +778,10 @@ public partial class MainWindow : Window
     
     private async Task ShowSettingsDialogAsync()
     {
-        var vm = new SettingsViewModel();
+        if (_settingsService == null)
+            return;
+
+        var vm = new SettingsViewModel(_settingsService, _settingsNavigationService);
         vm.Load();
         
         var dialog = new SettingsDialog
@@ -1495,17 +1503,21 @@ public partial class MainWindow : Window
 
     private void ToggleQuickFilter(MainWindowViewModel vm)
     {
-        var panelControl = vm.ActivePanel == vm.LeftPanel ? LeftPanelControl : RightPanelControl;
+        var panelControl = FindTabbedPanel(vm.ActivePanel);
         panelControl?.ToggleQuickFilter();
     }
 
     private void FocusDriveBar(TabbedPanelViewModel panel)
     {
-        var panelControl = DataContext is MainWindowViewModel vm && panel == vm.LeftPanel
-            ? LeftPanelControl
-            : RightPanelControl;
-
+        var panelControl = FindTabbedPanel(panel);
         panelControl?.FocusDriveBar();
+    }
+
+    private TabbedFilePanel? FindTabbedPanel(TabbedPanelViewModel panel)
+    {
+        return this.GetVisualDescendants()
+            .OfType<TabbedFilePanel>()
+            .FirstOrDefault(candidate => ReferenceEquals(candidate.DataContext, panel));
     }
 
     private async Task ShowHotlistDialogAsync(MainWindowViewModel vm)

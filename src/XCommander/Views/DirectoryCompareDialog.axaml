@@ -1,18 +1,18 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:XCommander.Controls"
              xmlns:vm="using:XCommander.ViewModels"
              x:Class="XCommander.Views.DirectoryCompareDialog"
              x:DataType="vm:DirectoryCompareViewModel"
              MinWidth="900"
              MinHeight="600">
-    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
-        <!-- Header -->
-        <Border Grid.Row="0" Background="{DynamicResource SystemAccentColor}" Padding="16">
-            <TextBlock Text="Directory Comparison" FontSize="18" FontWeight="Bold" Foreground="White"/>
-        </Border>
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="10">
+        <controls:TcBevelPanel Grid.Row="0" Padding="6,4">
+            <TextBlock Text="Directory Comparison" FontWeight="Bold"/>
+        </controls:TcBevelPanel>
 
         <!-- Options -->
-        <Border Grid.Row="1" Background="{DynamicResource SystemRegionBrush}" Padding="12">
+        <controls:TcBevelPanel Grid.Row="1" Padding="6,4" Margin="0,6,0,0">
             <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto,Auto,*,Auto">
                 <!-- Left Directory -->
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Left:" VerticalAlignment="Center" Margin="0,0,8,0"/>
@@ -29,7 +29,7 @@
                         IsEnabled="{Binding !IsComparing}" Click="BrowseRight_Click"/>
 
                 <!-- Options Row -->
-                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal" Spacing="16" Margin="0,0,0,8">
+                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal" Spacing="12" Margin="0,0,0,6">
                     <CheckBox Content="Show only differences" IsChecked="{Binding ShowOnlyDifferences}" IsEnabled="{Binding !IsComparing}"/>
                     <CheckBox Content="Compare subdirectories" IsChecked="{Binding CompareSubdirectories}" IsEnabled="{Binding !IsComparing}"/>
                     <CheckBox Content="Compare by content" IsChecked="{Binding CompareByContent}" IsEnabled="{Binding !IsComparing}"/>
@@ -39,13 +39,13 @@
                 </StackPanel>
 
                 <!-- Action Buttons -->
-                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal" Spacing="8">
+                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal" Spacing="6">
                     <Button Content="Compare" Command="{Binding CompareCommand}" IsEnabled="{Binding !IsComparing}"/>
                     <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding IsComparing}"/>
-                    <Separator Width="1" Background="Gray" Margin="8,0"/>
+                    <TextBlock Text="|" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="6,0"/>
                     <Button Content="Copy → Right" Command="{Binding CopyToRightCommand}" IsEnabled="{Binding !IsComparing}" ToolTip.Tip="Copy selected files from left to right"/>
                     <Button Content="Copy ← Left" Command="{Binding CopyToLeftCommand}" IsEnabled="{Binding !IsComparing}" ToolTip.Tip="Copy selected files from right to left"/>
-                    <Separator Width="1" Background="Gray" Margin="8,0"/>
+                    <TextBlock Text="|" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="6,0"/>
                     <Button Content="Select All" Command="{Binding SelectAllCommand}"/>
                     <Button Content="Select None" Command="{Binding SelectNoneCommand}"/>
                     <Button Content="Left Only" Command="{Binding SelectLeftOnlyCommand}"/>
@@ -53,30 +53,31 @@
                     <Button Content="Different" Command="{Binding SelectDifferentCommand}"/>
                 </StackPanel>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
 
         <!-- Results Grid -->
-        <DataGrid Grid.Row="2" ItemsSource="{Binding Results}" 
-                  AutoGenerateColumns="False"
-                  CanUserReorderColumns="True"
-                  CanUserResizeColumns="True"
-                  CanUserSortColumns="True"
-                  GridLinesVisibility="All"
-                  IsReadOnly="False"
-                  Margin="8">
-            <DataGrid.Columns>
-                <DataGridCheckBoxColumn Header="" Binding="{Binding IsSelected}" Width="30"/>
-                <DataGridTextColumn Header="Status" Binding="{Binding StatusDisplay}" Width="50"/>
-                <DataGridTextColumn Header="Path" Binding="{Binding RelativePath}" Width="*"/>
-                <DataGridTextColumn Header="Left Size" Binding="{Binding LeftSizeDisplay}" Width="100"/>
-                <DataGridTextColumn Header="Left Date" Binding="{Binding LeftDateDisplay}" Width="140"/>
-                <DataGridTextColumn Header="Right Size" Binding="{Binding RightSizeDisplay}" Width="100"/>
-                <DataGridTextColumn Header="Right Date" Binding="{Binding RightDateDisplay}" Width="140"/>
-            </DataGrid.Columns>
-        </DataGrid>
+        <controls:TcInsetPanel Grid.Row="2" Padding="0" Margin="0,6,0,0">
+            <DataGrid ItemsSource="{Binding ResultsView}"
+                      ColumnDefinitionsSource="{Binding ColumnDefinitions}"
+                      FilteringModel="{Binding FilteringModel}"
+                      SortingModel="{Binding SortingModel}"
+                      SearchModel="{Binding SearchModel}"
+                      AutoGenerateColumns="False"
+                      CanUserReorderColumns="True"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      GridLinesVisibility="All"
+                      IsReadOnly="False"
+                      BorderThickness="0">
+                <DataGrid.FastPathOptions>
+                    <DataGridFastPathOptions UseAccessorsOnly="True"
+                                             ThrowOnMissingAccessor="True" />
+                </DataGrid.FastPathOptions>
+            </DataGrid>
+        </controls:TcInsetPanel>
 
         <!-- Statistics -->
-        <Border Grid.Row="3" Background="{DynamicResource SystemRegionBrush}" Padding="8">
+        <controls:TcBevelPanel Grid.Row="3" Padding="6,4" Margin="0,6,0,0">
             <StackPanel Orientation="Horizontal" Spacing="24">
                 <TextBlock>
                     <Run Text="Left only: "/>
@@ -95,14 +96,14 @@
                     <Run Text="{Binding IdenticalCount}" FontWeight="Bold" Foreground="Gray"/>
                 </TextBlock>
             </StackPanel>
-        </Border>
+        </controls:TcBevelPanel>
 
         <!-- Status Bar -->
-        <Border Grid.Row="4" Background="{DynamicResource SystemRegionBrush}" Padding="8">
+        <controls:TcBevelPanel Grid.Row="4" Padding="6,4" Margin="0,6,0,0">
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="{Binding Status}" VerticalAlignment="Center"/>
                 <Button Grid.Column="1" Content="Close" Click="Close_Click" Width="80"/>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
     </Grid>
 </UserControl>

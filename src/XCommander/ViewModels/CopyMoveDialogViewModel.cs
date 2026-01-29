@@ -1,4 +1,10 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Text.Json;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -37,6 +43,11 @@ public enum FileOperationType
 /// </summary>
 public partial class CopyMoveDialogViewModel : ViewModelBase
 {
+    private static readonly string RecentDestinationsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "XCommander",
+        "recent_copy_move.json");
+
     public event EventHandler? RequestClose;
     public event EventHandler? Confirmed;
     public event EventHandler? Cancelled;
@@ -110,6 +121,11 @@ public partial class CopyMoveDialogViewModel : ViewModelBase
     
     public ObservableCollection<string> SourcePaths { get; } = new();
     public ObservableCollection<string> RecentDestinations { get; } = new();
+
+    public ObservableCollection<DataGridColumnDefinition> SourcePathColumnDefinitions { get; }
+    public FilteringModel SourcePathFilteringModel { get; }
+    public SortingModel SourcePathSortingModel { get; }
+    public SearchModel SourcePathSearchModel { get; }
     
     public string DialogTitle => OperationType == FileOperationType.Copy ? "Copy" : "Move";
     public string ActionButtonText => OperationType == FileOperationType.Copy ? "Copy" : "Move";
@@ -120,8 +136,43 @@ public partial class CopyMoveDialogViewModel : ViewModelBase
     
     public CopyMoveDialogViewModel()
     {
+        SourcePathFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SourcePathSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SourcePathSearchModel = new SearchModel();
+        SourcePathColumnDefinitions = BuildSourcePathColumnDefinitions();
+
         // Load recent destinations from settings
         LoadRecentDestinations();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildSourcePathColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<string>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Source",
+                cellTemplateKey: "SourcePathTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "source-path";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<string, string>(item => item);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<string, string>(item => item)
+                    };
+                })
+        };
     }
     
     public void Initialize(IEnumerable<string> sourcePaths, string destination, FileOperationType operationType)
@@ -226,18 +277,36 @@ public partial class CopyMoveDialogViewModel : ViewModelBase
     
     private void LoadRecentDestinations()
     {
-        // TODO: Load from settings/preferences
-        // For now, add some common paths
         RecentDestinations.Clear();
-        
-        var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var desktopDir = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-        var documentsDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var downloadsDir = Path.Combine(homeDir, "Downloads");
-        
-        if (Directory.Exists(desktopDir)) RecentDestinations.Add(desktopDir);
-        if (Directory.Exists(documentsDir)) RecentDestinations.Add(documentsDir);
-        if (Directory.Exists(downloadsDir)) RecentDestinations.Add(downloadsDir);
+
+        try
+        {
+            if (File.Exists(RecentDestinationsPath))
+            {
+                var json = File.ReadAllText(RecentDestinationsPath);
+                var recent = JsonSerializer.Deserialize<List<string>>(json) ?? [];
+                foreach (var path in recent.Where(p => !string.IsNullOrWhiteSpace(p)))
+                {
+                    RecentDestinations.Add(path);
+                }
+            }
+        }
+        catch
+        {
+            // Ignore errors and fall back to defaults.
+        }
+
+        if (RecentDestinations.Count == 0)
+        {
+            var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var desktopDir = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            var documentsDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var downloadsDir = Path.Combine(homeDir, "Downloads");
+
+            if (Directory.Exists(desktopDir)) RecentDestinations.Add(desktopDir);
+            if (Directory.Exists(documentsDir)) RecentDestinations.Add(documentsDir);
+            if (Directory.Exists(downloadsDir)) RecentDestinations.Add(downloadsDir);
+        }
     }
     
     private void AddToRecentDestinations(string path)
@@ -253,8 +322,30 @@ public partial class CopyMoveDialogViewModel : ViewModelBase
         {
             RecentDestinations.RemoveAt(RecentDestinations.Count - 1);
         }
-        
-        // TODO: Save to settings
+
+        SaveRecentDestinations();
+    }
+
+    private void SaveRecentDestinations()
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(RecentDestinationsPath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var json = JsonSerializer.Serialize(RecentDestinations.ToList(), new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+            File.WriteAllText(RecentDestinationsPath, json);
+        }
+        catch
+        {
+            // Ignore errors saving recent destinations.
+        }
     }
     
     private static long CalculateDirectorySize(string path)

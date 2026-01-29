@@ -4,6 +4,7 @@ using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using Microsoft.Data.Sqlite;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -850,19 +851,86 @@ public class DatabasePreviewProvider : IPreviewProvider
         CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
-        
-        // This is a stub - real implementation would use Microsoft.Data.Sqlite
-        // For now, return a placeholder result
-        await Task.Delay(10, cancellationToken);
-        
-        stopwatch.Stop();
-        
-        return new QueryResult
+        try
         {
-            Success = false,
-            ErrorMessage = "Query execution requires Microsoft.Data.Sqlite package",
-            ExecutionTime = stopwatch.Elapsed
-        };
+            if (!File.Exists(filePath))
+            {
+                return new QueryResult
+                {
+                    Success = false,
+                    ErrorMessage = "Database file not found.",
+                    ExecutionTime = stopwatch.Elapsed
+                };
+            }
+
+            var ext = Path.GetExtension(filePath)?.ToLowerInvariant();
+            if (ext is not ".sqlite" and not ".sqlite3" and not ".db" and not ".db3" and not ".s3db")
+            {
+                return new QueryResult
+                {
+                    Success = false,
+                    ErrorMessage = "SQLite query execution is only supported for SQLite files.",
+                    ExecutionTime = stopwatch.Elapsed
+                };
+            }
+
+            await using var connection = new SqliteConnection($"Data Source={filePath};Mode=ReadOnly;Cache=Shared");
+            await connection.OpenAsync(cancellationToken);
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = query;
+
+            if (IsResultQuery(query))
+            {
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                var columnNames = new List<string>();
+                for (var i = 0; i < reader.FieldCount; i++)
+                {
+                    columnNames.Add(reader.GetName(i));
+                }
+
+                var rows = new List<IReadOnlyList<object?>>();
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var row = new object?[reader.FieldCount];
+                    for (var i = 0; i < reader.FieldCount; i++)
+                    {
+                        row[i] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                    }
+                    rows.Add(row);
+                }
+
+                stopwatch.Stop();
+                return new QueryResult
+                {
+                    Success = true,
+                    ColumnNames = columnNames,
+                    Rows = rows,
+                    RowsAffected = rows.Count,
+                    ExecutionTime = stopwatch.Elapsed
+                };
+            }
+
+            var affected = await command.ExecuteNonQueryAsync(cancellationToken);
+            stopwatch.Stop();
+
+            return new QueryResult
+            {
+                Success = true,
+                RowsAffected = affected,
+                ExecutionTime = stopwatch.Elapsed
+            };
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            return new QueryResult
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+                ExecutionTime = stopwatch.Elapsed
+            };
+        }
     }
     
     public async Task<IReadOnlyList<TableSchema>> GetSchemaAsync(string filePath,
@@ -901,15 +969,154 @@ public class DatabasePreviewProvider : IPreviewProvider
             return tables;
         }
         
-        // Without Microsoft.Data.Sqlite, we can only provide basic info
-        // Real implementation would query sqlite_master table
-        tables.Add(new TableSchema
+        await using var connection = new SqliteConnection($"Data Source={filePath};Mode=ReadOnly;Cache=Shared");
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT name, type FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY name;";
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
         {
-            Name = "(Schema requires Microsoft.Data.Sqlite)",
-            Type = "INFO"
-        });
+            var name = reader.GetString(0);
+            var type = reader.GetString(1);
+
+            var columns = new List<ColumnSchema>();
+            var primaryKeys = new List<string>();
+            var indexes = new List<IndexSchema>();
+            int rowCount = 0;
+
+            if (type.Equals("table", StringComparison.OrdinalIgnoreCase))
+            {
+                (columns, primaryKeys) = await GetSqliteColumnsAsync(connection, name, cancellationToken);
+                indexes = await GetSqliteIndexesAsync(connection, name, cancellationToken);
+                rowCount = await GetSqliteRowCountAsync(connection, name, cancellationToken);
+                rowCounts[name] = rowCount;
+            }
+
+            tables.Add(new TableSchema
+            {
+                Name = name,
+                Type = type.ToUpperInvariant(),
+                Columns = columns,
+                PrimaryKeys = primaryKeys,
+                Indexes = indexes,
+                RowCount = rowCount
+            });
+        }
         
         return tables;
+    }
+
+    private static async Task<(List<ColumnSchema> Columns, List<string> PrimaryKeys)> GetSqliteColumnsAsync(
+        SqliteConnection connection,
+        string tableName,
+        CancellationToken cancellationToken)
+    {
+        var columns = new List<ColumnSchema>();
+        var primaryKeys = new List<string>();
+        var safeName = tableName.Replace("\"", "\"\"");
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info(\"{safeName}\");";
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var name = reader.GetString(1);
+            var dataType = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
+            var isNullable = reader.GetInt32(3) == 0;
+            var defaultValue = reader.IsDBNull(4) ? null : reader.GetValue(4)?.ToString();
+            var isPrimaryKey = reader.GetInt32(5) == 1;
+
+            if (isPrimaryKey)
+            {
+                primaryKeys.Add(name);
+            }
+
+            columns.Add(new ColumnSchema
+            {
+                Name = name,
+                DataType = dataType,
+                IsNullable = isNullable,
+                DefaultValue = defaultValue,
+                IsPrimaryKey = isPrimaryKey
+            });
+        }
+
+        return (columns, primaryKeys);
+    }
+
+    private static async Task<List<IndexSchema>> GetSqliteIndexesAsync(
+        SqliteConnection connection,
+        string tableName,
+        CancellationToken cancellationToken)
+    {
+        var indexes = new List<IndexSchema>();
+        var safeName = tableName.Replace("\"", "\"\"");
+
+        await using var listCommand = connection.CreateCommand();
+        listCommand.CommandText = $"PRAGMA index_list(\"{safeName}\");";
+        await using var listReader = await listCommand.ExecuteReaderAsync(cancellationToken);
+
+        while (await listReader.ReadAsync(cancellationToken))
+        {
+            var indexName = listReader.GetString(1);
+            var isUnique = listReader.GetInt32(2) == 1;
+
+            var columns = new List<string>();
+            await using var infoCommand = connection.CreateCommand();
+            infoCommand.CommandText = $"PRAGMA index_info(\"{indexName.Replace("\"", "\"\"")}\");";
+            await using var infoReader = await infoCommand.ExecuteReaderAsync(cancellationToken);
+            while (await infoReader.ReadAsync(cancellationToken))
+            {
+                columns.Add(infoReader.GetString(2));
+            }
+
+            indexes.Add(new IndexSchema
+            {
+                Name = indexName,
+                Columns = columns,
+                IsUnique = isUnique,
+                IsPrimaryKey = false
+            });
+        }
+
+        return indexes;
+    }
+
+    private static async Task<int> GetSqliteRowCountAsync(
+        SqliteConnection connection,
+        string tableName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var safeName = tableName.Replace("\"", "\"\"");
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT COUNT(*) FROM \"{safeName}\";";
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            return Convert.ToInt32(result);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static bool IsResultQuery(string query)
+    {
+        var trimmed = query.TrimStart();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return false;
+        }
+
+        return trimmed.StartsWith("select", StringComparison.OrdinalIgnoreCase)
+               || trimmed.StartsWith("with", StringComparison.OrdinalIgnoreCase)
+               || trimmed.StartsWith("pragma", StringComparison.OrdinalIgnoreCase)
+               || trimmed.StartsWith("explain", StringComparison.OrdinalIgnoreCase)
+               || trimmed.StartsWith("values", StringComparison.OrdinalIgnoreCase);
     }
     
     private static async Task<List<TableSchema>> GetDbfSchemaAsync(string filePath,

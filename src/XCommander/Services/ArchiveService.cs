@@ -48,7 +48,7 @@ public class ArchiveService : IArchiveService
         {
             var entries = new List<ArchiveEntry>();
 
-            using var archive = ArchiveFactory.Open(archivePath);
+            using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
             foreach (var entry in archive.Entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -76,7 +76,7 @@ public class ArchiveService : IArchiveService
     {
         await Task.Run(() =>
         {
-            using var archive = ArchiveFactory.Open(archivePath);
+            using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
             var entries = archive.Entries.Where(e => !e.IsDirectory).ToList();
             var totalEntries = entries.Count;
             var totalBytes = entries.Sum(e => e.Size);
@@ -119,7 +119,7 @@ public class ArchiveService : IArchiveService
 
         await Task.Run(() =>
         {
-            using var archive = ArchiveFactory.Open(archivePath);
+            using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
             var entries = archive.Entries
                 .Where(e => !e.IsDirectory && entrySet.Contains(e.Key ?? string.Empty))
                 .ToList();
@@ -166,11 +166,10 @@ public class ArchiveService : IArchiveService
             var processedFiles = 0;
             var processedBytes = 0L;
 
-            var writerOptions = GetWriterOptions(type, compressionLevel);
-            var archiveType = GetSharpCompressArchiveType(type);
+            var (archiveType, writerOptions) = GetWriterProfile(archivePath, type, compressionLevel);
 
             using var stream = File.Create(archivePath);
-            using var writer = WriterFactory.Open(stream, archiveType, writerOptions);
+            using var writer = WriterFactory.OpenWriter(stream, archiveType, writerOptions);
 
             foreach (var (fullPath, relativePath) in files)
             {
@@ -202,7 +201,7 @@ public class ArchiveService : IArchiveService
         {
             await Task.Run(() =>
             {
-                using var archive = ZipArchive.Open(archivePath);
+                using var archive = (ZipArchive)ZipArchive.OpenArchive(archivePath, new ReaderOptions());
                 var files = CollectFiles(sourcePaths).ToList();
                 var totalFiles = files.Count;
                 var processedFiles = 0;
@@ -223,14 +222,45 @@ public class ArchiveService : IArchiveService
                     });
                 }
 
-                archive.SaveTo(archivePath + ".tmp", new WriterOptions(CompressionType.Deflate));
+                var tempPath = archivePath + ".tmp";
+                using (var tempStream = File.Create(tempPath))
+                {
+                    archive.SaveTo(tempStream, new WriterOptions(CompressionType.Deflate));
+                }
                 File.Delete(archivePath);
-                File.Move(archivePath + ".tmp", archivePath);
+                File.Move(tempPath, archivePath);
             }, cancellationToken);
         }
         else
         {
-            throw new NotSupportedException("Adding to non-ZIP archives is not supported");
+            if (!File.Exists(archivePath))
+            {
+                var type = DetermineArchiveType(archivePath);
+                await CreateArchiveAsync(archivePath, sourcePaths, type, CompressionLevel.Normal, progress, cancellationToken);
+                return;
+            }
+
+            await Task.Run(() =>
+            {
+                var addMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (fullPath, relativePath) in CollectFiles(sourcePaths))
+                {
+                    var key = NormalizeEntryKey(relativePath);
+                    if (string.IsNullOrWhiteSpace(key))
+                        key = NormalizeEntryKey(Path.GetFileName(fullPath));
+                    if (!string.IsNullOrWhiteSpace(key))
+                        addMap[key] = fullPath;
+                }
+
+                var addKeys = new HashSet<string>(addMap.Keys, StringComparer.OrdinalIgnoreCase);
+                var filesToAdd = addMap.Select(kvp => (FullPath: kvp.Value, RelativePath: kvp.Key)).ToList();
+                RebuildArchive(
+                    archivePath,
+                    filesToAdd,
+                    entryKey => !addKeys.Contains(entryKey),
+                    progress,
+                    cancellationToken);
+            }, cancellationToken);
         }
     }
 
@@ -243,7 +273,7 @@ public class ArchiveService : IArchiveService
         {
             await Task.Run(() =>
             {
-                using var archive = ZipArchive.Open(archivePath);
+                using var archive = (ZipArchive)ZipArchive.OpenArchive(archivePath, new ReaderOptions());
                 var entriesToRemove = archive.Entries
                     .Where(e => entrySet.Contains(e.Key ?? string.Empty))
                     .ToList();
@@ -254,14 +284,33 @@ public class ArchiveService : IArchiveService
                     archive.RemoveEntry(entry);
                 }
 
-                archive.SaveTo(archivePath + ".tmp", new WriterOptions(CompressionType.Deflate));
+                var tempPath = archivePath + ".tmp";
+                using (var tempStream = File.Create(tempPath))
+                {
+                    archive.SaveTo(tempStream, new WriterOptions(CompressionType.Deflate));
+                }
                 File.Delete(archivePath);
-                File.Move(archivePath + ".tmp", archivePath);
+                File.Move(tempPath, archivePath);
             }, cancellationToken);
         }
         else
         {
-            throw new NotSupportedException("Deleting entries from non-ZIP archives is not supported");
+            await Task.Run(() =>
+            {
+                var normalized = entrySet
+                    .Select(NormalizeEntryKey)
+                    .Where(key => !string.IsNullOrWhiteSpace(key))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (normalized.Count == 0)
+                    return;
+
+                RebuildArchive(
+                    archivePath,
+                    Array.Empty<(string FullPath, string RelativePath)>(),
+                    entryKey => !normalized.Contains(entryKey),
+                    progress: null,
+                    cancellationToken);
+            }, cancellationToken);
         }
     }
 
@@ -271,7 +320,7 @@ public class ArchiveService : IArchiveService
         {
             try
             {
-                using var archive = ArchiveFactory.Open(archivePath);
+                using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
                 foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -311,6 +360,145 @@ public class ArchiveService : IArchiveService
                 }
             }
         }
+    }
+
+    private void RebuildArchive(string archivePath,
+        IReadOnlyList<(string FullPath, string RelativePath)> filesToAdd,
+        Func<string, bool> shouldKeepEntry,
+        IProgress<ArchiveProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var tempPath = archivePath + ".tmp";
+        try
+        {
+            var type = DetermineArchiveType(archivePath);
+            var (archiveType, writerOptions) = GetWriterProfile(archivePath, type, CompressionLevel.Normal);
+
+            using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
+            var entries = archive.Entries.Where(e => !e.IsDirectory).ToList();
+            var keptEntries = entries
+                .Select(e => (Entry: e, Key: NormalizeEntryKey(e.Key)))
+                .Where(e => shouldKeepEntry(e.Key))
+                .ToList();
+
+            var totalEntries = keptEntries.Count + filesToAdd.Count;
+            var totalBytes = keptEntries.Sum(e => e.Entry.Size) +
+                filesToAdd.Sum(f => new FileInfo(f.FullPath).Length);
+
+            var processedEntries = 0;
+            var processedBytes = 0L;
+
+            using var stream = File.Create(tempPath);
+            using var writer = WriterFactory.OpenWriter(stream, archiveType, writerOptions);
+
+            foreach (var entry in keptEntries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using var entryStream = entry.Entry.OpenEntryStream();
+
+                var writeKey = string.IsNullOrWhiteSpace(entry.Key)
+                    ? $"entry_{processedEntries + 1}"
+                    : entry.Key;
+                writer.Write(writeKey, entryStream);
+
+                processedEntries++;
+                processedBytes += entry.Entry.Size;
+                progress?.Report(new ArchiveProgress
+                {
+                    CurrentEntry = writeKey,
+                    EntriesProcessed = processedEntries,
+                    TotalEntries = totalEntries,
+                    BytesProcessed = processedBytes,
+                    TotalBytes = totalBytes
+                });
+            }
+
+            foreach (var (fullPath, relativePath) in filesToAdd)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var writeKey = NormalizeEntryKey(relativePath);
+                if (string.IsNullOrWhiteSpace(writeKey))
+                    writeKey = NormalizeEntryKey(Path.GetFileName(fullPath));
+                if (string.IsNullOrWhiteSpace(writeKey))
+                    writeKey = $"entry_{processedEntries + 1}";
+
+                using var fileStream = File.OpenRead(fullPath);
+                writer.Write(writeKey, fileStream);
+
+                processedEntries++;
+                processedBytes += fileStream.Length;
+                progress?.Report(new ArchiveProgress
+                {
+                    CurrentEntry = writeKey,
+                    EntriesProcessed = processedEntries,
+                    TotalEntries = totalEntries,
+                    BytesProcessed = processedBytes,
+                    TotalBytes = totalBytes
+                });
+            }
+        }
+        catch
+        {
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
+            throw;
+        }
+
+        if (File.Exists(archivePath))
+            File.Delete(archivePath);
+        File.Move(tempPath, archivePath);
+    }
+
+    private static string NormalizeEntryKey(string? path)
+    {
+        return (path ?? string.Empty).Replace('\\', '/').TrimStart('/');
+    }
+
+    private static ArchiveType DetermineArchiveType(string archivePath)
+    {
+        var fileName = Path.GetFileName(archivePath).ToLowerInvariant();
+        if (fileName.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase))
+            return ArchiveType.GZip;
+        if (fileName.EndsWith(".tar.bz2", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".tbz2", StringComparison.OrdinalIgnoreCase))
+            return ArchiveType.BZip2;
+        if (fileName.EndsWith(".tar.xz", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".txz", StringComparison.OrdinalIgnoreCase))
+            return ArchiveType.Tar;
+
+        return Path.GetExtension(fileName).ToLowerInvariant() switch
+        {
+            ".zip" => ArchiveType.Zip,
+            ".7z" => ArchiveType.SevenZip,
+            ".rar" => ArchiveType.Rar,
+            ".tar" => ArchiveType.Tar,
+            ".gz" => ArchiveType.GZip,
+            ".bz2" => ArchiveType.BZip2,
+            _ => ArchiveType.Zip
+        };
+    }
+
+    private (SharpCompress.Common.ArchiveType ArchiveType, WriterOptions WriterOptions) GetWriterProfile(
+        string archivePath,
+        ArchiveType type,
+        CompressionLevel level)
+    {
+        var fileName = Path.GetFileName(archivePath).ToLowerInvariant();
+        if (fileName.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase))
+            return (SharpCompress.Common.ArchiveType.Tar, GetWriterOptions(ArchiveType.GZip, level));
+        if (fileName.EndsWith(".tar.bz2", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".tbz2", StringComparison.OrdinalIgnoreCase))
+            return (SharpCompress.Common.ArchiveType.Tar, GetWriterOptions(ArchiveType.BZip2, level));
+        if (fileName.EndsWith(".tar.xz", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".txz", StringComparison.OrdinalIgnoreCase))
+            return (SharpCompress.Common.ArchiveType.Tar, new WriterOptions(CompressionType.Xz));
+
+        if (type is ArchiveType.Rar or ArchiveType.SevenZip)
+            throw new NotSupportedException($"Writing {type} archives is not supported");
+
+        return (GetSharpCompressArchiveType(type), GetWriterOptions(type, level));
     }
 
     private WriterOptions GetWriterOptions(ArchiveType type, CompressionLevel level)
@@ -354,6 +542,8 @@ public class ArchiveService : IArchiveService
             ArchiveType.SevenZip => SharpCompress.Common.ArchiveType.SevenZip,
             ArchiveType.Tar => SharpCompress.Common.ArchiveType.Tar,
             ArchiveType.GZip => SharpCompress.Common.ArchiveType.GZip,
+            ArchiveType.BZip2 => SharpCompress.Common.ArchiveType.Tar,
+            ArchiveType.Rar => SharpCompress.Common.ArchiveType.Rar,
             _ => SharpCompress.Common.ArchiveType.Zip
         };
     }

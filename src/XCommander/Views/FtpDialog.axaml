@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="using:XCommander.Controls"
         xmlns:vm="using:XCommander.ViewModels"
         xmlns:services="using:XCommander.Services"
         xmlns:converters="using:XCommander.Converters"
@@ -15,54 +16,71 @@
     
     <Window.Resources>
         <converters:DateTimeConverter x:Key="DateTimeConverter"/>
+        <DataTemplate x:Key="FtpItemNameTemplate"
+                      x:DataType="services:FtpItem">
+            <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,2">
+                <TextBlock Text="{Binding Icon}" FontSize="14" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="SavedConnectionTemplate"
+                      x:DataType="vm:FtpConnectionViewModel">
+            <StackPanel Margin="4">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding Host}" FontSize="11" Opacity="0.7"/>
+            </StackPanel>
+        </DataTemplate>
     </Window.Resources>
     
-    <Grid ColumnDefinitions="250,*">
+    <Grid ColumnDefinitions="250,*" Margin="10">
         <!-- Saved Connections Panel -->
-        <Border Grid.Column="0"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                Margin="10"
-                Padding="10"
-                CornerRadius="4">
+        <controls:TcInsetPanel Grid.Column="0"
+                               Padding="8"
+                               Margin="0,0,8,0">
             <Grid RowDefinitions="Auto,*,Auto">
                 <TextBlock Grid.Row="0" 
                            Text="Saved Connections" 
                            FontWeight="Bold"
                            Margin="0,0,0,10"/>
-                <ListBox Grid.Row="1" 
-                         ItemsSource="{Binding SavedConnections}"
-                         SelectedItem="{Binding SelectedSavedConnection}"
-                         SelectionMode="Single">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="vm:FtpConnectionViewModel">
-                            <StackPanel Margin="4">
-                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                <TextBlock Text="{Binding Host}" FontSize="11" Opacity="0.7"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" Margin="0,10,0,0">
+                <DataGrid Grid.Row="1"
+                          ItemsSource="{Binding SavedConnections}"
+                          SelectedItem="{Binding SelectedSavedConnection}"
+                          ColumnDefinitionsSource="{Binding SavedConnectionsColumnDefinitions}"
+                          FilteringModel="{Binding SavedConnectionsFilteringModel}"
+                          SortingModel="{Binding SavedConnectionsSortingModel}"
+                          SearchModel="{Binding SavedConnectionsSearchModel}"
+                          SelectionMode="Single"
+                          CanUserResizeColumns="True"
+                          CanUserReorderColumns="False"
+                          CanUserSortColumns="True"
+                          HeadersVisibility="None"
+                          GridLinesVisibility="None"
+                          BorderThickness="0"
+                          IsReadOnly="True">
+                    <DataGrid.FastPathOptions>
+                        <DataGridFastPathOptions UseAccessorsOnly="True"
+                                                 ThrowOnMissingAccessor="True" />
+                    </DataGrid.FastPathOptions>
+                </DataGrid>
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" Margin="0,8,0,0">
                     <Button Content="Load" 
                             Command="{Binding LoadSelectedConnectionCommand}"
                             IsEnabled="{Binding SelectedSavedConnection, Converter={x:Static ObjectConverters.IsNotNull}}"
-                            Padding="10,4"/>
+                            Padding="8,4"/>
                     <Button Content="Delete" 
                             Command="{Binding DeleteSelectedConnectionCommand}"
                             IsEnabled="{Binding SelectedSavedConnection, Converter={x:Static ObjectConverters.IsNotNull}}"
-                            Padding="10,4"/>
+                            Padding="8,4"/>
                 </StackPanel>
             </Grid>
-        </Border>
+        </controls:TcInsetPanel>
         
         <!-- Main Panel -->
         <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
             <!-- Connection Panel -->
-            <Border Grid.Row="0" 
-                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                    Padding="10"
-                    Margin="0,10,10,0"
-                    CornerRadius="4">
+            <controls:TcBevelPanel Grid.Row="0"
+                                   Padding="6,4"
+                                   Margin="0,0,0,6">
                 <Grid RowDefinitions="Auto,Auto">
                     <!-- Connection fields -->
                     <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto,*,Auto,*">
@@ -103,32 +121,32 @@
                                 Content="Save"
                                 Command="{Binding SaveCurrentConnectionCommand}"
                                 IsEnabled="{Binding !IsConnected}"
-                                Padding="12,6"
+                                Padding="8,4"
                                 Margin="10,0,0,0"/>
                         <Button Grid.Column="3" 
                                 Content="Connect"
                                 Command="{Binding ConnectCommand}"
                                 IsVisible="{Binding !IsConnected}"
                                 IsEnabled="{Binding !IsConnecting}"
-                                Padding="15,6"
+                                Padding="10,4"
                                 Margin="4,0,0,0"/>
                         <Button Grid.Column="3" 
                                 Content="Disconnect"
                                 Command="{Binding DisconnectCommand}"
                                 IsVisible="{Binding IsConnected}"
-                                Padding="15,6"
+                                Padding="10,4"
                                 Margin="4,0,0,0"/>
                     </Grid>
                 </Grid>
-            </Border>
+            </controls:TcBevelPanel>
         
             <!-- File Browser -->
-            <Grid Grid.Row="1" Margin="0,10,10,0" IsEnabled="{Binding IsConnected}">
+            <Grid Grid.Row="1" Margin="0,0,0,6" IsEnabled="{Binding IsConnected}">
                 <Grid RowDefinitions="Auto,*">
                     <!-- Path Bar -->
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
                         <Button Grid.Column="0" 
-                                Content="↑" 
+                                Content="Up" 
                                 Command="{Binding GoToParentCommand}"
                                 Padding="8,4"
                                 Margin="0,0,8,0"
@@ -137,7 +155,7 @@
                                  Text="{Binding CurrentPath}"
                                  IsReadOnly="True"/>
                         <Button Grid.Column="2" 
-                                Content="⟳" 
+                                Content="Refresh" 
                                 Command="{Binding RefreshCommand}"
                                 Padding="8,4"
                                 Margin="8,0,0,0"
@@ -145,46 +163,34 @@
                     </Grid>
                     
                     <!-- File List -->
-                    <DataGrid Grid.Row="1" 
-                              ItemsSource="{Binding Items}"
-                              SelectedItem="{Binding SelectedItem}"
-                              SelectionMode="Single"
-                              CanUserResizeColumns="True"
-                              GridLinesVisibility="Horizontal"
-                              IsReadOnly="True"
-                              FontSize="12"
-                              DoubleTapped="OnItemDoubleTapped">
-                        <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="Name" Width="*" MinWidth="200">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate x:DataType="services:FtpItem">
-                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,2">
-                                            <TextBlock Text="{Binding Icon}" FontSize="14" VerticalAlignment="Center"/>
-                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Size" 
-                                                Binding="{Binding DisplaySize}" 
-                                                Width="100"/>
-                            <DataGridTextColumn Header="Date Modified" 
-                                                Binding="{Binding DateModified, Converter={StaticResource DateTimeConverter}}" 
-                                                Width="140"/>
-                            <DataGridTextColumn Header="Permissions" 
-                                                Binding="{Binding Permissions}" 
-                                                Width="100"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <controls:TcInsetPanel Grid.Row="1" Padding="0">
+                        <DataGrid ItemsSource="{Binding Items}"
+                                  SelectedItem="{Binding SelectedItem}"
+                                  ColumnDefinitionsSource="{Binding ColumnDefinitions}"
+                                  FilteringModel="{Binding FilteringModel}"
+                                  SortingModel="{Binding SortingModel}"
+                                  SearchModel="{Binding SearchModel}"
+                                  SelectionMode="Single"
+                                  CanUserResizeColumns="True"
+                                  CanUserSortColumns="True"
+                                  GridLinesVisibility="Horizontal"
+                                  IsReadOnly="True"
+                                  BorderThickness="0"
+                                  FontSize="12"
+                                  DoubleTapped="OnItemDoubleTapped">
+                            <DataGrid.FastPathOptions>
+                                <DataGridFastPathOptions UseAccessorsOnly="True"
+                                                         ThrowOnMissingAccessor="True" />
+                            </DataGrid.FastPathOptions>
+                        </DataGrid>
+                    </controls:TcInsetPanel>
                 </Grid>
             </Grid>
             
             <!-- Status Bar -->
-            <Border Grid.Row="2" 
-                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                    Padding="10,8"
-                    Margin="0,10,10,10"
-                    CornerRadius="4">
+            <controls:TcBevelPanel Grid.Row="2"
+                                   Padding="6,4"
+                                   Margin="0,0,0,0">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0" 
                                Text="{Binding StatusText}"
@@ -193,23 +199,23 @@
                         <Button Content="Download" 
                                 Click="OnDownloadClick"
                                 IsEnabled="{Binding SelectedItem, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                Padding="12,6"/>
+                                Padding="8,4"/>
                         <Button Content="Upload" 
                                 Click="OnUploadClick"
-                                Padding="12,6"/>
+                                Padding="8,4"/>
                         <Button Content="New Folder" 
                                 Click="OnNewFolderClick"
-                                Padding="12,6"/>
+                                Padding="8,4"/>
                         <Button Content="Delete" 
                                 Command="{Binding DeleteSelectedCommand}"
                                 IsEnabled="{Binding SelectedItem, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                Padding="12,6"/>
+                                Padding="8,4"/>
                         <Button Content="Close" 
                                 Click="OnCloseClick"
-                                Padding="12,6"/>
+                                Padding="8,4"/>
                     </StackPanel>
                 </Grid>
-            </Border>
+            </controls:TcBevelPanel>
         </Grid>
     </Grid>
     

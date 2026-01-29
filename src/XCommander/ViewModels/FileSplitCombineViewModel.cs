@@ -4,6 +4,10 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -251,6 +255,11 @@ public partial class FileCombineViewModel : ViewModelBase
     private bool _deletePartsAfterCombine;
 
     public ObservableCollection<string> DetectedParts { get; } = new();
+
+    public ObservableCollection<DataGridColumnDefinition> DetectedPartsColumnDefinitions { get; }
+    public FilteringModel DetectedPartsFilteringModel { get; }
+    public SortingModel DetectedPartsSortingModel { get; }
+    public SearchModel DetectedPartsSearchModel { get; }
     
     [ObservableProperty]
     private long _totalSize;
@@ -260,6 +269,40 @@ public partial class FileCombineViewModel : ViewModelBase
 
     public FileCombineViewModel()
     {
+        DetectedPartsFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        DetectedPartsSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        DetectedPartsSearchModel = new SearchModel();
+        DetectedPartsColumnDefinitions = BuildDetectedPartsColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildDetectedPartsColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<string>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Part",
+                cellTemplateKey: "DetectedPartTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "detected-part";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<string, string>(item => item);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<string, string>(item => item)
+                    };
+                })
+        };
     }
 
     public void Initialize(string firstPartPath, string destinationFolder)

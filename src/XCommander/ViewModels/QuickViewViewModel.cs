@@ -122,6 +122,15 @@ public partial class QuickViewViewModel : ViewModelBase
     public QuickViewViewModel()
     {
     }
+
+    public void ShowMessage(string message)
+    {
+        Clear();
+        IsText = true;
+        Content = message;
+        StatusText = message;
+        HasContent = true;
+    }
     
     public async Task LoadPreviewAsync(string? path)
     {

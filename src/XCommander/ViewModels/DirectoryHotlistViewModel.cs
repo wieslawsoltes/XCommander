@@ -4,8 +4,15 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Controls.DataGridHierarchical;
+using Avalonia.Data.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using XCommander.Helpers;
 using XCommander.Services;
 
 namespace XCommander.ViewModels;
@@ -44,6 +51,8 @@ public partial class DirectoryHotlistViewModel : ViewModelBase
     private readonly IDirectoryHotlistService _hotlistService;
     private Dictionary<string, HotlistItem> _itemsById = new();
     private Dictionary<string, HotlistCategory> _categoriesById = new();
+    private const string NameColumnKey = "name";
+    private bool _isSelectionSync;
 
     [ObservableProperty]
     private ObservableCollection<HotlistNodeViewModel> _nodes = new();
@@ -52,7 +61,16 @@ public partial class DirectoryHotlistViewModel : ViewModelBase
     private HotlistNodeViewModel? _selectedNode;
 
     [ObservableProperty]
+    private HierarchicalNode? _selectedHierarchicalNode;
+
+    [ObservableProperty]
     private string _currentPath = string.Empty;
+
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
+    public HierarchicalModel<HotlistNodeViewModel> HierarchicalModel { get; }
 
     public event EventHandler<string>? NavigateRequested;
     public event EventHandler? RequestClose;
@@ -60,7 +78,66 @@ public partial class DirectoryHotlistViewModel : ViewModelBase
     public DirectoryHotlistViewModel(IDirectoryHotlistService hotlistService)
     {
         _hotlistService = hotlistService;
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+        HierarchicalModel = BuildHierarchicalModel();
+        HierarchicalModel.SetRoots(Nodes);
         _hotlistService.HotlistChanged += (_, _) => _ = LoadAsync();
+    }
+
+    private static HierarchicalModel<HotlistNodeViewModel> BuildHierarchicalModel()
+    {
+        var options = new HierarchicalOptions<HotlistNodeViewModel>
+        {
+            ChildrenSelector = node => node.Children,
+            IsLeafSelector = node => node.Children.Count == 0,
+            ExpandedStateKeyMode = ExpandedStateKeyMode.Custom,
+            ExpandedStateKeySelector = node => node.Id
+        };
+
+        return new HierarchicalModel<HotlistNodeViewModel>(options);
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<HierarchicalNode>();
+
+        IPropertyInfo itemProperty = DataGridColumnHelper.CreateProperty(
+            "Item",
+            (HierarchicalNode node) => (HotlistNodeViewModel)node.Item);
+
+        var nameColumn = builder.Hierarchical(
+            header: "Name",
+            property: itemProperty,
+            getter: node => (HotlistNodeViewModel)node.Item,
+            configure: column =>
+            {
+                column.ColumnKey = NameColumnKey;
+                column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                column.IsReadOnly = true;
+                column.ShowFilterButton = true;
+                column.CellTemplateKey = "HotlistNodeTemplate";
+                column.ValueAccessor = new DataGridColumnValueAccessor<HierarchicalNode, string>(
+                    node => ((HotlistNodeViewModel)node.Item).Name);
+                column.ValueType = typeof(string);
+                column.Options = new DataGridColumnDefinitionOptions
+                {
+                    SortValueAccessor = new DataGridColumnValueAccessor<HierarchicalNode, string>(
+                        node => ((HotlistNodeViewModel)node.Item).Name)
+                };
+            });
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            nameColumn
+        };
     }
 
     public async Task LoadAsync()
@@ -90,6 +167,31 @@ public partial class DirectoryHotlistViewModel : ViewModelBase
         }
 
         Nodes = new ObservableCollection<HotlistNodeViewModel>(nodes);
+    }
+
+    partial void OnNodesChanged(ObservableCollection<HotlistNodeViewModel> value)
+    {
+        HierarchicalModel.SetRoots(value);
+    }
+
+    partial void OnSelectedNodeChanged(HotlistNodeViewModel? value)
+    {
+        if (_isSelectionSync)
+            return;
+
+        _isSelectionSync = true;
+        SelectedHierarchicalNode = value == null ? null : ((IHierarchicalModel)HierarchicalModel).FindNode(value);
+        _isSelectionSync = false;
+    }
+
+    partial void OnSelectedHierarchicalNodeChanged(HierarchicalNode? value)
+    {
+        if (_isSelectionSync)
+            return;
+
+        _isSelectionSync = true;
+        SelectedNode = value?.Item as HotlistNodeViewModel;
+        _isSelectionSync = false;
     }
 
     [RelayCommand]

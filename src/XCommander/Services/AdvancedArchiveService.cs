@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpCompress.Archives;
@@ -20,6 +21,10 @@ namespace XCommander.Services;
 /// </summary>
 public class AdvancedArchiveService : IAdvancedArchiveService
 {
+    private const uint ZipEocdSignature = 0x06054b50;
+    private const int ZipEocdMinSize = 22;
+    private const int ZipMaxCommentLength = 0xFFFF;
+
     private readonly IArchiveService _archiveService;
     
     public AdvancedArchiveService(IArchiveService archiveService)
@@ -37,7 +42,7 @@ public class AdvancedArchiveService : IAdvancedArchiveService
         
         await Task.Run(() =>
         {
-            using var archive = ArchiveFactory.Open(archivePath);
+            using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
             var entries = archive.Entries.Where(e => !e.IsDirectory).ToList();
             var totalEntries = entries.Count;
             var processedEntries = 0;
@@ -141,14 +146,14 @@ public class AdvancedArchiveService : IAdvancedArchiveService
         {
             try
             {
-                using var sourceArchive = ArchiveFactory.Open(archivePath);
+                using var sourceArchive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
                 var entries = sourceArchive.Entries.Where(e => !e.IsDirectory).ToList();
                 var totalEntries = entries.Count;
                 var processedEntries = 0;
                 
                 // Create a new archive with only valid entries
                 using var outputStream = File.Create(outputPath);
-                using var writer = WriterFactory.Open(outputStream, 
+                using var writer = WriterFactory.OpenWriter(outputStream, 
                     SharpCompress.Common.ArchiveType.Zip, 
                     new WriterOptions(CompressionType.Deflate));
                 
@@ -283,15 +288,21 @@ public class AdvancedArchiveService : IAdvancedArchiveService
     {
         return await Task.Run(() =>
         {
-            string? result = null;
-            if (Path.GetExtension(archivePath).Equals(".zip", StringComparison.OrdinalIgnoreCase))
+            if (!Path.GetExtension(archivePath).Equals(".zip", StringComparison.OrdinalIgnoreCase))
             {
-                using var archive = ZipArchive.Open(archivePath);
-                // SharpCompress doesn't directly expose archive comments
-                // For full support, would need to use System.IO.Compression or specialized library
+                return null;
             }
-            
-            return result;
+
+            using var stream = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (!TryReadZipEocd(stream, out var eocd))
+            {
+                return null;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return eocd.CommentLength > 0
+                ? Encoding.UTF8.GetString(eocd.CommentBytes)
+                : null;
         }, cancellationToken);
     }
     
@@ -303,11 +314,116 @@ public class AdvancedArchiveService : IAdvancedArchiveService
             {
                 throw new NotSupportedException("Archive comments are only supported for ZIP files");
             }
-            
-            // SharpCompress doesn't support setting comments directly
-            // For full support, would need System.IO.Compression or specialized library
-            throw new NotImplementedException("Archive comment editing requires additional library support");
+
+            var commentBytes = Encoding.UTF8.GetBytes(comment ?? string.Empty);
+            if (commentBytes.Length > ZipMaxCommentLength)
+            {
+                throw new ArgumentException($"ZIP comment length exceeds {ZipMaxCommentLength} bytes", nameof(comment));
+            }
+
+            using var stream = new FileStream(archivePath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+            if (!TryReadZipEocd(stream, out var eocd))
+            {
+                throw new InvalidDataException("End of central directory record not found.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var updatedEocd = BuildEocdBytes(eocd, commentBytes);
+            stream.SetLength(eocd.Offset);
+            stream.Seek(eocd.Offset, SeekOrigin.Begin);
+            stream.Write(updatedEocd, 0, updatedEocd.Length);
+            stream.Flush();
         }, cancellationToken);
+    }
+
+    private static byte[] BuildEocdBytes(ZipEocd eocd, byte[] commentBytes)
+    {
+        using var memory = new MemoryStream(ZipEocdMinSize + commentBytes.Length);
+        using var writer = new BinaryWriter(memory, Encoding.UTF8, leaveOpen: true);
+
+        writer.Write(ZipEocdSignature);
+        writer.Write(eocd.DiskNumber);
+        writer.Write(eocd.DiskWithCentralDirectory);
+        writer.Write(eocd.EntriesOnThisDisk);
+        writer.Write(eocd.TotalEntries);
+        writer.Write(eocd.CentralDirectorySize);
+        writer.Write(eocd.CentralDirectoryOffset);
+        writer.Write((ushort)commentBytes.Length);
+        writer.Write(commentBytes);
+
+        writer.Flush();
+        return memory.ToArray();
+    }
+
+    private static bool TryReadZipEocd(FileStream stream, out ZipEocd eocd)
+    {
+        eocd = default;
+        var fileLength = stream.Length;
+
+        if (fileLength < ZipEocdMinSize)
+        {
+            return false;
+        }
+
+        var searchLength = (int)Math.Min(fileLength, ZipEocdMinSize + ZipMaxCommentLength);
+        var buffer = new byte[searchLength];
+        stream.Seek(fileLength - searchLength, SeekOrigin.Begin);
+        var read = stream.Read(buffer, 0, buffer.Length);
+
+        for (var i = read - ZipEocdMinSize; i >= 0; i--)
+        {
+            if (BitConverter.ToUInt32(buffer, i) != ZipEocdSignature)
+            {
+                continue;
+            }
+
+            var commentLength = BitConverter.ToUInt16(buffer, i + 20);
+            var eocdLength = ZipEocdMinSize + commentLength;
+            if (i + eocdLength > read)
+            {
+                continue;
+            }
+
+            var offset = fileLength - read + i;
+            stream.Seek(offset, SeekOrigin.Begin);
+            using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+            var signature = reader.ReadUInt32();
+            if (signature != ZipEocdSignature)
+            {
+                continue;
+            }
+
+            eocd = new ZipEocd
+            {
+                Offset = offset,
+                DiskNumber = reader.ReadUInt16(),
+                DiskWithCentralDirectory = reader.ReadUInt16(),
+                EntriesOnThisDisk = reader.ReadUInt16(),
+                TotalEntries = reader.ReadUInt16(),
+                CentralDirectorySize = reader.ReadUInt32(),
+                CentralDirectoryOffset = reader.ReadUInt32(),
+                CommentLength = reader.ReadUInt16()
+            };
+
+            eocd.CommentBytes = reader.ReadBytes(eocd.CommentLength);
+            return true;
+        }
+
+        return false;
+    }
+
+    private struct ZipEocd
+    {
+        public long Offset { get; init; }
+        public ushort DiskNumber { get; init; }
+        public ushort DiskWithCentralDirectory { get; init; }
+        public ushort EntriesOnThisDisk { get; init; }
+        public ushort TotalEntries { get; init; }
+        public uint CentralDirectorySize { get; init; }
+        public uint CentralDirectoryOffset { get; init; }
+        public ushort CommentLength { get; init; }
+        public byte[] CommentBytes { get; set; }
     }
     
     public async Task CreateSfxArchiveAsync(string archivePath, IEnumerable<string> sourcePaths,
@@ -355,7 +471,7 @@ public class AdvancedArchiveService : IAdvancedArchiveService
         {
             var fileInfo = new FileInfo(archivePath);
             
-            using var archive = ArchiveFactory.Open(archivePath);
+            using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
             var entries = archive.Entries.ToList();
             var fileEntries = entries.Where(e => !e.IsDirectory);
             var uncompressedSize = fileEntries.Sum(e => e.Size);
@@ -430,7 +546,7 @@ public class AdvancedArchiveService : IAdvancedArchiveService
         {
             var readerOptions = new ReaderOptions { Password = password };
             
-            using var archive = ArchiveFactory.Open(archivePath, readerOptions);
+            using var archive = ArchiveFactory.OpenArchive(archivePath, readerOptions);
             var entries = archive.Entries.Where(e => !e.IsDirectory).ToList();
             var totalEntries = entries.Count;
             var processedEntries = 0;

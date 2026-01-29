@@ -1,7 +1,14 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Data.Core;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using XCommander.Converters;
+using XCommander.Helpers;
 using XCommander.Models;
 using XCommander.Services;
 
@@ -222,6 +229,15 @@ public partial class FileItemViewModel : ViewModelBase
 
 public partial class FilePanelViewModel : ViewModelBase
 {
+    private const string NameColumnKey = "name";
+    private const string ExtensionColumnKey = "extension";
+    private const string SizeColumnKey = "size";
+    private const string DateColumnKey = "date";
+    private const string NameHeaderThemeKey = "FilePanelNameColumnHeaderTheme";
+    private const string ExtensionHeaderThemeKey = "FilePanelExtensionColumnHeaderTheme";
+    private const string SizeHeaderThemeKey = "FilePanelSizeColumnHeaderTheme";
+    private const string DateHeaderThemeKey = "FilePanelDateColumnHeaderTheme";
+
     private readonly IFileSystemService _fileSystemService;
     private readonly GitService _gitService = new();
     
@@ -259,6 +275,14 @@ public partial class FilePanelViewModel : ViewModelBase
     public ObservableCollection<FileItemViewModel> SelectedItems { get; } = [];
     public ObservableCollection<DriveItem> Drives { get; } = [];
     public ObservableCollection<string> PathSegments { get; } = [];
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
+    public TextFilterContext NameFilter { get; }
+    public TextFilterContext ExtensionFilter { get; }
+    public NumberFilterContext SizeFilter { get; }
+    public DateFilterContext DateFilter { get; }
     
     // Navigation history
     private readonly List<string> _history = [];
@@ -271,6 +295,168 @@ public partial class FilePanelViewModel : ViewModelBase
     {
         _fileSystemService = fileSystemService;
         LoadDrives();
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        NameFilter = new TextFilterContext(
+            "Name contains",
+            text => ApplyTextFilter(NameColumnKey, text),
+            () => FilteringModel.Remove(NameColumnKey));
+        ExtensionFilter = new TextFilterContext(
+            "Extension contains",
+            text => ApplyTextFilter(ExtensionColumnKey, text),
+            () => FilteringModel.Remove(ExtensionColumnKey));
+        SizeFilter = new NumberFilterContext(
+            "Size between",
+            (min, max) => ApplyNumberFilter(SizeColumnKey, min, max),
+            () => FilteringModel.Remove(SizeColumnKey));
+        DateFilter = new DateFilterContext(
+            "Modified between",
+            (from, to) => ApplyDateFilter(DateColumnKey, from, to),
+            () => FilteringModel.Remove(DateColumnKey));
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<FileItemViewModel>();
+
+        IPropertyInfo nameProperty = DataGridColumnHelper.CreateProperty(
+            nameof(FileItemViewModel.Name),
+            (FileItemViewModel item) => item.Name);
+        IPropertyInfo extensionProperty = DataGridColumnHelper.CreateProperty(
+            nameof(FileItemViewModel.Extension),
+            (FileItemViewModel item) => item.Extension);
+        IPropertyInfo displaySizeProperty = DataGridColumnHelper.CreateProperty(
+            nameof(FileItemViewModel.DisplaySize),
+            (FileItemViewModel item) => item.DisplaySize);
+        IPropertyInfo dateProperty = DataGridColumnHelper.CreateProperty(
+            nameof(FileItemViewModel.DateModified),
+            (FileItemViewModel item) => item.DateModified);
+
+        var dateColumn = builder.Text(
+            header: "Date Modified",
+            property: dateProperty,
+            getter: item => item.DateModified,
+            configure: column =>
+            {
+                column.ColumnKey = DateColumnKey;
+                column.HeaderThemeKey = DateHeaderThemeKey;
+                column.Width = new DataGridLength(130);
+                column.IsReadOnly = true;
+                column.ShowFilterButton = true;
+            });
+
+        if (dateColumn.Binding != null)
+        {
+            dateColumn.Binding.Converter = DateTimeConverter.Instance;
+        }
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Name",
+                cellTemplateKey: "FileItemNameTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = NameColumnKey;
+                    column.HeaderThemeKey = NameHeaderThemeKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.MinWidth = 150;
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<FileItemViewModel, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                }),
+            builder.Text(
+                header: "Ext",
+                property: extensionProperty,
+                getter: item => item.Extension,
+                configure: column =>
+                {
+                    column.ColumnKey = ExtensionColumnKey;
+                    column.HeaderThemeKey = ExtensionHeaderThemeKey;
+                    column.Width = new DataGridLength(60);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Size",
+                property: displaySizeProperty,
+                getter: item => item.DisplaySize,
+                configure: column =>
+                {
+                    column.ColumnKey = SizeColumnKey;
+                    column.HeaderThemeKey = SizeHeaderThemeKey;
+                    column.Width = new DataGridLength(80);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<FileItemViewModel, long>(
+                            item => item.Size),
+                        FilterValueAccessor = new DataGridColumnValueAccessor<FileItemViewModel, double>(
+                            item => item.Size)
+                    };
+                }),
+            dateColumn
+        };
+    }
+
+    private void ApplyTextFilter(string columnKey, string? text)
+    {
+        var trimmed = text?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            FilteringModel.Remove(columnKey);
+            return;
+        }
+
+        FilteringModel.SetOrUpdate(new FilteringDescriptor(
+            columnId: columnKey,
+            @operator: FilteringOperator.Contains,
+            value: trimmed,
+            stringComparison: StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void ApplyNumberFilter(string columnKey, double? min, double? max)
+    {
+        if (min == null && max == null)
+        {
+            FilteringModel.Remove(columnKey);
+            return;
+        }
+
+        var lower = min ?? double.MinValue;
+        var upper = max ?? double.MaxValue;
+
+        FilteringModel.SetOrUpdate(new FilteringDescriptor(
+            columnId: columnKey,
+            @operator: FilteringOperator.Between,
+            values: new object[] { lower, upper }));
+    }
+
+    private void ApplyDateFilter(string columnKey, DateTimeOffset? from, DateTimeOffset? to)
+    {
+        if (from == null && to == null)
+        {
+            FilteringModel.Remove(columnKey);
+            return;
+        }
+
+        var start = from?.LocalDateTime ?? DateTime.MinValue;
+        var end = to?.LocalDateTime ?? DateTime.MaxValue;
+
+        FilteringModel.SetOrUpdate(new FilteringDescriptor(
+            columnId: columnKey,
+            @operator: FilteringOperator.Between,
+            values: new object[] { start, end }));
     }
     
     public void LoadDrives()

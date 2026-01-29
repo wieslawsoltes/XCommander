@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using XCommander.Controls;
@@ -54,11 +55,21 @@ public partial class FilePanel : UserControl
             _swipeStartPoint = e.GetPosition(this);
         }
         
-        // Start rubber band selection on left-click in empty area (with Ctrl held for additive selection)
-        if (point.Properties.IsLeftButtonPressed && 
-            e.Source is Control control && 
-            !(control.FindAncestorOfType<DataGridRow>() != null || control.FindAncestorOfType<Border>()?.DataContext is FileItemViewModel))
+        // Start rubber band selection on left-click in empty grid area (with Ctrl held for additive selection)
+        if (point.Properties.IsLeftButtonPressed && e.Source is Control control)
         {
+            var dataGrid = control.FindAncestorOfType<DataGrid>();
+            if (dataGrid == null)
+                return;
+            if (control.FindAncestorOfType<DataGridColumnHeader>() != null)
+                return;
+            if (control.FindAncestorOfType<DataGridRow>() != null)
+                return;
+            if (control.FindAncestorOfType<ScrollBar>() != null)
+                return;
+            if (control.FindAncestorOfType<Border>()?.DataContext is FileItemViewModel)
+                return;
+
             StartRubberBandSelection(e.GetPosition(this), e.KeyModifiers.HasFlag(KeyModifiers.Control));
             e.Handled = true;
         }

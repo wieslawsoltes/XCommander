@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
+using System.ComponentModel;
 using System.Linq;
 using XCommander.Models;
 using XCommander.ViewModels;
@@ -15,6 +16,8 @@ public partial class TabbedFilePanel : UserControl
     private const string TabDragDataFormat = "XCommander.Tab";
     private TabViewModel? _draggedTab;
     private TabbedPanelViewModel? _sourcePanel;
+    private TabViewModel? _thumbnailTab;
+    private AppSettings? _panelSettings;
 
     public static readonly StyledProperty<string> TypeAheadBufferProperty =
         AvaloniaProperty.Register<TabbedFilePanel, string>(nameof(TypeAheadBuffer), string.Empty);
@@ -28,8 +31,15 @@ public partial class TabbedFilePanel : UserControl
     // Type-ahead navigation (TC-style: just start typing to jump to files)
     private string _typeAheadBuffer = string.Empty;
     private DateTime _lastTypeAheadTime = DateTime.MinValue;
-    private const int TypeAheadTimeoutMs = 1000; // Clear buffer after 1 second of inactivity
+    private int _typeAheadTimeoutMs = 1000; // Clear buffer after 1 second of inactivity
     private DispatcherTimer? _typeAheadClearTimer;
+
+    private enum QuickSearchMatchMode
+    {
+        StartsWith,
+        Contains,
+        StartsWithThenContains
+    }
     
     public TabbedFilePanel()
     {
@@ -39,11 +49,13 @@ public partial class TabbedFilePanel : UserControl
         AddHandler(DragDrop.DragEnterEvent, OnTabDragEnter);
         AddHandler(DragDrop.DragLeaveEvent, OnTabDragLeave);
         AddHandler(DragDrop.DropEvent, OnTabDrop);
+
+        DataContextChanged += OnDataContextChanged;
         
         // Initialize type-ahead timer
         _typeAheadClearTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(TypeAheadTimeoutMs)
+            Interval = TimeSpan.FromMilliseconds(_typeAheadTimeoutMs)
         };
         _typeAheadClearTimer.Tick += (_, _) =>
         {
@@ -57,7 +69,98 @@ public partial class TabbedFilePanel : UserControl
     {
         if (DataContext is TabbedPanelViewModel vm && vm.ActiveTab?.SelectedItem != null)
         {
+            if (vm.Settings.SingleClickOpen)
+                return;
             vm.ActiveTab.OpenItemCommand.Execute(vm.ActiveTab.SelectedItem);
+        }
+    }
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (DataContext is not TabbedPanelViewModel vm)
+            return;
+
+        if (_panelSettings != null)
+        {
+            _panelSettings.PropertyChanged -= OnSettingsChanged;
+        }
+
+        _panelSettings = vm.Settings;
+        _panelSettings.PropertyChanged += OnSettingsChanged;
+        UpdateTypeAheadSettings(_panelSettings);
+
+        vm.PropertyChanged -= OnPanelPropertyChanged;
+        vm.PropertyChanged += OnPanelPropertyChanged;
+        HookActiveTab(vm.ActiveTab);
+    }
+
+    private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_panelSettings == null)
+            return;
+
+        if (e.PropertyName == nameof(AppSettings.QuickSearchTimeoutMs))
+        {
+            UpdateTypeAheadSettings(_panelSettings);
+            return;
+        }
+
+        if (e.PropertyName == nameof(AppSettings.QuickSearchEnabled) && !_panelSettings.QuickSearchEnabled)
+        {
+            ClearTypeAheadBuffer();
+        }
+    }
+
+    private void UpdateTypeAheadSettings(AppSettings settings)
+    {
+        var timeout = settings.QuickSearchTimeoutMs;
+        if (timeout <= 0)
+            timeout = 1000;
+
+        _typeAheadTimeoutMs = timeout;
+        if (_typeAheadClearTimer != null)
+        {
+            _typeAheadClearTimer.Interval = TimeSpan.FromMilliseconds(_typeAheadTimeoutMs);
+        }
+    }
+
+    private void OnPanelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not TabbedPanelViewModel vm)
+            return;
+
+        if (e.PropertyName == nameof(TabbedPanelViewModel.ActiveTab))
+        {
+            HookActiveTab(vm.ActiveTab);
+        }
+    }
+
+    private void HookActiveTab(TabViewModel? tab)
+    {
+        if (_thumbnailTab != null)
+            _thumbnailTab.PropertyChanged -= OnActiveTabPropertyChanged;
+
+        _thumbnailTab = tab;
+
+        if (_thumbnailTab != null)
+        {
+            _thumbnailTab.PropertyChanged += OnActiveTabPropertyChanged;
+            if (_thumbnailTab.ViewMode == FilePanelViewMode.Thumbnails)
+            {
+                LoadVisibleThumbnails(_thumbnailTab);
+            }
+        }
+    }
+
+    private void OnActiveTabPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not TabViewModel tab)
+            return;
+
+        if (e.PropertyName == nameof(TabViewModel.ViewMode) &&
+            tab.ViewMode == FilePanelViewMode.Thumbnails)
+        {
+            LoadVisibleThumbnails(tab);
         }
     }
     
@@ -72,6 +175,9 @@ public partial class TabbedFilePanel : UserControl
             return;
         
         if (DataContext is not TabbedPanelViewModel vm || vm.ActiveTab == null)
+            return;
+
+        if (!vm.Settings.QuickSearchEnabled)
             return;
         
         // Don't handle when editing text or quick filter is visible.
@@ -101,25 +207,39 @@ public partial class TabbedFilePanel : UserControl
     {
         if (string.IsNullOrEmpty(_typeAheadBuffer) || tab.Items.Count == 0)
             return;
-        
-        // Find first matching item (case-insensitive, starts with)
-        var match = tab.Items.FirstOrDefault(item => 
-            item.ItemType != FileSystemItemType.ParentDirectory &&
-            item.Name.StartsWith(_typeAheadBuffer, StringComparison.OrdinalIgnoreCase));
-        
-        // If no "starts with" match, try "contains" match
-        if (match == null)
+
+        var mode = GetQuickSearchMatchMode(_panelSettings);
+        FileItemViewModel? match = null;
+        if (mode == QuickSearchMatchMode.StartsWith || mode == QuickSearchMatchMode.StartsWithThenContains)
+        {
+            match = tab.Items.FirstOrDefault(item =>
+                item.ItemType != FileSystemItemType.ParentDirectory &&
+                item.Name.StartsWith(_typeAheadBuffer, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (match == null && (mode == QuickSearchMatchMode.Contains || mode == QuickSearchMatchMode.StartsWithThenContains))
         {
             match = tab.Items.FirstOrDefault(item =>
                 item.ItemType != FileSystemItemType.ParentDirectory &&
                 item.Name.Contains(_typeAheadBuffer, StringComparison.OrdinalIgnoreCase));
         }
-        
+
         if (match != null)
         {
             tab.SelectedItem = match;
             // Scroll into view will be handled by the DataGrid binding
         }
+    }
+
+    private static QuickSearchMatchMode GetQuickSearchMatchMode(AppSettings? settings)
+    {
+        var mode = settings?.QuickSearchMatchMode;
+        if (string.Equals(mode, "Contains", StringComparison.OrdinalIgnoreCase))
+            return QuickSearchMatchMode.Contains;
+        if (string.Equals(mode, "StartsWith", StringComparison.OrdinalIgnoreCase))
+            return QuickSearchMatchMode.StartsWith;
+
+        return QuickSearchMatchMode.StartsWithThenContains;
     }
     
     /// <summary>
@@ -280,6 +400,91 @@ public partial class TabbedFilePanel : UserControl
                     e.Handled = true;
                 }
                 break;
+        }
+    }
+
+    private void OnDataGridPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is not TabbedPanelViewModel vm || vm.ActiveTab == null)
+            return;
+
+        if (!vm.Settings.SingleClickOpen)
+            return;
+
+        if (e.ClickCount != 1)
+            return;
+
+        if (e.KeyModifiers != KeyModifiers.None)
+            return;
+
+        var point = e.GetCurrentPoint(sender as Control);
+        if (!point.Properties.IsLeftButtonPressed)
+            return;
+
+        if (e.Source is Control control)
+        {
+            var row = control.FindAncestorOfType<DataGridRow>();
+            if (row?.DataContext is FileItemViewModel file)
+            {
+                vm.ActiveTab.SelectedItem = file;
+                vm.ActiveTab.OpenItemCommand.Execute(file);
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void OnThumbnailPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Border border || border.DataContext is not FileItemViewModel fileVm)
+            return;
+
+        if (DataContext is not TabbedPanelViewModel vm || vm.ActiveTab == null)
+            return;
+
+        var point = e.GetCurrentPoint(border);
+
+        if (point.Properties.IsRightButtonPressed)
+        {
+            vm.ActiveTab.SelectedItem = fileVm;
+            return;
+        }
+
+        if (point.Properties.IsLeftButtonPressed)
+        {
+            vm.ActiveTab.SelectedItem = fileVm;
+            if (vm.Settings.SingleClickOpen)
+            {
+                vm.ActiveTab.OpenItemCommand.Execute(fileVm);
+                e.Handled = true;
+            }
+        }
+
+        var mainWindow = this.FindAncestorOfType<MainWindow>();
+        if (mainWindow?.DataContext is MainWindowViewModel mainVm)
+        {
+            mainVm.SetActivePanelCommand.Execute(vm);
+        }
+    }
+
+    private void OnThumbnailDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (DataContext is not TabbedPanelViewModel vm || vm.ActiveTab == null)
+            return;
+
+        if (vm.Settings.SingleClickOpen)
+            return;
+
+        if (sender is Border border && border.DataContext is FileItemViewModel fileVm)
+        {
+            vm.ActiveTab.OpenItemCommand.Execute(fileVm);
+        }
+    }
+
+    private async void LoadVisibleThumbnails(TabViewModel tab)
+    {
+        foreach (var item in tab.Items.Where(i => i.CanHaveThumbnail && !i.ThumbnailLoaded))
+        {
+            await item.LoadThumbnailAsync();
         }
     }
 

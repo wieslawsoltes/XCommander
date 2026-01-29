@@ -2,55 +2,53 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="using:XCommander.Controls"
         mc:Ignorable="d" d:DesignWidth="450" d:DesignHeight="180"
         x:Class="XCommander.Views.Dialogs.ProgressDialog"
         Title="Operation Progress"
-        Width="450"
-        Height="180"
+        Width="460"
+        Height="190"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         SystemDecorations="BorderOnly">
-    
-    <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
-        <!-- Operation Title -->
-        <TextBlock Grid.Row="0" 
+
+    <Grid Margin="10" RowDefinitions="Auto,Auto,Auto,Auto">
+        <TextBlock Grid.Row="0"
                    x:Name="TitleText"
                    Text="Copying files..."
-                   FontSize="14"
+                   FontSize="13"
                    FontWeight="SemiBold"
-                   Margin="0,0,0,10"/>
-        
-        <!-- Current Item -->
-        <TextBlock Grid.Row="1" 
-                   x:Name="CurrentItemText"
-                   Text="file.txt"
-                   TextTrimming="CharacterEllipsis"
-                   Opacity="0.8"
-                   Margin="0,0,0,8"/>
-        
-        <!-- Progress Bar -->
-        <ProgressBar Grid.Row="2" 
-                     x:Name="ProgressBar"
-                     Minimum="0"
-                     Maximum="100"
-                     Value="0"
-                     Height="20"
-                     Margin="0,0,0,8"/>
-        
-        <!-- Progress Text -->
-        <TextBlock Grid.Row="3" 
-                   x:Name="ProgressText"
-                   Text="0%"
-                   HorizontalAlignment="Center"
-                   Opacity="0.7"/>
-        
-        <!-- Cancel Button -->
-        <Button Grid.Row="5" 
-                Content="Cancel"
-                x:Name="CancelButton"
-                Click="OnCancelClick"
-                HorizontalAlignment="Right"
-                Padding="20,6"/>
+                   Margin="0,0,0,6"/>
+
+        <controls:TcInsetPanel Grid.Row="1" Padding="6">
+            <TextBlock x:Name="CurrentItemText"
+                       Text="file.txt"
+                       TextTrimming="CharacterEllipsis"
+                       Opacity="0.8"/>
+        </controls:TcInsetPanel>
+
+        <StackPanel Grid.Row="2" Spacing="4" Margin="0,6,0,0">
+            <ProgressBar x:Name="ProgressBar"
+                         Minimum="0"
+                         Maximum="100"
+                         Value="0"
+                         Height="18"/>
+            <TextBlock x:Name="ProgressText"
+                       Text="0%"
+                       HorizontalAlignment="Center"
+                       Opacity="0.7"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="6"
+                    Margin="0,8,0,0">
+            <Button x:Name="CancelButton"
+                    Content="Cancel"
+                    Click="OnCancelClick"
+                    Width="90"/>
+        </StackPanel>
     </Grid>
 </Window>

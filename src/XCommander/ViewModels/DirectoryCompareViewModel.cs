@@ -1,5 +1,11 @@
 using System;
 using System.Collections.ObjectModel;
+using Avalonia.Collections;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Data.Core;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -13,6 +19,14 @@ namespace XCommander.ViewModels;
 
 public partial class DirectoryCompareViewModel : ViewModelBase
 {
+    private const string SelectedColumnKey = "selected";
+    private const string StatusColumnKey = "status";
+    private const string PathColumnKey = "path";
+    private const string LeftSizeColumnKey = "left-size";
+    private const string LeftDateColumnKey = "left-date";
+    private const string RightSizeColumnKey = "right-size";
+    private const string RightDateColumnKey = "right-date";
+
     private readonly IFileSystemService _fileSystemService;
     private CancellationTokenSource? _cancellationTokenSource;
 
@@ -62,10 +76,149 @@ public partial class DirectoryCompareViewModel : ViewModelBase
     private int _identicalCount;
 
     public ObservableCollection<CompareResultItem> Results { get; } = new();
+    public DataGridCollectionView ResultsView { get; }
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
 
     public DirectoryCompareViewModel(IFileSystemService fileSystemService)
     {
         _fileSystemService = fileSystemService;
+        ResultsView = new DataGridCollectionView(Results);
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<CompareResultItem>();
+
+        IPropertyInfo isSelectedProperty = CreateProperty(
+            nameof(CompareResultItem.IsSelected),
+            item => item.IsSelected,
+            (item, value) => item.IsSelected = value);
+        IPropertyInfo statusProperty = CreateProperty(
+            nameof(CompareResultItem.StatusDisplay),
+            item => item.StatusDisplay);
+        IPropertyInfo pathProperty = CreateProperty(
+            nameof(CompareResultItem.RelativePath),
+            item => item.RelativePath);
+        IPropertyInfo leftSizeProperty = CreateProperty(
+            nameof(CompareResultItem.LeftSizeDisplay),
+            item => item.LeftSizeDisplay);
+        IPropertyInfo leftDateProperty = CreateProperty(
+            nameof(CompareResultItem.LeftDateDisplay),
+            item => item.LeftDateDisplay);
+        IPropertyInfo rightSizeProperty = CreateProperty(
+            nameof(CompareResultItem.RightSizeDisplay),
+            item => item.RightSizeDisplay);
+        IPropertyInfo rightDateProperty = CreateProperty(
+            nameof(CompareResultItem.RightDateDisplay),
+            item => item.RightDateDisplay);
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.CheckBox(
+                header: string.Empty,
+                property: isSelectedProperty,
+                getter: item => item.IsSelected,
+                setter: (item, value) => item.IsSelected = value,
+                configure: column =>
+                {
+                    column.ColumnKey = SelectedColumnKey;
+                    column.Width = new DataGridLength(30);
+                    column.CanUserSort = false;
+                    column.ShowFilterButton = false;
+                }),
+            builder.Text(
+                header: "Status",
+                property: statusProperty,
+                getter: item => item.StatusDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = StatusColumnKey;
+                    column.Width = new DataGridLength(50);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Path",
+                property: pathProperty,
+                getter: item => item.RelativePath,
+                configure: column =>
+                {
+                    column.ColumnKey = PathColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Left Size",
+                property: leftSizeProperty,
+                getter: item => item.LeftSizeDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = LeftSizeColumnKey;
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Left Date",
+                property: leftDateProperty,
+                getter: item => item.LeftDateDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = LeftDateColumnKey;
+                    column.Width = new DataGridLength(140);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Right Size",
+                property: rightSizeProperty,
+                getter: item => item.RightSizeDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = RightSizeColumnKey;
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Right Date",
+                property: rightDateProperty,
+                getter: item => item.RightDateDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = RightDateColumnKey;
+                    column.Width = new DataGridLength(140);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                })
+        };
+    }
+
+    private static IPropertyInfo CreateProperty<TValue>(
+        string name,
+        Func<CompareResultItem, TValue> getter,
+        Action<CompareResultItem, TValue>? setter = null)
+    {
+        return new ClrPropertyInfo(
+            name,
+            target => getter((CompareResultItem)target),
+            setter == null
+                ? null
+                : (target, value) => setter((CompareResultItem)target, value is null ? default! : (TValue)value),
+            typeof(TValue));
     }
 
     [RelayCommand]

@@ -1,8 +1,14 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Data.Core;
+using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Avalonia.Input;
+using XCommander.Helpers;
 
 namespace XCommander.ViewModels;
 
@@ -48,17 +54,118 @@ public partial class KeyboardShortcut : ObservableObject
 /// </summary>
 public partial class KeyboardShortcutManager : ObservableObject
 {
+    private const string CategoryColumnKey = "category";
+    private const string ActionColumnKey = "action";
+    private const string DefaultColumnKey = "default";
+    private const string CurrentColumnKey = "current";
+    private const string StatusColumnKey = "status";
+
     private static readonly string ShortcutsFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "XCommander",
         "shortcuts.json");
     
     public ObservableCollection<KeyboardShortcut> Shortcuts { get; } = [];
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
     
     public KeyboardShortcutManager()
     {
         InitializeDefaultShortcuts();
         LoadCustomShortcuts();
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<KeyboardShortcut>();
+
+        IPropertyInfo categoryProperty = DataGridColumnHelper.CreateProperty(
+            nameof(KeyboardShortcut.Category),
+            (KeyboardShortcut item) => item.Category,
+            (item, value) => item.Category = value);
+        IPropertyInfo nameProperty = DataGridColumnHelper.CreateProperty(
+            nameof(KeyboardShortcut.Name),
+            (KeyboardShortcut item) => item.Name,
+            (item, value) => item.Name = value);
+        IPropertyInfo defaultGestureProperty = DataGridColumnHelper.CreateProperty(
+            nameof(KeyboardShortcut.DefaultGesture),
+            (KeyboardShortcut item) => item.DefaultGesture,
+            (item, value) => item.DefaultGesture = value);
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Text(
+                header: "Category",
+                property: categoryProperty,
+                getter: item => item.Category,
+                configure: column =>
+                {
+                    column.ColumnKey = CategoryColumnKey;
+                    column.Width = new DataGridLength(120);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Action",
+                property: nameProperty,
+                getter: item => item.Name,
+                configure: column =>
+                {
+                    column.ColumnKey = ActionColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Default",
+                property: defaultGestureProperty,
+                getter: item => item.DefaultGesture,
+                configure: column =>
+                {
+                    column.ColumnKey = DefaultColumnKey;
+                    column.Width = new DataGridLength(120);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Template(
+                header: "Current Shortcut",
+                cellTemplateKey: "KeyboardShortcutEditorTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = CurrentColumnKey;
+                    column.Width = new DataGridLength(160);
+                    column.IsReadOnly = false;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<KeyboardShortcut, string>(
+                        item => item.CurrentGesture,
+                        (item, value) => item.CurrentGesture = value);
+                    column.ValueType = typeof(string);
+                }),
+            builder.Template(
+                header: "Status",
+                cellTemplateKey: "KeyboardShortcutStatusTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = StatusColumnKey;
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<KeyboardShortcut, string>(
+                        item => item.IsModified ? "Modified" : string.Empty);
+                    column.ValueType = typeof(string);
+                })
+        };
     }
     
     private void InitializeDefaultShortcuts()

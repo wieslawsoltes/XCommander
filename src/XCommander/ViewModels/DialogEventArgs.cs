@@ -45,6 +45,11 @@ public class CopyMoveDialogResult
     /// Whether to preserve date/time attributes.
     /// </summary>
     public bool PreserveDateTime { get; set; } = true;
+
+    /// <summary>
+    /// Whether to preserve file attributes.
+    /// </summary>
+    public bool PreserveAttributes { get; set; } = true;
     
     /// <summary>
     /// Whether to verify after copy.
@@ -55,6 +60,16 @@ public class CopyMoveDialogResult
     /// Overwrite mode for existing files.
     /// </summary>
     public OverwriteMode OverwriteMode { get; set; } = OverwriteMode.Ask;
+
+    /// <summary>
+    /// Whether to use background transfer queue.
+    /// </summary>
+    public bool UseBackgroundTransfer { get; set; }
+
+    /// <summary>
+    /// Whether to use low priority for queued operations.
+    /// </summary>
+    public bool LowPriority { get; set; }
 }
 
 /// <summary>

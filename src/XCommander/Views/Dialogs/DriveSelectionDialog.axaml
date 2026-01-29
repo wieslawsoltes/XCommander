@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="using:XCommander.Controls"
+        xmlns:vm="using:XCommander.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="360"
+        x:Class="XCommander.Views.Dialogs.DriveSelectionDialog"
+        x:DataType="vm:DriveSelectionViewModel"
+        Title="Select Drive"
+        Width="520" Height="360"
+        MinWidth="400" MinHeight="280"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False">
+
+    <Grid Margin="10" RowDefinitions="Auto,*,Auto">
+        <controls:TcBevelPanel Grid.Row="0" Padding="6,4">
+            <TextBlock Text="Select Drive" FontSize="14" FontWeight="Bold"/>
+        </controls:TcBevelPanel>
+
+        <controls:TcInsetPanel Grid.Row="1" Padding="0" Margin="0,6,0,0">
+            <DataGrid x:Name="DriveGrid"
+                      ItemsSource="{Binding Drives}"
+                      SelectedItem="{Binding SelectedDrive}"
+                      AutoGenerateColumns="False"
+                      ColumnDefinitionsSource="{Binding ColumnDefinitions}"
+                      FilteringModel="{Binding FilteringModel}"
+                      SortingModel="{Binding SortingModel}"
+                      SearchModel="{Binding SearchModel}"
+                      HeadersVisibility="Column"
+                      GridLinesVisibility="None"
+                      IsReadOnly="True"
+                      DoubleTapped="OnDriveDoubleTapped">
+                <DataGrid.FastPathOptions>
+                    <DataGridFastPathOptions UseAccessorsOnly="True"
+                                             ThrowOnMissingAccessor="True" />
+                </DataGrid.FastPathOptions>
+            </DataGrid>
+        </controls:TcInsetPanel>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="6"
+                    Margin="0,8,0,0">
+            <Button Content="OK" Width="80" IsDefault="True" Click="OnOkClick"/>
+            <Button Content="Cancel" Width="80" IsCancel="True" Click="OnCancelClick"/>
+        </StackPanel>
+    </Grid>
+</Window>

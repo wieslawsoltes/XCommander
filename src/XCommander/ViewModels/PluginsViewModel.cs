@@ -1,4 +1,8 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using XCommander.Plugins;
@@ -43,6 +47,7 @@ public partial class PluginItemViewModel : ViewModelBase
 public partial class PluginsViewModel : ViewModelBase
 {
     private readonly PluginManager _pluginManager;
+    private readonly List<PluginItemViewModel> _allPlugins = new();
     
     [ObservableProperty]
     private ObservableCollection<PluginItemViewModel> _plugins = new();
@@ -56,24 +61,80 @@ public partial class PluginsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isLoading;
 
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
+
     public PluginsViewModel(PluginManager pluginManager)
     {
         _pluginManager = pluginManager;
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
         LoadPlugins();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<PluginItemViewModel>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Plugin",
+                cellTemplateKey: "PluginItemTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "plugin";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<PluginItemViewModel, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<PluginItemViewModel, string>(
+                            item => item.Name),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not PluginItemViewModel plugin)
+                                return string.Empty;
+                            return $"{plugin.Name} {plugin.PluginType} {plugin.Description} {plugin.Author}";
+                        }
+                    };
+                })
+        };
     }
 
     private void LoadPlugins()
     {
+        LoadPlugins(_pluginManager.LoadedPlugins);
+    }
+
+    internal void LoadPlugins(IReadOnlyList<LoadedPlugin> loadedPlugins)
+    {
+        _allPlugins.Clear();
         Plugins.Clear();
-        
-        foreach (var loadedPlugin in _pluginManager.LoadedPlugins)
+
+        foreach (var loadedPlugin in loadedPlugins)
         {
             var pluginType = GetPluginTypeDescription(loadedPlugin.Instance);
             var status = loadedPlugin.IsInitialized 
                 ? (loadedPlugin.IsEnabled ? "Active" : "Disabled")
                 : (loadedPlugin.LoadError != null ? "Error" : "Not Initialized");
             
-            Plugins.Add(new PluginItemViewModel
+            _allPlugins.Add(new PluginItemViewModel
             {
                 Id = loadedPlugin.Metadata.Id,
                 Name = loadedPlugin.Metadata.Name,
@@ -88,8 +149,63 @@ public partial class PluginsViewModel : ViewModelBase
                 LoadedPlugin = loadedPlugin
             });
         }
-        
-        StatusMessage = $"{Plugins.Count} plugin(s) loaded";
+
+        ApplyFilter();
+    }
+
+    partial void OnSearchTextChanged(string value)
+    {
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        Plugins.Clear();
+
+        var terms = SearchText
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (var plugin in _allPlugins)
+        {
+            if (!MatchesSearch(plugin, terms))
+                continue;
+
+            Plugins.Add(plugin);
+        }
+
+        StatusMessage = _allPlugins.Count == Plugins.Count
+            ? $"{Plugins.Count} plugin(s) loaded"
+            : $"{Plugins.Count} of {_allPlugins.Count} plugin(s) shown";
+    }
+
+    private static bool MatchesSearch(PluginItemViewModel plugin, string[] terms)
+    {
+        if (terms.Length == 0)
+            return true;
+
+        foreach (var term in terms)
+        {
+            if (term.Length == 0)
+                continue;
+
+            if (Contains(plugin.Name, term) ||
+                Contains(plugin.PluginType, term) ||
+                Contains(plugin.Description, term) ||
+                Contains(plugin.Author, term) ||
+                Contains(plugin.Version, term))
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool Contains(string value, string term)
+    {
+        return value.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static string GetPluginTypeDescription(IPlugin plugin)

@@ -4,11 +4,15 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using XCommander.Plugins;
 
 namespace XCommander.Services;
 
@@ -17,6 +21,17 @@ public class PluginService : IPluginService
     private readonly ConcurrentDictionary<string, PluginInfo> _plugins = new();
     private readonly ConcurrentDictionary<string, IReadOnlyList<PluginContentField>> _contentFields = new();
     private readonly ConcurrentDictionary<string, List<string>> _extensionToPlugin = new();
+    private readonly ConcurrentDictionary<string, IPlugin> _managedPlugins = new();
+    private readonly ConcurrentDictionary<string, IFileSystemPlugin> _fileSystemPlugins = new();
+    private readonly ConcurrentDictionary<string, IColumnPlugin> _columnPlugins = new();
+    private readonly ConcurrentDictionary<string, bool> _pluginInitialized = new();
+    private readonly ServicePluginContext _pluginContext = new();
+    private static readonly JsonSerializerOptions ManifestJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+    
+    private const string LocalFileSystemPluginId = "builtin.localfs";
     
     public event EventHandler<PluginEventArgs>? PluginLoaded;
     public event EventHandler<PluginEventArgs>? PluginUnloaded;
@@ -127,22 +142,30 @@ public class PluginService : IPluginService
             LoadedAt = DateTime.Now
         };
         RegisterBuiltInPlugin(imageListerPlugin);
+
+        // Built-in local file system plugin
+        var localFileSystemPlugin = new PluginInfo
+        {
+            Id = LocalFileSystemPluginId,
+            Name = "Local File System",
+            Description = "Built-in local file system access",
+            Author = "XCommander",
+            Version = "1.0",
+            Type = PluginType.FileSystem,
+            Capabilities = PluginCapabilities.CanRead | PluginCapabilities.CanWrite |
+                          PluginCapabilities.CanCreateFolder | PluginCapabilities.CanDelete |
+                          PluginCapabilities.CanRename | PluginCapabilities.CanExecute,
+            IsBuiltIn = true,
+            IsEnabled = true,
+            LoadedAt = DateTime.Now
+        };
+        RegisterBuiltInPlugin(localFileSystemPlugin);
     }
     
     private void RegisterBuiltInPlugin(PluginInfo plugin)
     {
         _plugins[plugin.Id] = plugin;
-        
-        foreach (var ext in plugin.Extensions)
-        {
-            var key = $"{plugin.Type}:{ext.ToLowerInvariant()}";
-            if (!_extensionToPlugin.TryGetValue(key, out var list))
-            {
-                list = new List<string>();
-                _extensionToPlugin[key] = list;
-            }
-            list.Add(plugin.Id);
-        }
+        RegisterExtensionMappings(plugin);
     }
     
     public IReadOnlyList<PluginInfo> GetAllPlugins()
@@ -211,38 +234,81 @@ public class PluginService : IPluginService
         return null;
     }
     
-    public Task<PluginInfo> RegisterPluginAsync(string pluginPath, CancellationToken cancellationToken = default)
+    public async Task<PluginInfo> RegisterPluginAsync(string pluginPath, CancellationToken cancellationToken = default)
     {
-        // In a real implementation, this would load the plugin DLL and extract metadata
-        // For now, we create a placeholder based on file info
-        
-        var fileName = Path.GetFileNameWithoutExtension(pluginPath);
-        var extension = Path.GetExtension(pluginPath).ToLowerInvariant();
-        
-        var pluginType = extension switch
+        if (string.IsNullOrWhiteSpace(pluginPath))
+            throw new ArgumentException("Plugin path is required.", nameof(pluginPath));
+
+        var resolvedPath = pluginPath;
+        var pluginDirectory = Directory.Exists(pluginPath)
+            ? pluginPath
+            : Path.GetDirectoryName(pluginPath);
+
+        if (string.IsNullOrEmpty(pluginDirectory))
+            throw new DirectoryNotFoundException($"Plugin directory not found for '{pluginPath}'.");
+
+        var manifest = await LoadManifestAsync(pluginPath, pluginDirectory, cancellationToken);
+        var assemblyPath = ResolveAssemblyPath(pluginPath, pluginDirectory, manifest);
+
+        IPlugin? instance = null;
+        if (!string.IsNullOrEmpty(assemblyPath) && File.Exists(assemblyPath))
         {
-            ".wcx" or ".wcx64" => PluginType.Packer,
-            ".wdx" or ".wdx64" => PluginType.Content,
-            ".wfx" or ".wfx64" => PluginType.FileSystem,
-            ".wlx" or ".wlx64" => PluginType.Lister,
-            _ => throw new NotSupportedException($"Unknown plugin type: {extension}")
-        };
-        
+            instance = LoadPluginInstance(assemblyPath, manifest?.PluginTypeName);
+        }
+
+        var pluginType = ResolvePluginType(pluginPath, manifest, instance);
+        var extensions = ResolveExtensions(pluginPath, manifest, instance, pluginType);
+        var pluginId = manifest?.Id ?? instance?.Id ?? $"user.{Path.GetFileNameWithoutExtension(pluginPath).ToLowerInvariant()}";
+
         var plugin = new PluginInfo
         {
-            Id = $"user.{fileName.ToLowerInvariant()}",
-            Name = fileName,
+            Id = pluginId,
+            Name = manifest?.Name ?? instance?.Name ?? Path.GetFileNameWithoutExtension(pluginPath),
+            Description = manifest?.Description ?? instance?.Description,
+            Author = manifest?.Author ?? instance?.Author,
+            Version = manifest?.Version ?? instance?.Version.ToString(),
+            Website = manifest?.Website,
             Type = pluginType,
-            PluginPath = pluginPath,
-            IsEnabled = true,
+            Capabilities = ResolveCapabilities(pluginType, manifest, instance),
+            PluginPath = resolvedPath,
+            ConfigPath = ResolveConfigPath(pluginDirectory, manifest),
+            Extensions = extensions,
+            DetectStrings = manifest?.DetectStrings ?? new List<string>(),
+            IsEnabled = manifest?.Enabled ?? true,
+            IsBuiltIn = false,
             LoadedAt = DateTime.Now
         };
-        
+
         _plugins[plugin.Id] = plugin;
+        RegisterExtensionMappings(plugin);
+
+        if (instance != null)
+        {
+            _managedPlugins[plugin.Id] = instance;
+            if (instance is IFileSystemPlugin fileSystemPlugin)
+            {
+                _fileSystemPlugins[plugin.Id] = fileSystemPlugin;
+            }
+            if (instance is IColumnPlugin columnPlugin)
+            {
+                _columnPlugins[plugin.Id] = columnPlugin;
+                _contentFields[plugin.Id] = columnPlugin.GetColumns()
+                    .Select(c => new PluginContentField
+                    {
+                        Name = c.Id,
+                        DisplayName = c.Name,
+                        FieldType = PluginContentFieldType.String,
+                        CanEdit = false
+                    })
+                    .ToList();
+            }
+            await InitializePluginInstanceAsync(plugin.Id, instance, cancellationToken);
+        }
+
         OnPluginLoaded(plugin);
         OnPluginsChanged();
-        
-        return Task.FromResult(plugin);
+
+        return plugin;
     }
     
     public Task<bool> UnregisterPluginAsync(string pluginId, CancellationToken cancellationToken = default)
@@ -259,6 +325,24 @@ public class PluginService : IPluginService
         
         if (_plugins.TryRemove(pluginId, out var removed))
         {
+            RemoveExtensionMappings(removed);
+
+            if (_managedPlugins.TryRemove(pluginId, out var instance))
+            {
+                _fileSystemPlugins.TryRemove(pluginId, out _);
+                _columnPlugins.TryRemove(pluginId, out _);
+                _contentFields.TryRemove(pluginId, out _);
+                _pluginInitialized.TryRemove(pluginId, out _);
+                try
+                {
+                    instance.ShutdownAsync().GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    // Ignore shutdown errors
+                }
+            }
+
             OnPluginUnloaded(removed);
             OnPluginsChanged();
             return Task.FromResult(true);
@@ -275,6 +359,26 @@ public class PluginService : IPluginService
         }
         
         _plugins[pluginId] = plugin with { IsEnabled = enabled };
+
+        if (_managedPlugins.TryGetValue(pluginId, out var instance))
+        {
+            if (enabled)
+            {
+                _ = InitializePluginInstanceAsync(pluginId, instance, cancellationToken);
+            }
+            else
+            {
+                try
+                {
+                    instance.ShutdownAsync().GetAwaiter().GetResult();
+                    _pluginInitialized[pluginId] = false;
+                }
+                catch
+                {
+                    // Ignore shutdown errors
+                }
+            }
+        }
         OnPluginsChanged();
         
         return Task.FromResult(true);
@@ -289,7 +393,7 @@ public class PluginService : IPluginService
     
     public Task<IReadOnlyList<string>> ScanForPluginsAsync(string directory, CancellationToken cancellationToken = default)
     {
-        var pluginExtensions = new[] { ".wcx", ".wcx64", ".wdx", ".wdx64", ".wfx", ".wfx64", ".wlx", ".wlx64" };
+        var pluginExtensions = new[] { ".wcx", ".wcx64", ".wdx", ".wdx64", ".wfx", ".wfx64", ".wlx", ".wlx64", ".dll", ".json" };
         var results = new List<string>();
         
         if (Directory.Exists(directory))
@@ -299,6 +403,8 @@ public class PluginService : IPluginService
                 var ext = Path.GetExtension(file).ToLowerInvariant();
                 if (pluginExtensions.Contains(ext))
                 {
+                    if (ext == ".json" && !string.Equals(Path.GetFileName(file), "plugin.json", StringComparison.OrdinalIgnoreCase))
+                        continue;
                     results.Add(file);
                 }
             }
@@ -725,8 +831,29 @@ public class PluginService : IPluginService
         {
             return Task.FromResult(GetBuiltInFieldValue(fieldName, filePath));
         }
+
+        if (_columnPlugins.TryGetValue(pluginId, out var columnPlugin))
+        {
+            return GetColumnValueAsync(columnPlugin, fieldName, filePath, cancellationToken);
+        }
         
         return Task.FromResult<object?>(null);
+    }
+
+    private static async Task<object?> GetColumnValueAsync(
+        IColumnPlugin columnPlugin,
+        string fieldName,
+        string filePath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await columnPlugin.GetValueAsync(fieldName, filePath, cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
     }
     
     private object? GetBuiltInFieldValue(string fieldName, string filePath)
@@ -797,9 +924,22 @@ public class PluginService : IPluginService
     
     public Task<IFileSystemHandle?> ConnectAsync(string pluginId, string? connectionString = null, CancellationToken cancellationToken = default)
     {
-        // File system plugins would connect to remote systems (FTP, cloud, etc.)
-        // This is a placeholder
-        return Task.FromResult<IFileSystemHandle?>(null);
+        if (!_plugins.TryGetValue(pluginId, out var plugin) || plugin.Type != PluginType.FileSystem || !plugin.IsEnabled)
+        {
+            return Task.FromResult<IFileSystemHandle?>(null);
+        }
+
+        var handle = new FileSystemHandle(pluginId, connectionString);
+        if (!string.IsNullOrWhiteSpace(connectionString))
+        {
+            handle.CurrentPath = connectionString;
+        }
+        else if (pluginId == LocalFileSystemPluginId)
+        {
+            handle.CurrentPath = Environment.CurrentDirectory;
+        }
+
+        return Task.FromResult<IFileSystemHandle?>(handle);
     }
     
     public Task<IReadOnlyList<PluginFileSystemItem>> ListDirectoryAsync(
@@ -807,7 +947,21 @@ public class PluginService : IPluginService
         string path,
         CancellationToken cancellationToken = default)
     {
-        // File system plugins would list remote directories
+        if (!_plugins.TryGetValue(pluginId, out var plugin) || plugin.Type != PluginType.FileSystem || !plugin.IsEnabled)
+        {
+            return Task.FromResult<IReadOnlyList<PluginFileSystemItem>>(Array.Empty<PluginFileSystemItem>());
+        }
+
+        if (pluginId == LocalFileSystemPluginId)
+        {
+            return Task.FromResult<IReadOnlyList<PluginFileSystemItem>>(ListLocalDirectory(path));
+        }
+
+        if (_fileSystemPlugins.TryGetValue(pluginId, out var fileSystemPlugin))
+        {
+            return ListRemoteDirectoryAsync(fileSystemPlugin, path, cancellationToken);
+        }
+
         return Task.FromResult<IReadOnlyList<PluginFileSystemItem>>(Array.Empty<PluginFileSystemItem>());
     }
     
@@ -818,6 +972,21 @@ public class PluginService : IPluginService
         PluginProgressCallback? progress = null,
         CancellationToken cancellationToken = default)
     {
+        if (!_plugins.TryGetValue(pluginId, out var plugin) || plugin.Type != PluginType.FileSystem || !plugin.IsEnabled)
+        {
+            return Task.FromResult(false);
+        }
+
+        if (pluginId == LocalFileSystemPluginId)
+        {
+            return CopyLocalFileAsync(remotePath, localPath, progress, cancellationToken);
+        }
+
+        if (_fileSystemPlugins.TryGetValue(pluginId, out var fileSystemPlugin))
+        {
+            return DownloadFileAsync(fileSystemPlugin, remotePath, localPath, progress, cancellationToken);
+        }
+
         return Task.FromResult(false);
     }
     
@@ -828,27 +997,395 @@ public class PluginService : IPluginService
         PluginProgressCallback? progress = null,
         CancellationToken cancellationToken = default)
     {
+        if (!_plugins.TryGetValue(pluginId, out var plugin) || plugin.Type != PluginType.FileSystem || !plugin.IsEnabled)
+        {
+            return Task.FromResult(false);
+        }
+
+        if (pluginId == LocalFileSystemPluginId)
+        {
+            return CopyLocalFileAsync(localPath, remotePath, progress, cancellationToken);
+        }
+
+        if (_fileSystemPlugins.TryGetValue(pluginId, out var fileSystemPlugin))
+        {
+            return UploadFileAsync(fileSystemPlugin, localPath, remotePath, progress, cancellationToken);
+        }
+
         return Task.FromResult(false);
     }
     
     public Task<bool> DeleteFileAsync(string pluginId, string path, CancellationToken cancellationToken = default)
     {
+        if (!_plugins.TryGetValue(pluginId, out var plugin) || plugin.Type != PluginType.FileSystem || !plugin.IsEnabled)
+        {
+            return Task.FromResult(false);
+        }
+
+        if (pluginId == LocalFileSystemPluginId)
+        {
+            return DeleteLocalPathAsync(path, recursive: false, cancellationToken);
+        }
+
+        if (_fileSystemPlugins.TryGetValue(pluginId, out var fileSystemPlugin))
+        {
+            return DeleteRemotePathAsync(fileSystemPlugin, path, recursive: false, cancellationToken);
+        }
+
         return Task.FromResult(false);
     }
     
     public Task<bool> CreateDirectoryAsync(string pluginId, string path, CancellationToken cancellationToken = default)
     {
+        if (!_plugins.TryGetValue(pluginId, out var plugin) || plugin.Type != PluginType.FileSystem || !plugin.IsEnabled)
+        {
+            return Task.FromResult(false);
+        }
+
+        if (pluginId == LocalFileSystemPluginId)
+        {
+            return CreateLocalDirectoryAsync(path, cancellationToken);
+        }
+
+        if (_fileSystemPlugins.TryGetValue(pluginId, out var fileSystemPlugin))
+        {
+            return CreateRemoteDirectoryAsync(fileSystemPlugin, path, cancellationToken);
+        }
+
         return Task.FromResult(false);
     }
     
     public Task<bool> RemoveDirectoryAsync(string pluginId, string path, CancellationToken cancellationToken = default)
     {
+        if (!_plugins.TryGetValue(pluginId, out var plugin) || plugin.Type != PluginType.FileSystem || !plugin.IsEnabled)
+        {
+            return Task.FromResult(false);
+        }
+
+        if (pluginId == LocalFileSystemPluginId)
+        {
+            return DeleteLocalPathAsync(path, recursive: true, cancellationToken);
+        }
+
+        if (_fileSystemPlugins.TryGetValue(pluginId, out var fileSystemPlugin))
+        {
+            return DeleteRemotePathAsync(fileSystemPlugin, path, recursive: true, cancellationToken);
+        }
+
         return Task.FromResult(false);
     }
     
     public Task<bool> ExecuteFileAsync(string pluginId, string path, string? parameters = null, CancellationToken cancellationToken = default)
     {
+        if (!_plugins.TryGetValue(pluginId, out var plugin) || plugin.Type != PluginType.FileSystem || !plugin.IsEnabled)
+        {
+            return Task.FromResult(false);
+        }
+
+        if (pluginId == LocalFileSystemPluginId)
+        {
+            try
+            {
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = path,
+                    Arguments = parameters ?? string.Empty,
+                    UseShellExecute = true
+                };
+                Process.Start(processInfo);
+                return Task.FromResult(true);
+            }
+            catch
+            {
+                return Task.FromResult(false);
+            }
+        }
+
         return Task.FromResult(false);
+    }
+
+    private static IReadOnlyList<PluginFileSystemItem> ListLocalDirectory(string path)
+    {
+        var resolvedPath = NormalizeLocalPath(path);
+        if (string.IsNullOrWhiteSpace(resolvedPath))
+            return Array.Empty<PluginFileSystemItem>();
+
+        try
+        {
+            var directoryInfo = new DirectoryInfo(resolvedPath);
+            if (!directoryInfo.Exists)
+                return Array.Empty<PluginFileSystemItem>();
+
+            var items = new List<PluginFileSystemItem>();
+
+            foreach (var dir in directoryInfo.EnumerateDirectories())
+            {
+                items.Add(new PluginFileSystemItem
+                {
+                    Name = dir.Name,
+                    Path = dir.FullName,
+                    Size = 0,
+                    ModifiedTime = dir.LastWriteTime,
+                    CreatedTime = dir.CreationTime,
+                    AccessedTime = dir.LastAccessTime,
+                    Attributes = dir.Attributes,
+                    IsDirectory = true
+                });
+            }
+
+            foreach (var file in directoryInfo.EnumerateFiles())
+            {
+                items.Add(new PluginFileSystemItem
+                {
+                    Name = file.Name,
+                    Path = file.FullName,
+                    Size = file.Length,
+                    ModifiedTime = file.LastWriteTime,
+                    CreatedTime = file.CreationTime,
+                    AccessedTime = file.LastAccessTime,
+                    Attributes = file.Attributes,
+                    IsDirectory = false
+                });
+            }
+
+            return items;
+        }
+        catch
+        {
+            return Array.Empty<PluginFileSystemItem>();
+        }
+    }
+
+    private static string NormalizeLocalPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return Environment.CurrentDirectory;
+
+        if (Uri.TryCreate(path, UriKind.Absolute, out var uri) && uri.IsFile)
+            return uri.LocalPath;
+
+        return path;
+    }
+
+    private static async Task<IReadOnlyList<PluginFileSystemItem>> ListRemoteDirectoryAsync(
+        IFileSystemPlugin plugin,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var items = await plugin.ListDirectoryAsync(path, cancellationToken);
+            return items.Select(ConvertFileItem).ToList();
+        }
+        catch
+        {
+            return Array.Empty<PluginFileSystemItem>();
+        }
+    }
+
+    private static async Task<bool> CopyLocalFileAsync(
+        string sourcePath,
+        string destinationPath,
+        PluginProgressCallback? progress,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resolvedSource = NormalizeLocalPath(sourcePath);
+            var resolvedDestination = NormalizeLocalPath(destinationPath);
+            var destDir = Path.GetDirectoryName(resolvedDestination);
+            if (!string.IsNullOrEmpty(destDir))
+                Directory.CreateDirectory(destDir);
+
+            await using var source = new FileStream(resolvedSource, FileMode.Open, FileAccess.Read, FileShare.Read);
+            await using var destination = new FileStream(resolvedDestination, FileMode.Create, FileAccess.Write, FileShare.None);
+            return await CopyStreamAsync(source, destination, resolvedSource, progress, cancellationToken);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> DownloadFileAsync(
+        IFileSystemPlugin plugin,
+        string remotePath,
+        string localPath,
+        PluginProgressCallback? progress,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resolvedLocal = NormalizeLocalPath(localPath);
+            var destDir = Path.GetDirectoryName(resolvedLocal);
+            if (!string.IsNullOrEmpty(destDir))
+                Directory.CreateDirectory(destDir);
+
+            await using var remoteStream = await plugin.OpenReadAsync(remotePath, cancellationToken);
+            await using var localStream = new FileStream(resolvedLocal, FileMode.Create, FileAccess.Write, FileShare.None);
+            return await CopyStreamAsync(remoteStream, localStream, remotePath, progress, cancellationToken);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> UploadFileAsync(
+        IFileSystemPlugin plugin,
+        string localPath,
+        string remotePath,
+        PluginProgressCallback? progress,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resolvedLocal = NormalizeLocalPath(localPath);
+            await using var localStream = new FileStream(resolvedLocal, FileMode.Open, FileAccess.Read, FileShare.Read);
+            await using var remoteStream = await plugin.OpenWriteAsync(remotePath, cancellationToken);
+            return await CopyStreamAsync(localStream, remoteStream, resolvedLocal, progress, cancellationToken);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> DeleteLocalPathAsync(
+        string path,
+        bool recursive,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resolved = NormalizeLocalPath(path);
+            if (File.Exists(resolved))
+            {
+                File.Delete(resolved);
+                return true;
+            }
+
+            if (Directory.Exists(resolved))
+            {
+                Directory.Delete(resolved, recursive);
+                return true;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return await Task.FromResult(false);
+    }
+
+    private static async Task<bool> DeleteRemotePathAsync(
+        IFileSystemPlugin plugin,
+        string path,
+        bool recursive,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await plugin.DeleteAsync(path, recursive, cancellationToken);
+            return true;
+        }
+        catch
+        {
+            return await Task.FromResult(false);
+        }
+    }
+
+    private static async Task<bool> CreateLocalDirectoryAsync(string path, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resolved = NormalizeLocalPath(path);
+            Directory.CreateDirectory(resolved);
+            return await Task.FromResult(true);
+        }
+        catch
+        {
+            return await Task.FromResult(false);
+        }
+    }
+
+    private static async Task<bool> CreateRemoteDirectoryAsync(
+        IFileSystemPlugin plugin,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await plugin.CreateDirectoryAsync(path, cancellationToken);
+            return true;
+        }
+        catch
+        {
+            return await Task.FromResult(false);
+        }
+    }
+
+    private static async Task<bool> CopyStreamAsync(
+        Stream source,
+        Stream destination,
+        string progressLabel,
+        PluginProgressCallback? progress,
+        CancellationToken cancellationToken)
+    {
+        const int bufferSize = 81920;
+        var buffer = new byte[bufferSize];
+        long total = source.CanSeek ? source.Length : -1;
+        long processed = 0;
+        var lastPercent = -1;
+
+        while (true)
+        {
+            var bytesRead = await source.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+            if (bytesRead <= 0)
+                break;
+
+            await destination.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+            processed += bytesRead;
+
+            if (total > 0)
+            {
+                var percent = (int)(processed * 100 / total);
+                if (percent != lastPercent)
+                {
+                    lastPercent = percent;
+                    if (progress != null && !progress(progressLabel, percent))
+                        return false;
+                }
+            }
+        }
+
+        progress?.Invoke(progressLabel, 100);
+        return true;
+    }
+
+    private static PluginFileSystemItem ConvertFileItem(PluginFileItem item)
+    {
+        var attributes = FileAttributes.Normal;
+        if (!string.IsNullOrEmpty(item.Attributes) &&
+            Enum.TryParse<FileAttributes>(item.Attributes, out var parsedAttributes))
+        {
+            attributes = parsedAttributes;
+        }
+
+        return new PluginFileSystemItem
+        {
+            Name = item.Name,
+            Path = item.FullPath,
+            Size = item.Size,
+            ModifiedTime = item.LastModified ?? DateTime.MinValue,
+            CreatedTime = item.Created,
+            Attributes = attributes,
+            IsDirectory = item.IsDirectory,
+            CustomProperties = item.CustomProperties != null
+                ? new Dictionary<string, string>(item.CustomProperties.ToDictionary(k => k.Key, v => v.Value?.ToString() ?? string.Empty))
+                : new Dictionary<string, string>()
+        };
     }
     
     // ======= Lister Plugin Operations =======
@@ -889,6 +1426,253 @@ public class PluginService : IPluginService
             return null;
         }
     }
+
+    // ======= Plugin Loading Helpers =======
+
+    private static async Task<PluginManifest?> LoadManifestAsync(
+        string pluginPath,
+        string pluginDirectory,
+        CancellationToken cancellationToken)
+    {
+        string? manifestPath = null;
+
+        if (Directory.Exists(pluginPath))
+        {
+            manifestPath = Path.Combine(pluginPath, "plugin.json");
+        }
+        else if (File.Exists(pluginPath))
+        {
+            if (pluginPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            {
+                manifestPath = pluginPath;
+            }
+            else
+            {
+                var sidecar = Path.ChangeExtension(pluginPath, ".json");
+                if (File.Exists(sidecar))
+                {
+                    manifestPath = sidecar;
+                }
+                else
+                {
+                    manifestPath = Path.Combine(pluginDirectory, "plugin.json");
+                }
+            }
+        }
+
+        if (string.IsNullOrEmpty(manifestPath) || !File.Exists(manifestPath))
+            return null;
+
+        try
+        {
+            var json = await File.ReadAllTextAsync(manifestPath, cancellationToken);
+            return JsonSerializer.Deserialize<PluginManifest>(json, ManifestJsonOptions);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? ResolveAssemblyPath(string pluginPath, string pluginDirectory, PluginManifest? manifest)
+    {
+        if (File.Exists(pluginPath) && Path.GetExtension(pluginPath).Equals(".dll", StringComparison.OrdinalIgnoreCase))
+            return pluginPath;
+
+        if (!string.IsNullOrWhiteSpace(manifest?.Assembly))
+        {
+            var assemblyPath = Path.Combine(pluginDirectory, manifest.Assembly);
+            if (!assemblyPath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                assemblyPath += ".dll";
+            return assemblyPath;
+        }
+
+        if (Directory.Exists(pluginPath))
+        {
+            var dirName = Path.GetFileName(pluginPath);
+            var preferred = Path.Combine(pluginPath, $"{dirName}.dll");
+            if (File.Exists(preferred))
+                return preferred;
+
+            var dlls = Directory.GetFiles(pluginPath, "*.dll");
+            return dlls.FirstOrDefault();
+        }
+
+        return null;
+    }
+
+    private static IPlugin? LoadPluginInstance(string assemblyPath, string? pluginTypeName)
+    {
+        try
+        {
+            var assembly = Assembly.LoadFrom(assemblyPath);
+            var pluginTypes = assembly.GetTypes()
+                .Where(t => typeof(IPlugin).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface);
+
+            if (!string.IsNullOrWhiteSpace(pluginTypeName))
+            {
+                pluginTypes = pluginTypes.Where(t => string.Equals(t.FullName, pluginTypeName, StringComparison.OrdinalIgnoreCase));
+            }
+
+            foreach (var pluginType in pluginTypes)
+            {
+                var instance = Activator.CreateInstance(pluginType) as IPlugin;
+                if (instance != null)
+                    return instance;
+            }
+        }
+        catch
+        {
+            // Ignore load failures
+        }
+
+        return null;
+    }
+
+    private static PluginType ResolvePluginType(string pluginPath, PluginManifest? manifest, IPlugin? instance)
+    {
+        if (!string.IsNullOrWhiteSpace(manifest?.Type) &&
+            Enum.TryParse<PluginType>(manifest.Type, true, out var manifestType))
+        {
+            return manifestType;
+        }
+
+        if (instance is IFileSystemPlugin)
+            return PluginType.FileSystem;
+        if (instance is IPackerPlugin)
+            return PluginType.Packer;
+        if (instance is IViewerPlugin)
+            return PluginType.Lister;
+        if (instance is IColumnPlugin)
+            return PluginType.Content;
+
+        var extension = Path.GetExtension(pluginPath).ToLowerInvariant();
+        return extension switch
+        {
+            ".wcx" or ".wcx64" => PluginType.Packer,
+            ".wdx" or ".wdx64" => PluginType.Content,
+            ".wfx" or ".wfx64" => PluginType.FileSystem,
+            ".wlx" or ".wlx64" => PluginType.Lister,
+            _ => PluginType.Packer
+        };
+    }
+
+    private static IReadOnlyList<string> ResolveExtensions(
+        string pluginPath,
+        PluginManifest? manifest,
+        IPlugin? instance,
+        PluginType pluginType)
+    {
+        var extensions = new List<string>();
+
+        if (manifest?.Extensions != null && manifest.Extensions.Count > 0)
+        {
+            extensions.AddRange(manifest.Extensions);
+        }
+        else
+        {
+            if (instance is IPackerPlugin packer)
+                extensions.AddRange(packer.SupportedExtensions);
+            else if (instance is IViewerPlugin viewer)
+                extensions.AddRange(viewer.SupportedExtensions);
+        }
+
+        if (extensions.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        return NormalizeExtensions(extensions);
+    }
+
+    private static PluginCapabilities ResolveCapabilities(
+        PluginType pluginType,
+        PluginManifest? manifest,
+        IPlugin? instance)
+    {
+        if (manifest?.Capabilities != null && manifest.Capabilities.Count > 0)
+        {
+            var capabilities = PluginCapabilities.None;
+            foreach (var capability in manifest.Capabilities)
+            {
+                if (Enum.TryParse<PluginCapabilities>(capability, true, out var parsed))
+                    capabilities |= parsed;
+            }
+            return capabilities;
+        }
+
+        return pluginType switch
+        {
+            PluginType.Packer => PluginCapabilities.CanCreate | PluginCapabilities.CanExtract,
+            PluginType.Content => PluginCapabilities.CanSearch | PluginCapabilities.CanSort,
+            PluginType.FileSystem => PluginCapabilities.CanRead | PluginCapabilities.CanWrite | PluginCapabilities.CanCreateFolder | PluginCapabilities.CanDelete,
+            PluginType.Lister => PluginCapabilities.SupportsText | PluginCapabilities.SupportsImage,
+            _ => PluginCapabilities.None
+        };
+    }
+
+    private static string? ResolveConfigPath(string pluginDirectory, PluginManifest? manifest)
+    {
+        if (!string.IsNullOrWhiteSpace(manifest?.ConfigPath))
+        {
+            return Path.IsPathRooted(manifest.ConfigPath)
+                ? manifest.ConfigPath
+                : Path.Combine(pluginDirectory, manifest.ConfigPath);
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyList<string> NormalizeExtensions(IEnumerable<string> extensions)
+    {
+        return extensions
+            .Select(ext => ext.StartsWith('.') ? ext : "." + ext)
+            .Select(ext => ext.ToLowerInvariant())
+            .Distinct()
+            .ToList();
+    }
+
+    private void RegisterExtensionMappings(PluginInfo plugin)
+    {
+        foreach (var ext in NormalizeExtensions(plugin.Extensions))
+        {
+            var key = $"{plugin.Type}:{ext}";
+            if (!_extensionToPlugin.TryGetValue(key, out var list))
+            {
+                list = new List<string>();
+                _extensionToPlugin[key] = list;
+            }
+
+            if (!list.Contains(plugin.Id))
+            {
+                list.Add(plugin.Id);
+            }
+        }
+    }
+
+    private void RemoveExtensionMappings(PluginInfo plugin)
+    {
+        foreach (var entry in _extensionToPlugin)
+        {
+            entry.Value.Remove(plugin.Id);
+        }
+    }
+
+    private async Task InitializePluginInstanceAsync(string pluginId, IPlugin plugin, CancellationToken cancellationToken)
+    {
+        if (_pluginInitialized.TryGetValue(pluginId, out var initialized) && initialized)
+            return;
+
+        try
+        {
+            await plugin.InitializeAsync(_pluginContext);
+            _pluginInitialized[pluginId] = true;
+        }
+        catch
+        {
+            _pluginInitialized[pluginId] = false;
+        }
+    }
     
     private void OnPluginLoaded(PluginInfo plugin)
     {
@@ -903,6 +1687,112 @@ public class PluginService : IPluginService
     private void OnPluginsChanged()
     {
         PluginsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private sealed class PluginManifest
+    {
+        public string? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? Author { get; set; }
+        public string? Version { get; set; }
+        public string? Website { get; set; }
+        public string? Type { get; set; }
+        public List<string>? Extensions { get; set; }
+        public List<string>? DetectStrings { get; set; }
+        public List<string>? Capabilities { get; set; }
+        public string? Assembly { get; set; }
+        public string? PluginTypeName { get; set; }
+        public string? ConfigPath { get; set; }
+        public bool? Enabled { get; set; }
+    }
+
+    private sealed class ServicePluginContext : IPluginContext
+    {
+        private readonly Dictionary<string, object> _config = new();
+        private string _activePath = Environment.CurrentDirectory;
+
+        public string LeftPanelPath => _activePath;
+        public string RightPanelPath => _activePath;
+        public string ActivePanelPath => _activePath;
+        public IReadOnlyList<string> SelectedPaths => Array.Empty<string>();
+
+        public void NavigateTo(string path)
+        {
+            if (!string.IsNullOrWhiteSpace(path))
+                _activePath = path;
+        }
+
+        public void NavigateLeftTo(string path) => NavigateTo(path);
+
+        public void NavigateRightTo(string path) => NavigateTo(path);
+
+        public void RefreshActivePanel()
+        {
+            // No-op in service context
+        }
+
+        public void RefreshAllPanels()
+        {
+            // No-op in service context
+        }
+
+        public Task ShowMessageAsync(string title, string message)
+        {
+            Debug.WriteLine($"[{title}] {message}");
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> ShowConfirmationAsync(string title, string message)
+        {
+            Debug.WriteLine($"[{title}] {message}");
+            return Task.FromResult(false);
+        }
+
+        public Task<string?> ShowInputAsync(string title, string prompt, string defaultValue = "")
+        {
+            Debug.WriteLine($"[{title}] {prompt}");
+            return Task.FromResult<string?>(defaultValue);
+        }
+
+        public void Log(PluginLogLevel level, string message)
+        {
+            var prefix = level.ToString().ToUpperInvariant();
+            Debug.WriteLine($"[{prefix}] {message}");
+        }
+
+        public T? GetConfig<T>(string key)
+        {
+            if (_config.TryGetValue(key, out var value) && value is T typed)
+                return typed;
+            return default;
+        }
+
+        public void SetConfig<T>(string key, T value)
+        {
+            if (value == null)
+                _config.Remove(key);
+            else
+                _config[key] = value;
+        }
+
+        public void RegisterMenuItem(PluginMenuItem menuItem)
+        {
+            // No-op in service context
+        }
+
+        public void RegisterKeyboardShortcut(PluginKeyboardShortcut shortcut)
+        {
+            // No-op in service context
+        }
+
+        public string GetPluginDataDirectory(string pluginId)
+        {
+            var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var pluginDataDir = Path.Combine(baseDir, "XCommander", "Plugins", pluginId);
+            Directory.CreateDirectory(pluginDataDir);
+            return pluginDataDir;
+        }
     }
     
     // Handle implementations

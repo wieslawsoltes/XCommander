@@ -21,6 +21,27 @@ namespace XCommander.Services;
 /// </summary>
 public class NetworkBrowserService : INetworkBrowserService
 {
+    private const int ResourceTypeDisk = 0x00000001;
+    private const int ConnectUpdateProfile = 0x00000001;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct NetResource
+    {
+        public int dwScope;
+        public int dwType;
+        public int dwDisplayType;
+        public int dwUsage;
+        public string? lpLocalName;
+        public string? lpRemoteName;
+        public string? lpComment;
+        public string? lpProvider;
+    }
+
+    [DllImport("mpr.dll", CharSet = CharSet.Unicode)]
+    private static extern int WNetAddConnection2(ref NetResource netResource, string? password, string? username, int flags);
+
+    [DllImport("mpr.dll", CharSet = CharSet.Unicode)]
+    private static extern int WNetCancelConnection2(string name, int flags, bool force);
     private readonly List<NetworkConnection> _savedConnections;
     private readonly List<NetworkConnection> _activeConnections;
     private readonly string _configPath;
@@ -389,8 +410,8 @@ public class NetworkBrowserService : INetworkBrowserService
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        // Find available drive letter if not specified
-        if (string.IsNullOrEmpty(driveLetter))
+        // Find available drive letter if not specified (Windows only)
+        if (string.IsNullOrEmpty(driveLetter) && OperatingSystem.IsWindows())
         {
             driveLetter = await Task.Run(() =>
             {
@@ -405,12 +426,41 @@ public class NetworkBrowserService : INetworkBrowserService
                 throw new InvalidOperationException("No available drive letters");
             }, cancellationToken);
         }
-        
-        // Platform-specific drive mapping would go here
-        // On Windows: WNetAddConnection2
-        // On macOS/Linux: mount command
-        
-        // For now, this is a placeholder implementation
+
+        if (OperatingSystem.IsWindows())
+        {
+            if (string.IsNullOrEmpty(driveLetter))
+            {
+                throw new InvalidOperationException("Drive letter is required on Windows.");
+            }
+
+            var localName = driveLetter.EndsWith(":") ? driveLetter : $"{driveLetter}:";
+            var netResource = new NetResource
+            {
+                dwType = ResourceTypeDisk,
+                lpLocalName = localName,
+                lpRemoteName = uncPath
+            };
+
+            var username = credentials == null
+                ? null
+                : string.IsNullOrWhiteSpace(credentials.Domain)
+                    ? credentials.Username
+                    : $"{credentials.Domain}\\{credentials.Username}";
+
+            var result = WNetAddConnection2(ref netResource, credentials?.Password, username, persistent ? ConnectUpdateProfile : 0);
+            if (result != 0)
+            {
+                throw new InvalidOperationException($"Failed to map drive. Error code: {result}");
+            }
+
+            driveLetter = localName;
+        }
+        else
+        {
+            driveLetter = await MapDriveUnixAsync(uncPath, driveLetter, credentials, cancellationToken);
+        }
+
         var connection = new NetworkConnection
         {
             Name = Path.GetFileName(uncPath.TrimEnd('\\')),
@@ -452,7 +502,25 @@ public class NetworkBrowserService : INetworkBrowserService
             }
         }
         
-        // Platform-specific drive unmapping would go here
+        if (OperatingSystem.IsWindows())
+        {
+            var localName = driveLetter.EndsWith(":") ? driveLetter : $"{driveLetter}:";
+            var result = WNetCancelConnection2(localName, 0, force);
+            if (result != 0)
+            {
+                throw new InvalidOperationException($"Failed to unmap drive. Error code: {result}");
+            }
+        }
+        else
+        {
+            var mountPoint = driveLetter;
+            if (connection != null && !string.IsNullOrEmpty(connection.MappedDrive))
+            {
+                mountPoint = connection.MappedDrive!;
+            }
+
+            await UnmapDriveUnixAsync(mountPoint, cancellationToken);
+        }
         
         if (connection != null)
         {
@@ -466,6 +534,127 @@ public class NetworkBrowserService : INetworkBrowserService
                 Connection = connection
             });
         }
+    }
+
+    private static async Task<string> MapDriveUnixAsync(string uncPath, string? driveLetter, NetworkCredentials? credentials, CancellationToken cancellationToken)
+    {
+        var shareName = Path.GetFileName(uncPath.TrimEnd('\\', '/'));
+        var mountRoot = OperatingSystem.IsMacOS() ? "/Volumes" : "/mnt";
+        string mountPoint;
+
+        if (!string.IsNullOrWhiteSpace(driveLetter))
+        {
+            if (driveLetter.Contains(Path.DirectorySeparatorChar) || driveLetter.Contains(Path.AltDirectorySeparatorChar))
+            {
+                mountPoint = driveLetter;
+            }
+            else
+            {
+                mountPoint = Path.Combine(mountRoot, driveLetter.TrimEnd(':'));
+            }
+        }
+        else
+        {
+            mountPoint = Path.Combine(mountRoot, shareName);
+        }
+
+        Directory.CreateDirectory(mountPoint);
+
+        var remote = uncPath.StartsWith("\\\\", StringComparison.Ordinal)
+            ? $"//{uncPath.TrimStart('\\').Replace('\\', '/')}"
+            : uncPath.Replace('\\', '/');
+
+        ProcessStartInfo psi;
+
+        if (OperatingSystem.IsMacOS())
+        {
+            var auth = string.Empty;
+            if (credentials != null && !string.IsNullOrEmpty(credentials.Username))
+            {
+                auth = !string.IsNullOrEmpty(credentials.Domain)
+                    ? $"{credentials.Domain};{credentials.Username}"
+                    : credentials.Username;
+
+                if (!string.IsNullOrEmpty(credentials.Password))
+                {
+                    auth = $"{auth}:{credentials.Password}";
+                }
+            }
+
+            var remoteWithAuth = string.IsNullOrEmpty(auth)
+                ? remote
+                : remote.Replace("//", $"//{auth}@");
+
+            psi = new ProcessStartInfo
+            {
+                FileName = "mount_smbfs",
+                Arguments = $"{remoteWithAuth} \"{mountPoint}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+        }
+        else
+        {
+            var options = new List<string> { "rw" };
+            if (credentials != null && !string.IsNullOrEmpty(credentials.Username))
+            {
+                options.Add($"username={credentials.Username}");
+                if (!string.IsNullOrEmpty(credentials.Password))
+                {
+                    options.Add($"password={credentials.Password}");
+                }
+                if (!string.IsNullOrEmpty(credentials.Domain))
+                {
+                    options.Add($"domain={credentials.Domain}");
+                }
+            }
+
+            psi = new ProcessStartInfo
+            {
+                FileName = "mount",
+                Arguments = $"-t cifs \"{remote}\" \"{mountPoint}\" -o {string.Join(",", options)}",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+        }
+
+        var (exitCode, output) = await RunProcessAsync(psi, cancellationToken);
+        if (exitCode != 0)
+        {
+            throw new InvalidOperationException($"Failed to map network drive. {output}");
+        }
+
+        return mountPoint;
+    }
+
+    private static async Task UnmapDriveUnixAsync(string mountPoint, CancellationToken cancellationToken)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "umount",
+            Arguments = $"\"{mountPoint}\"",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+
+        var (exitCode, output) = await RunProcessAsync(psi, cancellationToken);
+        if (exitCode != 0)
+        {
+            throw new InvalidOperationException($"Failed to unmap network drive. {output}");
+        }
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunProcessAsync(ProcessStartInfo psi, CancellationToken cancellationToken)
+    {
+        psi.UseShellExecute = false;
+        using var process = new Process { StartInfo = psi };
+        process.Start();
+
+        var stdout = await process.StandardOutput.ReadToEndAsync();
+        var stderr = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync(cancellationToken);
+
+        return (process.ExitCode, string.Join(Environment.NewLine, new[] { stdout, stderr }.Where(s => !string.IsNullOrWhiteSpace(s))));
     }
     
     public async Task<IReadOnlyList<MappedDrive>> GetMappedDrivesAsync(CancellationToken cancellationToken = default)

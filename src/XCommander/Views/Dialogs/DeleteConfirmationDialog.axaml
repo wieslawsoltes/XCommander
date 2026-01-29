@@ -2,40 +2,35 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="using:XCommander.Controls"
         xmlns:vm="using:XCommander.ViewModels"
-        mc:Ignorable="d" 
-        Width="600" Height="550"
+        mc:Ignorable="d"
+        Width="620" Height="520"
         x:Class="XCommander.Views.Dialogs.DeleteConfirmationDialog"
         x:DataType="vm:DeleteConfirmationViewModel"
         Title="Delete Files"
         WindowStartupLocation="CenterOwner"
         CanResize="True"
         ShowInTaskbar="False">
-    
-    <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto" Margin="16">
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto,Auto" Margin="10">
         <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock Text="Delete Files" 
-                       FontSize="18" 
-                       FontWeight="SemiBold"/>
-            <TextBlock Text="Are you sure you want to delete the following items?" 
-                       Foreground="Gray" 
+        <StackPanel Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock Text="Delete Files" FontWeight="Bold" FontSize="14"/>
+            <TextBlock Text="Are you sure you want to delete the following items?"
+                       Foreground="{DynamicResource TcMutedTextBrush}"
                        TextWrapping="Wrap"
-                       Margin="0,4,0,0"/>
+                       Margin="0,2,0,0"/>
         </StackPanel>
-        
+
         <!-- Items List -->
-        <Border Grid.Row="1" 
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-                BorderThickness="1"
-                CornerRadius="4">
+        <controls:TcInsetPanel Grid.Row="1" Padding="0">
             <Grid RowDefinitions="Auto,*">
-                <!-- List Header -->
-                <Border Grid.Row="0" 
-                        Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                        Padding="8,4">
+                <Border Grid.Row="0"
+                        Background="{DynamicResource TcChromeBackgroundBrush}"
+                        Padding="6,3">
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                        <CheckBox Grid.Column="0" 
+                        <CheckBox Grid.Column="0"
                                   IsChecked="True"
                                   ToolTip.Tip="Select/Deselect All"
                                   Margin="0,0,8,0"/>
@@ -44,41 +39,39 @@
                         <TextBlock Grid.Column="3" Text="Items" FontWeight="SemiBold" Width="60" TextAlignment="Right" Margin="8,0,0,0"/>
                     </Grid>
                 </Border>
-                
-                <!-- Items -->
+
                 <ScrollViewer Grid.Row="1">
                     <ItemsControl ItemsSource="{Binding Items}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:DeleteItemInfo">
-                                <Border Padding="8,4"
-                                        Background="Transparent">
+                                <Border Padding="6,3" Background="Transparent">
                                     <Border.Styles>
                                         <Style Selector="Border:pointerover">
-                                            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundListLowBrush}"/>
+                                            <Setter Property="Background" Value="{DynamicResource TcHoverBackgroundBrush}"/>
                                         </Style>
                                     </Border.Styles>
                                     <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
-                                        <CheckBox Grid.Column="0" 
+                                        <CheckBox Grid.Column="0"
                                                   IsChecked="{Binding IsSelected}"
                                                   Margin="0,0,8,0"/>
-                                        <TextBlock Grid.Column="1" 
-                                                   Text="{Binding Icon}" 
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Icon}"
                                                    Margin="0,0,8,0"
                                                    FontSize="14"/>
-                                        <TextBlock Grid.Column="2" 
+                                        <TextBlock Grid.Column="2"
                                                    Text="{Binding Name}"
                                                    TextTrimming="CharacterEllipsis"
                                                    ToolTip.Tip="{Binding FullPath}"/>
-                                        <TextBlock Grid.Column="3" 
+                                        <TextBlock Grid.Column="3"
                                                    Text="{Binding SizeFormatted}"
                                                    Width="80"
                                                    TextAlignment="Right"
-                                                   Foreground="Gray"/>
-                                        <TextBlock Grid.Column="4" 
+                                                   Foreground="{DynamicResource TcMutedTextBrush}"/>
+                                        <TextBlock Grid.Column="4"
                                                    Text="{Binding FileCount}"
                                                    Width="60"
                                                    TextAlignment="Right"
-                                                   Foreground="Gray"
+                                                   Foreground="{DynamicResource TcMutedTextBrush}"
                                                    Margin="8,0,0,0"
                                                    IsVisible="{Binding IsDirectory}"/>
                                     </Grid>
@@ -88,91 +81,80 @@
                     </ItemsControl>
                 </ScrollViewer>
             </Grid>
-        </Border>
-        
+        </controls:TcInsetPanel>
+
         <!-- Summary -->
-        <Border Grid.Row="2" 
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                CornerRadius="4"
-                Padding="12"
-                Margin="0,16,0,0">
-            <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*">
-                <TextBlock Grid.Column="0" Text="Files:" Foreground="Gray"/>
-                <TextBlock Grid.Column="1" Text="{Binding TotalFileCount}" Margin="4,0,16,0"/>
-                <TextBlock Grid.Column="2" Text="Folders:" Foreground="Gray"/>
-                <TextBlock Grid.Column="3" Text="{Binding TotalFolderCount}" Margin="4,0,16,0"/>
-                <TextBlock Grid.Column="4" Text="Size:" Foreground="Gray"/>
-                <TextBlock Grid.Column="5" Text="{Binding TotalSizeFormatted}" Margin="4,0,0,0" FontWeight="SemiBold"/>
+        <controls:TcBevelPanel Grid.Row="2" Padding="6,4" Margin="0,8,0,0">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="Files:" Margin="0,0,4,0"/>
+                <TextBlock Grid.Column="1" Text="{Binding TotalFileCount}" Margin="0,0,12,0"/>
+                <TextBlock Grid.Column="2" Text="Folders:" Margin="0,0,4,0"/>
+                <TextBlock Grid.Column="3" Text="{Binding TotalFolderCount}" Margin="0,0,12,0"/>
+                <TextBlock Grid.Column="4" Text="Size:" Margin="0,0,4,0"/>
+                <TextBlock Grid.Column="5" Text="{Binding TotalSizeFormatted}" FontWeight="SemiBold"/>
             </Grid>
-        </Border>
-        
+        </controls:TcBevelPanel>
+
         <!-- Warning Message -->
         <TextBlock Grid.Row="3"
                    Text="{Binding WarningMessage}"
                    Foreground="Orange"
                    FontSize="11"
-                   Margin="0,8,0,0"
+                   Margin="0,6,0,0"
                    IsVisible="{Binding WarningMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-        
-        <!-- Delete Mode Selection -->
-        <Border Grid.Row="4" 
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-                BorderThickness="1"
-                CornerRadius="4"
-                Padding="12"
-                Margin="0,16,0,0">
-            <StackPanel Spacing="8">
-                <TextBlock Text="Delete Mode:" FontWeight="SemiBold"/>
-                <StackPanel Orientation="Horizontal" Spacing="16">
-                    <RadioButton Content="🗑️ Recycle Bin"
-                                 IsChecked="{Binding IsRecycleBinMode}"
-                                 Command="{Binding SetRecycleBinModeCommand}"
-                                 GroupName="DeleteMode"
-                                 ToolTip.Tip="Move to Recycle Bin (recoverable)"/>
-                    <RadioButton Content="❌ Permanent"
-                                 IsChecked="{Binding IsPermanentMode}"
-                                 Command="{Binding SetPermanentModeCommand}"
-                                 GroupName="DeleteMode"
-                                 ToolTip.Tip="Delete permanently (not recoverable)"/>
-                    <RadioButton Content="🔐 Secure Delete"
-                                 IsChecked="{Binding IsSecureDeleteMode}"
-                                 Command="{Binding SetSecureDeleteModeCommand}"
-                                 GroupName="DeleteMode"
-                                 ToolTip.Tip="Overwrite data before deletion (very secure, slower)"/>
+
+        <!-- Delete Mode + Buttons -->
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+            <Border Grid.Column="0"
+                    BorderBrush="{DynamicResource TcBorderMidBrush}"
+                    BorderThickness="1"
+                    Background="{DynamicResource TcWindowBackgroundBrush}"
+                    Padding="8">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Delete Mode" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <RadioButton Content="Recycle Bin"
+                                     IsChecked="{Binding IsRecycleBinMode}"
+                                     Command="{Binding SetRecycleBinModeCommand}"
+                                     GroupName="DeleteMode"
+                                     ToolTip.Tip="Move to Recycle Bin (recoverable)"/>
+                        <RadioButton Content="Permanent"
+                                     IsChecked="{Binding IsPermanentMode}"
+                                     Command="{Binding SetPermanentModeCommand}"
+                                     GroupName="DeleteMode"
+                                     ToolTip.Tip="Delete permanently (not recoverable)"/>
+                        <RadioButton Content="Secure Delete"
+                                     IsChecked="{Binding IsSecureDeleteMode}"
+                                     Command="{Binding SetSecureDeleteModeCommand}"
+                                     GroupName="DeleteMode"
+                                     ToolTip.Tip="Overwrite data before deletion (slower)"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,6,0,0">
+                        <CheckBox Content="Delete read-only files"
+                                  IsChecked="{Binding DeleteReadOnly}"
+                                  IsVisible="{Binding HasReadOnlyFiles}"/>
+                        <CheckBox Content="Include hidden files"
+                                  IsChecked="{Binding DeleteHidden}"
+                                  IsVisible="{Binding HasHiddenFiles}"/>
+                    </StackPanel>
                 </StackPanel>
-                
-                <!-- Additional Options -->
-                <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,8,0,0">
-                    <CheckBox Content="Delete read-only files"
-                              IsChecked="{Binding DeleteReadOnly}"
-                              IsVisible="{Binding HasReadOnlyFiles}"/>
-                    <CheckBox Content="Include hidden files"
-                              IsChecked="{Binding DeleteHidden}"
-                              IsVisible="{Binding HasHiddenFiles}"/>
+            </Border>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,6,0">
+                    <Button Content="Select All" Command="{Binding SelectAllCommand}" Width="90"/>
+                    <Button Content="None" Command="{Binding DeselectAllCommand}" Width="70"/>
+                    <Button Content="Invert" Command="{Binding InvertSelectionCommand}" Width="70"/>
                 </StackPanel>
+                <Button Content="Delete"
+                        Command="{Binding DeleteCommand}"
+                        IsDefault="True"
+                        MinWidth="80"/>
+                <Button Content="Cancel"
+                        Command="{Binding CancelCommand}"
+                        IsCancel="True"
+                        MinWidth="80"/>
             </StackPanel>
-        </Border>
-        
-        <!-- Buttons -->
-        <Grid Grid.Row="5" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,16,0,0">
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                <Button Content="Select All" Command="{Binding SelectAllCommand}" Padding="8,4"/>
-                <Button Content="None" Command="{Binding DeselectAllCommand}" Padding="8,4"/>
-                <Button Content="Invert" Command="{Binding InvertSelectionCommand}" Padding="8,4"/>
-            </StackPanel>
-            
-            <Button Grid.Column="2" 
-                    Content="Delete"
-                    Command="{Binding DeleteCommand}"
-                    IsDefault="True"
-                    MinWidth="90"
-                    Classes="accent"/>
-            <Button Grid.Column="3" 
-                    Content="Cancel"
-                    Command="{Binding CancelCommand}"
-                    IsCancel="True"
-                    Margin="8,0,0,0"
-                    MinWidth="90"/>
         </Grid>
     </Grid>
 </Window>

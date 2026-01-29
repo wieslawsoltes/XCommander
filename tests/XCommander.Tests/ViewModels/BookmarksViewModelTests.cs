@@ -1,3 +1,4 @@
+using XCommander.Models;
 using XCommander.ViewModels;
 
 namespace XCommander.Tests.ViewModels;
@@ -8,7 +9,8 @@ public class BookmarksViewModelTests
     
     public BookmarksViewModelTests()
     {
-        _viewModel = new BookmarksViewModel();
+        var settings = new AppSettings { RecentPathsLimit = 20 };
+        _viewModel = new BookmarksViewModel(settings);
         // Clear defaults for clean tests
         _viewModel.Bookmarks.Clear();
     }

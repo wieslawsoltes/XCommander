@@ -1,17 +1,22 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="using:XCommander.Converters"
+             xmlns:dockThemes="using:Dock.Avalonia.Themes.Fluent"
              x:Class="XCommander.App"
              RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.Resources>
+        <FontFamily x:Key="ContentControlThemeFontFamily">Segoe UI, Tahoma, Verdana, sans-serif</FontFamily>
+        <FontFamily x:Key="MonoFontFamily">Consolas, Menlo, Monaco, monospace</FontFamily>
         <converters:BoolToStatusBrushConverter x:Key="BoolToStatusBrushConverter"/>
     </Application.Resources>
     
     <Application.Styles>
         <FluentTheme />
-        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+        <dockThemes:DockFluentTheme />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.v2.xaml"/>
         <StyleInclude Source="avares://XCommander/Themes/TotalCommanderTheme.axaml"/>
+        <StyleInclude Source="avares://XCommander/Themes/HighContrastTheme.axaml"/>
     </Application.Styles>
 </Application>

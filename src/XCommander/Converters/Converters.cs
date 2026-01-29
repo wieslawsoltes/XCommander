@@ -1,4 +1,9 @@
+using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Data.Converters;
 using DiffPlex.DiffBuilder.Model;
 using XCommander.ViewModels;
@@ -20,7 +25,7 @@ namespace XCommander.Converters
 
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return BindingOperations.DoNothing;
         }
         
         private static string FormatFileSize(long bytes)
@@ -49,14 +54,59 @@ namespace XCommander.Converters
         {
             if (value is DateTime dateTime)
             {
-                return dateTime.ToString("yyyy-MM-dd HH:mm", culture);
+                var format = parameter as string;
+                if (string.IsNullOrWhiteSpace(format))
+                {
+                    if (Application.Current?.Resources.TryGetValue("DateFormatString", out var resource) == true)
+                    {
+                        format = resource as string;
+                    }
+                }
+                if (string.IsNullOrWhiteSpace(format))
+                    format = "yyyy-MM-dd HH:mm";
+                try
+                {
+                    return dateTime.ToString(format, culture);
+                }
+                catch
+                {
+                    return dateTime.ToString("yyyy-MM-dd HH:mm", culture);
+                }
             }
             return value?.ToString() ?? string.Empty;
         }
 
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return BindingOperations.DoNothing;
+        }
+    }
+
+    public class DateTimeFormatConverter : IMultiValueConverter
+    {
+        public static readonly DateTimeFormatConverter Instance = new();
+
+        public object Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (values.Count == 0 || values[0] is not DateTime dateTime)
+                return values.Count > 0 ? values[0]?.ToString() ?? string.Empty : string.Empty;
+
+            var format = values.Count > 1 ? values[1]?.ToString() : null;
+            if (string.IsNullOrWhiteSpace(format))
+                format = "yyyy-MM-dd HH:mm";
+            try
+            {
+                return dateTime.ToString(format, culture);
+            }
+            catch
+            {
+                return dateTime.ToString("yyyy-MM-dd HH:mm", culture);
+            }
+        }
+
+        public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        {
+            return new object[] { BindingOperations.DoNothing };
         }
     }
 
@@ -75,7 +125,106 @@ namespace XCommander.Converters
 
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return BindingOperations.DoNothing;
+        }
+    }
+
+    public class BoolToGridLinesVisibilityConverter : IValueConverter
+    {
+        public static readonly BoolToGridLinesVisibilityConverter Instance = new();
+
+        public DataGridGridLinesVisibility VisibleState { get; set; } = DataGridGridLinesVisibility.Horizontal;
+
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            var show = value is bool flag && flag;
+            return show ? VisibleState : DataGridGridLinesVisibility.None;
+        }
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            return BindingOperations.DoNothing;
+        }
+    }
+
+    public class FileNameDisplayConverter : IMultiValueConverter
+    {
+        public static readonly FileNameDisplayConverter Instance = new();
+
+        public object Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (values.Count == 0)
+                return string.Empty;
+
+            var name = values[0]?.ToString() ?? string.Empty;
+            var showExtensions = values.Count > 1 && values[1] is bool flag ? flag : true;
+            if (showExtensions)
+                return name;
+
+            if (name.StartsWith(".", StringComparison.Ordinal) && name.LastIndexOf('.') == 0)
+                return name;
+
+            var extension = Path.GetExtension(name);
+            if (string.IsNullOrEmpty(extension))
+                return name;
+
+            return name.Substring(0, name.Length - extension.Length);
+        }
+
+        public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        {
+            return new object[] { BindingOperations.DoNothing };
+        }
+    }
+
+    public class EqualsConverter : IValueConverter
+    {
+        public static readonly EqualsConverter Instance = new();
+
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (value == null && parameter == null)
+                return true;
+            if (value == null || parameter == null)
+                return false;
+            if (value is string left && parameter is string right)
+                return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+            return Equals(value, parameter);
+        }
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            return BindingOperations.DoNothing;
+        }
+    }
+
+
+    public class AddValueConverter : IValueConverter
+    {
+        public static readonly AddValueConverter Instance = new();
+
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (value == null)
+                return 0d;
+
+            if (parameter is not string param ||
+                !double.TryParse(param, NumberStyles.Float, CultureInfo.InvariantCulture, out var addend))
+            {
+                addend = 0d;
+            }
+
+            if (value is int intValue)
+                return intValue + addend;
+            if (value is double doubleValue)
+                return doubleValue + addend;
+
+            return value;
+        }
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            return BindingOperations.DoNothing;
         }
     }
 
@@ -103,7 +252,7 @@ namespace XCommander.Converters
 
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return BindingOperations.DoNothing;
         }
     }
 
@@ -122,7 +271,7 @@ namespace XCommander.Converters
 
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return BindingOperations.DoNothing;
         }
     }
 
@@ -164,7 +313,7 @@ namespace XCommander.Converters
 
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return BindingOperations.DoNothing;
         }
     }
 
@@ -206,7 +355,7 @@ namespace XCommander.Converters
 
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return BindingOperations.DoNothing;
         }
     }
     
@@ -225,7 +374,7 @@ namespace XCommander.Converters
 
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return BindingOperations.DoNothing;
         }
     }
     
@@ -250,7 +399,7 @@ namespace XCommander.Converters
 
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return BindingOperations.DoNothing;
         }
     }
 }

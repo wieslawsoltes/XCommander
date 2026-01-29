@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using SharpCompress.Archives;
 using SharpCompress.Archives.Zip;
 using SharpCompress.Common;
+using SharpCompress.Readers;
 using SharpCompress.Writers;
 
 namespace XCommander.Services;
@@ -54,7 +55,7 @@ public class ArchiveToArchiveService : IArchiveToArchiveService
             
             await Task.Run(() =>
             {
-                using var sourceArch = ArchiveFactory.Open(sourceArchive);
+                using var sourceArch = ArchiveFactory.OpenArchive(sourceArchive, new ReaderOptions());
                 var entriesToCopy = sourceArch.Entries
                     .Where(e => !e.IsDirectory && entryKeySet.Contains(NormalizeKey(e.Key)))
                     .ToList();
@@ -100,7 +101,7 @@ public class ArchiveToArchiveService : IArchiveToArchiveService
                 if (File.Exists(destinationArchive))
                 {
                     // Open existing and add entries
-                    using var destArch = ZipArchive.Open(destinationArchive);
+                    using var destArch = (ZipArchive)ZipArchive.OpenArchive(destinationArchive, new ReaderOptions());
                     var existingKeys = new HashSet<string>(
                         destArch.Entries.Select(e => NormalizeKey(e.Key)),
                         StringComparer.OrdinalIgnoreCase);
@@ -161,16 +162,20 @@ public class ArchiveToArchiveService : IArchiveToArchiveService
                     }
 
                     // Save changes
-                    destArch.SaveTo(destinationArchive + ".tmp", CompressionType.Deflate);
+                    var tempPath = destinationArchive + ".tmp";
+                    using (var tempStream = File.Create(tempPath))
+                    {
+                        destArch.SaveTo(tempStream, new WriterOptions(CompressionType.Deflate));
+                    }
                     
                     // Replace original
                     File.Delete(destinationArchive);
-                    File.Move(destinationArchive + ".tmp", destinationArchive);
+                    File.Move(tempPath, destinationArchive);
                 }
                 else
                 {
                     // Create new archive
-                    using var destArch = ZipArchive.Create();
+                    using var destArch = (ZipArchive)ZipArchive.CreateArchive();
                     
                     foreach (var (entry, data) in sourceEntries)
                     {
@@ -194,7 +199,10 @@ public class ArchiveToArchiveService : IArchiveToArchiveService
                         processed++;
                     }
 
-                    destArch.SaveTo(destinationArchive, CompressionType.Deflate);
+                    using (var outputStream = File.Create(destinationArchive))
+                    {
+                        destArch.SaveTo(outputStream, new WriterOptions(CompressionType.Deflate));
+                    }
                 }
             }, cancellationToken);
         }
@@ -279,7 +287,7 @@ public class ArchiveToArchiveService : IArchiveToArchiveService
             
             await Task.Run(() =>
             {
-                using var sourceArch = ZipArchive.Open(sourceArchive);
+                using var sourceArch = (ZipArchive)ZipArchive.OpenArchive(sourceArchive, new ReaderOptions());
                 var toRemove = sourceArch.Entries
                     .Where(e => entryKeySet.Contains(NormalizeKey(e.Key)))
                     .ToList();
@@ -289,10 +297,14 @@ public class ArchiveToArchiveService : IArchiveToArchiveService
                     sourceArch.RemoveEntry(entry);
                 }
 
-                sourceArch.SaveTo(sourceArchive + ".tmp", CompressionType.Deflate);
-                
+                var tempPath = sourceArchive + ".tmp";
+                using (var tempStream = File.Create(tempPath))
+                {
+                    sourceArch.SaveTo(tempStream, new WriterOptions(CompressionType.Deflate));
+                }
+
                 File.Delete(sourceArchive);
-                File.Move(sourceArchive + ".tmp", sourceArchive);
+                File.Move(tempPath, sourceArchive);
             }, cancellationToken);
         }
 
@@ -307,7 +319,7 @@ public class ArchiveToArchiveService : IArchiveToArchiveService
 
         await Task.Run(() =>
         {
-            using var archive = ArchiveFactory.Open(archivePath);
+            using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
             
             foreach (var entry in archive.Entries)
             {

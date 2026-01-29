@@ -1,164 +1,546 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:XCommander.Controls"
+             xmlns:behaviors="using:XCommander.Behaviors"
+             xmlns:i="using:Avalonia.Xaml.Interactivity"
+             xmlns:ia="using:Avalonia.Xaml.Interactions.Core"
              xmlns:vm="using:XCommander.ViewModels"
              x:Class="XCommander.Views.SettingsDialog"
              x:DataType="vm:SettingsViewModel"
-             MinWidth="600"
-             MinHeight="500">
-    <Grid RowDefinitions="Auto,*,Auto">
-        <!-- Header -->
-        <Border Grid.Row="0" Background="{DynamicResource SystemAccentColor}" Padding="16">
-            <TextBlock Text="Settings" FontSize="18" FontWeight="Bold" Foreground="White"/>
-        </Border>
+             MinWidth="700"
+             MinHeight="560">
+    <UserControl.Styles>
+        <Style Selector="#SettingsTabs TabItem">
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="MinWidth" Value="180"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style Selector="#SettingsTabs TabItem:selected">
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+    </UserControl.Styles>
 
-        <!-- Settings Content -->
-        <ScrollViewer Grid.Row="1" Padding="16">
-            <StackPanel Spacing="16">
-                
-                <!-- Appearance Section -->
-                <Expander Header="Appearance" IsExpanded="True">
-                    <StackPanel Margin="16,8" Spacing="8">
-                        <CheckBox Content="Use Dark Theme" IsChecked="{Binding UseDarkTheme}"/>
-                        
-                        <Grid ColumnDefinitions="150,*" Margin="0,8,0,0">
-                            <TextBlock Text="Font Size:" VerticalAlignment="Center"/>
-                            <NumericUpDown Grid.Column="1" Value="{Binding FontSize}" 
-                                           Minimum="8" Maximum="24" Width="100" HorizontalAlignment="Left"/>
-                        </Grid>
-                        
-                        <Grid ColumnDefinitions="150,*">
-                            <TextBlock Text="Font Family:" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="1" Text="{Binding FontFamily}" Width="200" HorizontalAlignment="Left"/>
-                        </Grid>
-                        
-                        <CheckBox Content="Show Grid Lines" IsChecked="{Binding ShowGridLines}"/>
-                        <CheckBox Content="Show Status Bar" IsChecked="{Binding ShowStatusBar}"/>
-                        <CheckBox Content="Show Toolbar" IsChecked="{Binding ShowToolbar}"/>
-                    </StackPanel>
-                </Expander>
-
-                <!-- File Display Section -->
-                <Expander Header="File Display" IsExpanded="True">
-                    <StackPanel Margin="16,8" Spacing="8">
-                        <CheckBox Content="Show Hidden Files" IsChecked="{Binding ShowHiddenFiles}"/>
-                        <CheckBox Content="Show System Files" IsChecked="{Binding ShowSystemFiles}"/>
-                        <CheckBox Content="Show File Extensions" IsChecked="{Binding ShowFileExtensions}"/>
-                        <CheckBox Content="Show File Sizes" IsChecked="{Binding ShowFileSizes}"/>
-                        <CheckBox Content="Show File Dates" IsChecked="{Binding ShowFileDates}"/>
-                        
-                        <Grid ColumnDefinitions="150,*" Margin="0,8,0,0">
-                            <TextBlock Text="Date Format:" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="1" Text="{Binding DateFormat}" Width="200" HorizontalAlignment="Left"
-                                     Watermark="yyyy-MM-dd HH:mm"/>
-                        </Grid>
-                    </StackPanel>
-                </Expander>
-
-                <!-- Behavior Section -->
-                <Expander Header="Behavior">
-                    <StackPanel Margin="16,8" Spacing="8">
-                        <CheckBox Content="Confirm Before Delete" IsChecked="{Binding ConfirmDelete}"/>
-                        <CheckBox Content="Confirm Before Overwrite" IsChecked="{Binding ConfirmOverwrite}"/>
-                        <CheckBox Content="Use Recycle Bin for Delete" IsChecked="{Binding UseRecycleBin}"/>
-                        <CheckBox Content="Single Click to Open" IsChecked="{Binding SingleClickOpen}"/>
-                        <CheckBox Content="Remember Last Path" IsChecked="{Binding RememberLastPath}"/>
-                        
-                        <Grid ColumnDefinitions="150,*,Auto" Margin="0,8,0,0">
-                            <TextBlock Text="Default Left Path:" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="1" Text="{Binding DefaultLeftPath}" Margin="0,0,8,0"/>
-                            <Button Grid.Column="2" Content="..." Width="30" Click="BrowseLeftPath_Click"/>
-                        </Grid>
-                        
-                        <Grid ColumnDefinitions="150,*,Auto">
-                            <TextBlock Text="Default Right Path:" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="1" Text="{Binding DefaultRightPath}" Margin="0,0,8,0"/>
-                            <Button Grid.Column="2" Content="..." Width="30" Click="BrowseRightPath_Click"/>
-                        </Grid>
-                    </StackPanel>
-                </Expander>
-
-                <!-- External Programs Section -->
-                <Expander Header="External Programs">
-                    <StackPanel Margin="16,8" Spacing="8">
-                        <Grid ColumnDefinitions="150,*,Auto">
-                            <TextBlock Text="External Editor:" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="1" Text="{Binding ExternalEditor}" Margin="0,0,8,0"
-                                     Watermark="e.g., notepad.exe, code, vim"/>
-                            <Button Grid.Column="2" Content="..." Width="30" Click="BrowseEditor_Click"/>
-                        </Grid>
-                        
-                        <Grid ColumnDefinitions="150,*,Auto">
-                            <TextBlock Text="External Viewer:" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="1" Text="{Binding ExternalViewer}" Margin="0,0,8,0"/>
-                            <Button Grid.Column="2" Content="..." Width="30" Click="BrowseViewer_Click"/>
-                        </Grid>
-                        
-                        <Grid ColumnDefinitions="150,*">
-                            <TextBlock Text="Terminal Command:" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="1" Text="{Binding TerminalCommand}"
-                                     Watermark="e.g., cmd.exe, Terminal, x-terminal-emulator"/>
-                        </Grid>
-                    </StackPanel>
-                </Expander>
-
-                <!-- Tabs Section -->
-                <Expander Header="Tabs">
-                    <StackPanel Margin="16,8" Spacing="8">
-                        <CheckBox Content="Open New Tab on Drive Change" IsChecked="{Binding OpenNewTabOnDriveChange}"/>
-                        <CheckBox Content="Close Tab on Middle Click" IsChecked="{Binding CloseTabOnMiddleClick}"/>
-                        <CheckBox Content="Show Tab Close Button" IsChecked="{Binding ShowTabCloseButton}"/>
-                    </StackPanel>
-                </Expander>
-
-                <!-- Quick View Section -->
-                <Expander Header="Quick View">
-                    <StackPanel Margin="16,8" Spacing="8">
-                        <Grid ColumnDefinitions="200,*">
-                            <TextBlock Text="Max File Size (KB):" VerticalAlignment="Center"/>
-                            <NumericUpDown Grid.Column="1" Value="{Binding QuickViewMaxFileSizeKb}" 
-                                           Minimum="64" Maximum="10240" Width="100" HorizontalAlignment="Left"/>
-                        </Grid>
-                        <CheckBox Content="Auto-update Preview on Selection Change" IsChecked="{Binding QuickViewAutoUpdate}"/>
-                    </StackPanel>
-                </Expander>
-
-                <!-- File Operations Section -->
-                <Expander Header="File Operations">
-                    <StackPanel Margin="16,8" Spacing="8">
-                        <Grid ColumnDefinitions="200,*">
-                            <TextBlock Text="Copy Buffer Size (KB):" VerticalAlignment="Center"/>
-                            <NumericUpDown Grid.Column="1" Value="{Binding CopyBufferSizeKb}" 
-                                           Minimum="4" Maximum="1024" Width="100" HorizontalAlignment="Left"/>
-                        </Grid>
-                        <CheckBox Content="Verify Files After Copy" IsChecked="{Binding VerifyAfterCopy}"/>
-                        <CheckBox Content="Preserve Timestamps" IsChecked="{Binding PreserveTimestamps}"/>
-                    </StackPanel>
-                </Expander>
-
-                <!-- Search Section -->
-                <Expander Header="Search">
-                    <StackPanel Margin="16,8" Spacing="8">
-                        <Grid ColumnDefinitions="200,*">
-                            <TextBlock Text="Max Search Results:" VerticalAlignment="Center"/>
-                            <NumericUpDown Grid.Column="1" Value="{Binding SearchMaxResults}" 
-                                           Minimum="100" Maximum="100000" Width="120" HorizontalAlignment="Left"/>
-                        </Grid>
-                        <CheckBox Content="Include Hidden Files in Search" IsChecked="{Binding SearchIncludeHidden}"/>
-                    </StackPanel>
-                </Expander>
-                
+    <Grid RowDefinitions="Auto,*,Auto" Margin="10" RowSpacing="6">
+        <controls:TcBevelPanel Grid.Row="0" Padding="6,4">
+            <StackPanel>
+                <TextBlock Text="Configuration" FontWeight="Bold"/>
+                <TextBlock Text="Select a section from the list on the left."
+                           FontSize="11"
+                           Foreground="{DynamicResource TcMutedTextBrush}"/>
             </StackPanel>
-        </ScrollViewer>
+        </controls:TcBevelPanel>
 
-        <!-- Button Bar -->
-        <Border Grid.Row="2" Background="{DynamicResource SystemRegionBrush}" Padding="16,12">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
-                <Button Grid.Column="0" Content="Reset to Defaults" Command="{Binding SetDefaultsCommand}"/>
-                
-                <Button Grid.Column="2" Content="Save" Command="{Binding SaveCommand}" 
-                        Width="80" Margin="0,0,8,0" Click="Save_Click"/>
-                <Button Grid.Column="3" Content="Cancel" Click="Cancel_Click" Width="80"/>
+        <controls:TcInsetPanel Grid.Row="1" Padding="0">
+            <TabControl x:Name="SettingsTabs"
+                        TabStripPlacement="Left"
+                        BorderThickness="0"
+                        SelectedIndex="0">
+                <TabItem Header="Appearance">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="Interface" FontWeight="SemiBold"/>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Use Dark Theme" IsChecked="{Binding UseDarkTheme}"/>
+                                <CheckBox Content="Show Grid Lines" IsChecked="{Binding ShowGridLines}"/>
+                                <CheckBox Content="Show Status Bar" IsChecked="{Binding ShowStatusBar}"/>
+                                <CheckBox Content="Show Toolbar" IsChecked="{Binding ShowToolbar}"/>
+                                <CheckBox Content="Show Toolbar Labels" IsChecked="{Binding ShowToolbarLabels}"/>
+                                <CheckBox Content="Show Command Line" IsChecked="{Binding ShowCommandLine}"/>
+                                <CheckBox Content="Show Function Key Bar" IsChecked="{Binding ShowFunctionKeyBar}"/>
+                                <CheckBox Content="Show Drive Bar" IsChecked="{Binding ShowDriveBar}"/>
+                                <CheckBox Content="Show Path Bar" IsChecked="{Binding ShowPathBar}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Panels" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Show Directory Tree" IsChecked="{Binding ShowDirectoryTree}"/>
+                                <CheckBox Content="Show Bookmarks Panel" IsChecked="{Binding ShowBookmarksPanel}"/>
+                                <CheckBox Content="Show Quick View Panel" IsChecked="{Binding ShowQuickViewPanel}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Default View" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto" RowSpacing="6" ColumnSpacing="8">
+                                <TextBlock Text="Default View Mode:" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding ViewModeOptions}"
+                                          SelectedItem="{Binding DefaultViewMode}"
+                                          Width="200"
+                                          HorizontalAlignment="Left"/>
+                                <TextBlock Grid.Row="1" Text="Thumbnail Size:" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Row="1"
+                                               Grid.Column="1"
+                                               Value="{Binding ThumbnailSize}"
+                                               Minimum="80"
+                                               Maximum="300"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                            </Grid>
+
+                            <TextBlock Text="Fonts" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <Grid ColumnDefinitions="160,*"
+                                  RowDefinitions="Auto,Auto"
+                                  RowSpacing="6"
+                                  ColumnSpacing="8">
+                                <TextBlock Text="Font Size:" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Column="1"
+                                               Value="{Binding FontSize}"
+                                               Minimum="8"
+                                               Maximum="24"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+
+                                <TextBlock Grid.Row="1" Text="Font Family:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1"
+                                         Grid.Column="1"
+                                         Text="{Binding FontFamily}"
+                                         Width="220"
+                                         HorizontalAlignment="Left"/>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="File Display">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="Visible Items" FontWeight="SemiBold"/>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Show Hidden Files" IsChecked="{Binding ShowHiddenFiles}"/>
+                                <CheckBox Content="Show System Files" IsChecked="{Binding ShowSystemFiles}"/>
+                                <CheckBox Content="Show File Extensions" IsChecked="{Binding ShowFileExtensions}"/>
+                                <CheckBox Content="Show File Sizes" IsChecked="{Binding ShowFileSizes}"/>
+                                <CheckBox Content="Show File Dates" IsChecked="{Binding ShowFileDates}"/>
+                                <CheckBox Content="Show Description Column" IsChecked="{Binding ShowDescriptionColumn}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Date and Time" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
+                                <TextBlock Text="Date Format:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding DateFormat}"
+                                         Width="220"
+                                         HorizontalAlignment="Left"
+                                         Watermark="yyyy-MM-dd HH:mm"/>
+                            </Grid>
+
+                            <TextBlock Text="Sorting" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Sort Directories First" IsChecked="{Binding SortDirectoriesFirst}"/>
+                                <CheckBox Content="Case Sensitive Sort" IsChecked="{Binding SortCaseSensitive}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Behavior">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="Confirmations" FontWeight="SemiBold"/>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Confirm Before Delete" IsChecked="{Binding ConfirmDelete}"/>
+                                <CheckBox Content="Confirm Before Overwrite" IsChecked="{Binding ConfirmOverwrite}"/>
+                                <CheckBox Content="Use Recycle Bin for Delete" IsChecked="{Binding UseRecycleBin}"/>
+                                <CheckBox Content="Single Click to Open" IsChecked="{Binding SingleClickOpen}"/>
+                                <CheckBox Content="Remember Last Path" IsChecked="{Binding RememberLastPath}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Default Paths" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <Grid ColumnDefinitions="160,*,Auto"
+                                  RowDefinitions="Auto,Auto"
+                                  RowSpacing="6"
+                                  ColumnSpacing="6">
+                                <TextBlock Text="Default Left Path:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding DefaultLeftPath}"
+                                         Margin="0,0,6,0"/>
+                                <Button Grid.Column="2" Content="..." Width="30">
+                                    <i:Interaction.Behaviors>
+                                        <ia:EventTriggerBehavior EventName="Click">
+                                            <behaviors:PickFolderPathAction Title="Select Default Left Path"
+                                                                            Path="{Binding DefaultLeftPath, Mode=TwoWay}"/>
+                                        </ia:EventTriggerBehavior>
+                                    </i:Interaction.Behaviors>
+                                </Button>
+
+                                <TextBlock Grid.Row="1" Text="Default Right Path:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1"
+                                         Grid.Column="1"
+                                         Text="{Binding DefaultRightPath}"
+                                         Margin="0,0,6,0"/>
+                                <Button Grid.Row="1" Grid.Column="2" Content="..." Width="30">
+                                    <i:Interaction.Behaviors>
+                                        <ia:EventTriggerBehavior EventName="Click">
+                                            <behaviors:PickFolderPathAction Title="Select Default Right Path"
+                                                                            Path="{Binding DefaultRightPath, Mode=TwoWay}"/>
+                                        </ia:EventTriggerBehavior>
+                                    </i:Interaction.Behaviors>
+                                </Button>
+                            </Grid>
+
+                            <TextBlock Text="Quick Search" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Enable Type-Ahead Quick Search" IsChecked="{Binding QuickSearchEnabled}"/>
+                            </StackPanel>
+                            <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto" RowSpacing="6" ColumnSpacing="8">
+                                <TextBlock Text="Match Mode:" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding QuickSearchMatchModeOptions}"
+                                          SelectedItem="{Binding QuickSearchMatchMode}"
+                                          Width="220"
+                                          HorizontalAlignment="Left"/>
+                                <TextBlock Grid.Row="1" Text="Timeout (ms):" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Row="1"
+                                               Grid.Column="1"
+                                               Value="{Binding QuickSearchTimeoutMs}"
+                                               Minimum="100"
+                                               Maximum="5000"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                            </Grid>
+
+                            <TextBlock Text="Quick Filter Defaults" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Case Sensitive" IsChecked="{Binding QuickFilterCaseSensitive}"/>
+                                <CheckBox Content="Use Regular Expression" IsChecked="{Binding QuickFilterUseRegex}"/>
+                                <CheckBox Content="Include Directories" IsChecked="{Binding QuickFilterIncludeDirectories}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="External Programs">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="External Tools" FontWeight="SemiBold"/>
+                            <Grid ColumnDefinitions="160,*,Auto"
+                                  RowDefinitions="Auto,Auto"
+                                  RowSpacing="6"
+                                  ColumnSpacing="6">
+                                <TextBlock Text="External Editor:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding ExternalEditor}"
+                                         Margin="0,0,6,0"
+                                         Watermark="e.g., notepad.exe, code, vim"/>
+                                <Button Grid.Column="2" Content="..." Width="30">
+                                    <i:Interaction.Behaviors>
+                                        <ia:EventTriggerBehavior EventName="Click">
+                                            <behaviors:PickFilePathAction Title="Select External Editor"
+                                                                          Path="{Binding ExternalEditor, Mode=TwoWay}"/>
+                                        </ia:EventTriggerBehavior>
+                                    </i:Interaction.Behaviors>
+                                </Button>
+
+                                <TextBlock Grid.Row="1" Text="External Viewer:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1"
+                                         Grid.Column="1"
+                                         Text="{Binding ExternalViewer}"
+                                         Margin="0,0,6,0"/>
+                                <Button Grid.Row="1" Grid.Column="2" Content="..." Width="30">
+                                    <i:Interaction.Behaviors>
+                                        <ia:EventTriggerBehavior EventName="Click">
+                                            <behaviors:PickFilePathAction Title="Select External Viewer"
+                                                                          Path="{Binding ExternalViewer, Mode=TwoWay}"/>
+                                        </ia:EventTriggerBehavior>
+                                    </i:Interaction.Behaviors>
+                                </Button>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
+                                <TextBlock Text="Terminal Command:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding TerminalCommand}"
+                                         Watermark="e.g., cmd.exe, Terminal, x-terminal-emulator"/>
+                            </Grid>
+
+                            <TextBlock Text="File Associations" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
+                                <TextBlock Text="Default Action:" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding FileAssociationActionOptions}"
+                                          SelectedItem="{Binding SelectedFileAssociationActionOption}"
+                                          Width="220"
+                                          HorizontalAlignment="Left">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SettingsOption">
+                                            <TextBlock Text="{Binding Label}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Tabs">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="Tab Behavior" FontWeight="SemiBold"/>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Open New Tab on Drive Change" IsChecked="{Binding OpenNewTabOnDriveChange}"/>
+                                <CheckBox Content="Close Tab on Middle Click" IsChecked="{Binding CloseTabOnMiddleClick}"/>
+                                <CheckBox Content="Show Tab Close Button" IsChecked="{Binding ShowTabCloseButton}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Quick View">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="Preview" FontWeight="SemiBold"/>
+                            <Grid ColumnDefinitions="200,*" ColumnSpacing="8">
+                                <TextBlock Text="Max File Size (KB):" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Column="1"
+                                               Value="{Binding QuickViewMaxFileSizeKb}"
+                                               Minimum="64"
+                                               Maximum="10240"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                            </Grid>
+                            <CheckBox Content="Auto-update Preview on Selection Change"
+                                      IsChecked="{Binding QuickViewAutoUpdate}"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="File Operations">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="Copy and Move" FontWeight="SemiBold"/>
+                            <Grid ColumnDefinitions="200,*" ColumnSpacing="8">
+                                <TextBlock Text="Copy Buffer Size (KB):" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Column="1"
+                                               Value="{Binding CopyBufferSizeKb}"
+                                               Minimum="4"
+                                               Maximum="1024"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                            </Grid>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Verify Files After Copy" IsChecked="{Binding VerifyAfterCopy}"/>
+                                <CheckBox Content="Preserve Timestamps" IsChecked="{Binding PreserveTimestamps}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Search">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="Limits" FontWeight="SemiBold"/>
+                            <Grid ColumnDefinitions="200,*" ColumnSpacing="8">
+                                <TextBlock Text="Max Search Results:" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Column="1"
+                                               Value="{Binding SearchMaxResults}"
+                                               Minimum="100"
+                                               Maximum="100000"
+                                               Width="140"
+                                               HorizontalAlignment="Left"/>
+                            </Grid>
+                            <CheckBox Content="Include Hidden Files in Search"
+                                      IsChecked="{Binding SearchIncludeHidden}"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Localization">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="Language" FontWeight="SemiBold"/>
+                            <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
+                                <TextBlock Text="Language:" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding LanguageOptions}"
+                                          SelectedItem="{Binding SelectedLanguageOption}"
+                                          Width="220"
+                                          HorizontalAlignment="Left">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SettingsOption">
+                                            <TextBlock Text="{Binding Label}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Accessibility">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="General" FontWeight="SemiBold"/>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Screen Reader Support" IsChecked="{Binding AccessibilityScreenReaderEnabled}"/>
+                                <CheckBox Content="Keyboard Indicators" IsChecked="{Binding AccessibilityKeyboardIndicatorsEnabled}"/>
+                                <CheckBox Content="High Contrast Mode" IsChecked="{Binding AccessibilityHighContrastEnabled}"/>
+                                <CheckBox Content="Reduce Motion" IsChecked="{Binding AccessibilityReducedMotion}"/>
+                                <CheckBox Content="High Contrast Icons" IsChecked="{Binding AccessibilityHighContrastIcons}"/>
+                                <CheckBox Content="Verbose Announcements" IsChecked="{Binding AccessibilityVerboseAnnouncements}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Scaling" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <Grid ColumnDefinitions="200,*" RowDefinitions="Auto,Auto" RowSpacing="6" ColumnSpacing="8">
+                                <TextBlock Text="UI Scale Factor:" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Column="1"
+                                               Value="{Binding AccessibilityScaleFactor}"
+                                               Minimum="0.5"
+                                               Maximum="3"
+                                               Increment="0.1"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                                <TextBlock Grid.Row="1" Text="Minimum Font Size:" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Row="1"
+                                               Grid.Column="1"
+                                               Value="{Binding AccessibilityMinimumFontSize}"
+                                               Minimum="8"
+                                               Maximum="24"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                            </Grid>
+
+                            <TextBlock Text="Announcements" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <Grid ColumnDefinitions="200,*" ColumnSpacing="8">
+                                <TextBlock Text="Hover Delay (ms):" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Column="1"
+                                               Value="{Binding AccessibilityHoverAnnouncementDelay}"
+                                               Minimum="0"
+                                               Maximum="5000"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                            </Grid>
+
+                            <TextBlock Text="Focus" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <Grid ColumnDefinitions="200,*" ColumnSpacing="8">
+                                <TextBlock Text="Focus Outline Width:" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Column="1"
+                                               Value="{Binding AccessibilityFocusOutlineWidth}"
+                                               Minimum="1"
+                                               Maximum="6"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Touch">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="Touch Mode" FontWeight="SemiBold"/>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Enable Touch Mode" IsChecked="{Binding TouchModeEnabled}"/>
+                                <CheckBox Content="Enable Swipe Navigation" IsChecked="{Binding TouchModeEnableSwipeNavigation}"/>
+                                <CheckBox Content="Enable Pinch Zoom" IsChecked="{Binding TouchModeEnablePinchZoom}"/>
+                            </StackPanel>
+                            <Grid ColumnDefinitions="200,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
+                                <TextBlock Text="Item Height:" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Column="1"
+                                               Value="{Binding TouchModeItemHeight}"
+                                               Minimum="32"
+                                               Maximum="80"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                                <TextBlock Grid.Row="1" Text="Swipe Threshold:" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Row="1"
+                                               Grid.Column="1"
+                                               Value="{Binding TouchModeSwipeThreshold}"
+                                               Minimum="20"
+                                               Maximum="120"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                                <TextBlock Grid.Row="2" Text="Long Press (ms):" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Row="2"
+                                               Grid.Column="1"
+                                               Value="{Binding TouchModeLongPressDuration}"
+                                               Minimum="100"
+                                               Maximum="1500"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                                <TextBlock Grid.Row="3" Text="Touch Padding:" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Row="3"
+                                               Grid.Column="1"
+                                               Value="{Binding TouchModePadding}"
+                                               Minimum="0"
+                                               Maximum="20"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Session &amp; History">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="Session" FontWeight="SemiBold"/>
+                            <StackPanel Spacing="6">
+                                <CheckBox Content="Save Session on Exit" IsChecked="{Binding SaveSessionOnExit}"/>
+                                <CheckBox Content="Restore Session on Startup" IsChecked="{Binding RestoreSessionOnStartup}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="History Limits" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                            <Grid ColumnDefinitions="200,*" RowDefinitions="Auto,Auto" RowSpacing="6" ColumnSpacing="8">
+                                <TextBlock Text="Recent Paths Limit:" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Column="1"
+                                               Value="{Binding RecentPathsLimit}"
+                                               Minimum="1"
+                                               Maximum="200"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                                <TextBlock Grid.Row="1" Text="Command History Limit:" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Row="1"
+                                               Grid.Column="1"
+                                               Value="{Binding CommandHistoryLimit}"
+                                               Minimum="1"
+                                               Maximum="500"
+                                               Width="120"
+                                               HorizontalAlignment="Left"/>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Configuration Tools">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12" Spacing="10">
+                            <TextBlock Text="Customize" FontWeight="SemiBold"/>
+                            <StackPanel Spacing="6">
+                                <Button Content="Keyboard Shortcuts..." Command="{Binding OpenKeyboardShortcutsCommand}"/>
+                                <Button Content="Toolbar Configuration..." Command="{Binding OpenToolbarConfigurationCommand}"/>
+                                <Button Content="Custom Columns..." Command="{Binding OpenCustomColumnsCommand}"/>
+                                <Button Content="File Coloring..." Command="{Binding OpenFileColoringCommand}"/>
+                                <Button Content="File Associations..." Command="{Binding OpenFileAssociationsCommand}"/>
+                                <Button Content="Plugins..." Command="{Binding OpenPluginsCommand}"/>
+                                <Button Content="Import Total Commander Config..." Command="{Binding OpenTcConfigImportCommand}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+        </controls:TcInsetPanel>
+
+        <controls:TcBevelPanel Grid.Row="2" Padding="6,4">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                <Button Content="Defaults" Command="{Binding SetDefaultsCommand}"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <Button Content="OK" Width="80">
+                        <i:Interaction.Behaviors>
+                            <ia:EventTriggerBehavior EventName="Click">
+                                <ia:InvokeCommandAction Command="{Binding SaveCommand}"/>
+                                <behaviors:CloseWindowAction DialogResult="True"/>
+                            </ia:EventTriggerBehavior>
+                        </i:Interaction.Behaviors>
+                    </Button>
+                    <Button Content="Cancel" Width="80">
+                        <i:Interaction.Behaviors>
+                            <ia:EventTriggerBehavior EventName="Click">
+                                <behaviors:CloseWindowAction DialogResult="False"/>
+                            </ia:EventTriggerBehavior>
+                        </i:Interaction.Behaviors>
+                    </Button>
+                </StackPanel>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
     </Grid>
 </UserControl>

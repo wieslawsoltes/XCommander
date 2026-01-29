@@ -1,7 +1,14 @@
 using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Data.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using XCommander.Converters;
+using XCommander.Helpers;
 using XCommander.Models;
 using XCommander.Services;
 
@@ -9,9 +16,17 @@ namespace XCommander.ViewModels;
 
 public partial class SearchViewModel : ViewModelBase
 {
+    private const string NameColumnKey = "name";
+    private const string DirectoryColumnKey = "directory";
+    private const string SizeColumnKey = "size";
+    private const string DateColumnKey = "date";
+
     private readonly IFileSystemService _fileSystemService;
     private readonly IAdvancedSearchService? _advancedSearchService;
+    private readonly IArchiveService? _archiveService;
+    private readonly AppSettings _settings;
     private CancellationTokenSource? _cancellationTokenSource;
+    private readonly SynchronizationContext? _syncContext;
     
     [ObservableProperty]
     private string _searchPath = string.Empty;
@@ -77,6 +92,10 @@ public partial class SearchViewModel : ViewModelBase
     private string _newTemplateName = string.Empty;
     
     public ObservableCollection<SearchResultItem> Results { get; } = [];
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
     
     /// <summary>
     /// Saved search templates.
@@ -93,13 +112,109 @@ public partial class SearchViewModel : ViewModelBase
     /// </summary>
     public event EventHandler<string>? NavigateRequested;
     
-    public SearchViewModel(IFileSystemService fileSystemService, IAdvancedSearchService? advancedSearchService = null)
+    public SearchViewModel(
+        IFileSystemService fileSystemService,
+        AppSettings settings,
+        IAdvancedSearchService? advancedSearchService = null,
+        IArchiveService? archiveService = null)
     {
         _fileSystemService = fileSystemService;
+        _settings = settings;
         _advancedSearchService = advancedSearchService;
+        _archiveService = archiveService;
+        _syncContext = SynchronizationContext.Current;
+        SearchHiddenFiles = settings.SearchIncludeHidden;
         
         // Load saved templates
         _ = LoadSavedTemplatesAsync();
+
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<SearchResultItem>();
+
+        IPropertyInfo directoryProperty = DataGridColumnHelper.CreateProperty(
+            nameof(SearchResultItem.Directory),
+            (SearchResultItem item) => item.Directory);
+        IPropertyInfo displaySizeProperty = DataGridColumnHelper.CreateProperty(
+            nameof(SearchResultItem.DisplaySize),
+            (SearchResultItem item) => item.DisplaySize);
+        IPropertyInfo dateProperty = DataGridColumnHelper.CreateProperty(
+            nameof(SearchResultItem.DateModified),
+            (SearchResultItem item) => item.DateModified);
+
+        var dateColumn = builder.Text(
+            header: "Date Modified",
+            property: dateProperty,
+            getter: item => item.DateModified,
+            configure: column =>
+            {
+                column.ColumnKey = DateColumnKey;
+                column.Width = new DataGridLength(130);
+                column.IsReadOnly = true;
+                column.ShowFilterButton = true;
+            });
+
+        if (dateColumn.Binding != null)
+        {
+            dateColumn.Binding.Converter = DateTimeConverter.Instance;
+        }
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Name",
+                cellTemplateKey: "SearchResultNameTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = NameColumnKey;
+                    column.Width = new DataGridLength(250);
+                    column.MinWidth = 150;
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<SearchResultItem, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                }),
+            builder.Text(
+                header: "Directory",
+                property: directoryProperty,
+                getter: item => item.Directory,
+                configure: column =>
+                {
+                    column.ColumnKey = DirectoryColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Size",
+                property: displaySizeProperty,
+                getter: item => item.DisplaySize,
+                configure: column =>
+                {
+                    column.ColumnKey = SizeColumnKey;
+                    column.Width = new DataGridLength(80);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<SearchResultItem, long>(
+                            item => item.Size)
+                    };
+                }),
+            dateColumn
+        };
     }
     
     public void Initialize(string startPath)
@@ -133,7 +248,14 @@ public partial class SearchViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
-            StatusText = $"Search cancelled. Found {FilesFound} items.";
+            if (FilesFound >= _settings.SearchMaxResults)
+            {
+                StatusText = $"Search stopped at limit ({_settings.SearchMaxResults} results).";
+            }
+            else
+            {
+                StatusText = $"Search cancelled. Found {FilesFound} items.";
+            }
         }
         catch (Exception ex)
         {
@@ -252,11 +374,12 @@ public partial class SearchViewModel : ViewModelBase
                             IsDirectory = isDirectory
                         };
                         
-                        // Update UI on main thread
-                        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                        await PostToUiAsync(() => Results.Add(result));
+
+                        if (FilesFound >= _settings.SearchMaxResults)
                         {
-                            Results.Add(result);
-                        });
+                            throw new OperationCanceledException();
+                        }
                     }
                 }
                 
@@ -273,12 +396,203 @@ public partial class SearchViewModel : ViewModelBase
                 {
                     await SearchDirectoryAsync(entry, cancellationToken);
                 }
+                else if (!isDirectory && SearchInArchives)
+                {
+                    await SearchArchiveAsync(entry, cancellationToken);
+                }
             }
             catch (Exception)
             {
                 // Skip inaccessible entries
             }
         }
+    }
+
+    private Task PostToUiAsync(Action action)
+    {
+        if (_syncContext == null)
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        var tcs = new TaskCompletionSource<bool>();
+        _syncContext.Post(_ =>
+        {
+            try
+            {
+                action();
+                tcs.SetResult(true);
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+        }, null);
+
+        return tcs.Task;
+    }
+
+    private async Task SearchArchiveAsync(string archivePath, CancellationToken cancellationToken)
+    {
+        if (_archiveService == null || !_archiveService.IsArchive(archivePath))
+            return;
+
+        List<ArchiveEntry> entries;
+        try
+        {
+            entries = await _archiveService.ListEntriesAsync(archivePath, cancellationToken);
+        }
+        catch
+        {
+            return;
+        }
+
+        var archiveName = Path.GetFileName(archivePath);
+        var archiveDirectory = Path.GetDirectoryName(archivePath) ?? string.Empty;
+
+        var requiresContentMatch = SearchInContent && !string.IsNullOrEmpty(SearchText);
+        var tempRoot = requiresContentMatch
+            ? Path.Combine(Path.GetTempPath(), "XCommander", "search", Guid.NewGuid().ToString("N"))
+            : string.Empty;
+
+        try
+        {
+            if (requiresContentMatch)
+                Directory.CreateDirectory(tempRoot);
+
+            foreach (var entry in entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (entry.IsDirectory)
+                    continue;
+
+                if (!SearchInSubfolders && EntryHasSubfolder(entry))
+                    continue;
+
+                if (!MatchesPattern(entry.Name))
+                    continue;
+
+                if (!MatchesArchiveFilters(entry))
+                    continue;
+
+                if (requiresContentMatch && _archiveService != null)
+                {
+                    if (!await MatchesArchiveContentAsync(archivePath, entry, tempRoot, cancellationToken))
+                        continue;
+                }
+
+                FilesFound++;
+                FilesSearched++;
+
+                var entryDisplay = string.IsNullOrWhiteSpace(entry.Path) ? entry.Name : entry.Path;
+                var result = new SearchResultItem
+                {
+                    Name = $"{entryDisplay} ({archiveName})",
+                    FullPath = archivePath,
+                    Directory = archiveDirectory,
+                    Size = entry.Size,
+                    DateModified = entry.LastModified ?? File.GetLastWriteTime(archivePath),
+                    IsDirectory = false
+                };
+
+                await PostToUiAsync(() => Results.Add(result));
+
+                if (FilesFound >= _settings.SearchMaxResults)
+                {
+                    throw new OperationCanceledException();
+                }
+            }
+        }
+        finally
+        {
+            if (requiresContentMatch && Directory.Exists(tempRoot))
+            {
+                try
+                {
+                    Directory.Delete(tempRoot, true);
+                }
+                catch
+                {
+                    // Ignore cleanup errors.
+                }
+            }
+        }
+    }
+
+    private async Task<bool> MatchesArchiveContentAsync(string archivePath, ArchiveEntry entry, string tempRoot, CancellationToken cancellationToken)
+    {
+        if (_archiveService == null || string.IsNullOrWhiteSpace(entry.Path))
+            return false;
+
+        var entryPath = entry.Path.Replace('/', Path.DirectorySeparatorChar);
+        var extractPath = Path.Combine(tempRoot, entryPath);
+        var extractDir = Path.GetDirectoryName(extractPath);
+        if (!string.IsNullOrWhiteSpace(extractDir))
+        {
+            Directory.CreateDirectory(extractDir);
+        }
+
+        try
+        {
+            await _archiveService.ExtractEntriesAsync(
+                archivePath,
+                new[] { entry.Path },
+                tempRoot,
+                cancellationToken: cancellationToken);
+
+            if (!File.Exists(extractPath))
+                return false;
+
+            return await SearchInFileContentAsync(extractPath, cancellationToken);
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(extractPath))
+                    File.Delete(extractPath);
+            }
+            catch
+            {
+                // Ignore cleanup errors.
+            }
+        }
+    }
+
+    private static bool EntryHasSubfolder(ArchiveEntry entry)
+    {
+        var path = entry.Path;
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        return path.Contains('/') || path.Contains('\\');
+    }
+
+    private bool MatchesArchiveFilters(ArchiveEntry entry)
+    {
+        if (SizeFrom.HasValue && entry.Size < SizeFrom.Value)
+            return false;
+        if (SizeTo.HasValue && entry.Size > SizeTo.Value)
+            return false;
+
+        if (DateFrom.HasValue || DateTo.HasValue)
+        {
+            if (!entry.LastModified.HasValue)
+                return false;
+
+            if (DateFrom.HasValue && entry.LastModified.Value < DateFrom.Value)
+                return false;
+            if (DateTo.HasValue && entry.LastModified.Value > DateTo.Value)
+                return false;
+        }
+
+        return true;
     }
     
     private bool MatchesPattern(string fileName)

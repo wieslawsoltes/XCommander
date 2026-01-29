@@ -18,7 +18,9 @@ public class DirectorySyncService : IDirectorySyncService
 {
     private readonly ILongPathService _longPathService;
     
+#pragma warning disable CS0067
     public event EventHandler<SyncConflictEventArgs>? ConflictEncountered;
+#pragma warning restore CS0067
     
     public DirectorySyncService(ILongPathService longPathService)
     {

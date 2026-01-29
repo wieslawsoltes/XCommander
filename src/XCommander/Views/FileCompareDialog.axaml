@@ -1,46 +1,69 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:XCommander.Controls"
              xmlns:vm="using:XCommander.ViewModels"
              xmlns:views="using:XCommander.Views"
              x:Class="XCommander.Views.FileCompareDialog"
              x:DataType="vm:FileCompareViewModel"
              MinWidth="1000"
              MinHeight="600">
-    <Grid RowDefinitions="Auto,Auto,*,Auto">
-        <!-- Header -->
-        <Border Grid.Row="0" Background="{DynamicResource SystemAccentColor}" Padding="16">
-            <TextBlock Text="File Comparison" FontSize="18" FontWeight="Bold" Foreground="White"/>
-        </Border>
+    <UserControl.Resources>
+        <DataTemplate x:Key="DiffLineNumberTemplate"
+                      x:DataType="vm:DiffLine">
+            <Border Background="#E0E0E0" Padding="4,2">
+                <TextBlock Text="{Binding LineNumberDisplay}"
+                           FontFamily="{DynamicResource MonoFontFamily}"
+                           FontSize="12"
+                           Foreground="Gray"
+                           HorizontalAlignment="Right"/>
+            </Border>
+        </DataTemplate>
+        <DataTemplate x:Key="DiffLineContentTemplate"
+                      x:DataType="vm:DiffLine">
+            <Border Padding="4,2">
+                <Border.Background>
+                    <MultiBinding Converter="{x:Static views:DiffTypeToColorConverter.Instance}">
+                        <Binding Path="Type"/>
+                    </MultiBinding>
+                </Border.Background>
+                <TextBlock Text="{Binding Content}"
+                           FontFamily="{DynamicResource MonoFontFamily}"
+                           FontSize="12"
+                           TextTrimming="None"/>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
 
-        <!-- Options -->
-        <Border Grid.Row="1" Background="{DynamicResource SystemRegionBrush}" Padding="12">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="10">
+        <controls:TcBevelPanel Grid.Row="0" Padding="6,4">
+            <TextBlock Text="File Comparison" FontWeight="Bold"/>
+        </controls:TcBevelPanel>
+
+        <controls:TcBevelPanel Grid.Row="1" Padding="6,4" Margin="0,6,0,0">
             <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto,Auto,*,Auto">
-                <!-- Left File -->
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="Left:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding LeftPath}" 
-                         IsEnabled="{Binding !IsComparing}" Margin="0,0,4,8"/>
-                <Button Grid.Row="0" Grid.Column="2" Content="..." Width="30" Margin="0,0,16,8"
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Left:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding LeftPath}"
+                         IsEnabled="{Binding !IsComparing}" Margin="0,0,4,6"/>
+                <Button Grid.Row="0" Grid.Column="2" Content="..." Width="30" Margin="0,0,12,6"
                         IsEnabled="{Binding !IsComparing}" Click="BrowseLeft_Click"/>
 
-                <!-- Right File -->
-                <TextBlock Grid.Row="0" Grid.Column="3" Text="Right:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBox Grid.Row="0" Grid.Column="4" Text="{Binding RightPath}" 
-                         IsEnabled="{Binding !IsComparing}" Margin="0,0,4,8"/>
-                <Button Grid.Row="0" Grid.Column="5" Content="..." Width="30" Margin="0,0,0,8"
+                <TextBlock Grid.Row="0" Grid.Column="3" Text="Right:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBox Grid.Row="0" Grid.Column="4" Text="{Binding RightPath}"
+                         IsEnabled="{Binding !IsComparing}" Margin="0,0,4,6"/>
+                <Button Grid.Row="0" Grid.Column="5" Content="..." Width="30" Margin="0,0,0,6"
                         IsEnabled="{Binding !IsComparing}" Click="BrowseRight_Click"/>
 
-                <!-- Options Row -->
-                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal" Spacing="8">
+                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal" Spacing="6">
                     <Button Content="Compare" Command="{Binding CompareCommand}" IsEnabled="{Binding !IsComparing}"/>
                     <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding IsComparing}"/>
-                    <Separator Width="1" Background="Gray" Margin="8,0"/>
+                    <TextBlock Text="|" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="4,0"/>
                     <CheckBox Content="Ignore whitespace" IsChecked="{Binding IgnoreWhitespace}" IsEnabled="{Binding !IsComparing}"/>
                     <CheckBox Content="Ignore case" IsChecked="{Binding IgnoreCase}" IsEnabled="{Binding !IsComparing}"/>
                     <CheckBox Content="Ignore empty lines" IsChecked="{Binding IgnoreEmptyLines}" IsEnabled="{Binding !IsComparing}"/>
                     <CheckBox Content="Binary mode" IsChecked="{Binding IsBinaryMode}" IsEnabled="{Binding !IsComparing}"/>
-                    <Separator Width="1" Background="Gray" Margin="8,0"/>
-                    <Button Content="◀ Prev" Command="{Binding PreviousDiffCommand}" ToolTip.Tip="Previous difference"/>
-                    <Button Content="Next ▶" Command="{Binding NextDiffCommand}" ToolTip.Tip="Next difference"/>
+                    <TextBlock Text="|" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="4,0"/>
+                    <Button Content="Prev" Command="{Binding PreviousDiffCommand}" ToolTip.Tip="Previous difference"/>
+                    <Button Content="Next" Command="{Binding NextDiffCommand}" ToolTip.Tip="Next difference"/>
                     <TextBlock VerticalAlignment="Center">
                         <Run Text="Diff: "/>
                         <Run Text="{Binding CurrentDiffIndex}" FontWeight="Bold"/>
@@ -49,98 +72,73 @@
                     </TextBlock>
                 </StackPanel>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
 
-        <!-- Diff View -->
-        <Grid Grid.Row="2" ColumnDefinitions="*,4,*" Margin="8">
-            <!-- Left Panel -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,4,*" Margin="0,6,0,0">
             <Grid Grid.Column="0" RowDefinitions="Auto,*">
-                <Border Grid.Row="0" Background="#2196F3" Padding="8">
+                <Border Grid.Row="0" Background="{DynamicResource TcChromeBackgroundBrush}" Padding="6,3"
+                        BorderBrush="{DynamicResource TcBorderMidBrush}" BorderThickness="1,1,1,0">
                     <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="{Binding LeftFileName}" FontWeight="Bold" Foreground="White"/>
-                        <TextBlock Grid.Column="1" Text="{Binding LeftFileInfo}" Foreground="White" Opacity="0.8" FontSize="11"/>
+                        <TextBlock Text="{Binding LeftFileName}" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="{Binding LeftFileInfo}" Opacity="0.7" FontSize="11"/>
                     </Grid>
                 </Border>
-                <ListBox Grid.Row="1" ItemsSource="{Binding LeftLines}" 
-                         SelectionMode="Single"
-                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                         x:Name="LeftListBox">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="vm:DiffLine">
-                            <Grid ColumnDefinitions="50,*">
-                                <Border Grid.Column="0" Background="#E0E0E0" Padding="4,2">
-                                    <TextBlock Text="{Binding LineNumberDisplay}" 
-                                               FontFamily="Consolas,Monaco,monospace" 
-                                               FontSize="12"
-                                               Foreground="Gray"
-                                               HorizontalAlignment="Right"/>
-                                </Border>
-                                <Border Grid.Column="1" Padding="4,2">
-                                    <Border.Background>
-                                        <MultiBinding Converter="{x:Static views:DiffTypeToColorConverter.Instance}">
-                                            <Binding Path="Type"/>
-                                        </MultiBinding>
-                                    </Border.Background>
-                                    <TextBlock Text="{Binding Content}" 
-                                               FontFamily="Consolas,Monaco,monospace" 
-                                               FontSize="12"
-                                               TextTrimming="None"/>
-                                </Border>
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <controls:TcInsetPanel Grid.Row="1" Padding="0">
+                    <DataGrid ItemsSource="{Binding LeftLines}"
+                              ColumnDefinitionsSource="{Binding LeftColumnDefinitions}"
+                              FilteringModel="{Binding LeftFilteringModel}"
+                              SortingModel="{Binding LeftSortingModel}"
+                              SearchModel="{Binding LeftSearchModel}"
+                              SelectionMode="Single"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              BorderThickness="0"
+                              HeadersVisibility="None"
+                              GridLinesVisibility="None"
+                              IsReadOnly="True">
+                        <DataGrid.FastPathOptions>
+                            <DataGridFastPathOptions UseAccessorsOnly="True"
+                                                     ThrowOnMissingAccessor="True" />
+                        </DataGrid.FastPathOptions>
+                    </DataGrid>
+                </controls:TcInsetPanel>
             </Grid>
 
-            <!-- Splitter -->
             <GridSplitter Grid.Column="1" ResizeDirection="Columns"/>
 
-            <!-- Right Panel -->
             <Grid Grid.Column="2" RowDefinitions="Auto,*">
-                <Border Grid.Row="0" Background="#4CAF50" Padding="8">
+                <Border Grid.Row="0" Background="{DynamicResource TcChromeBackgroundBrush}" Padding="6,3"
+                        BorderBrush="{DynamicResource TcBorderMidBrush}" BorderThickness="1,1,1,0">
                     <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="{Binding RightFileName}" FontWeight="Bold" Foreground="White"/>
-                        <TextBlock Grid.Column="1" Text="{Binding RightFileInfo}" Foreground="White" Opacity="0.8" FontSize="11"/>
+                        <TextBlock Text="{Binding RightFileName}" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="{Binding RightFileInfo}" Opacity="0.7" FontSize="11"/>
                     </Grid>
                 </Border>
-                <ListBox Grid.Row="1" ItemsSource="{Binding RightLines}" 
-                         SelectionMode="Single"
-                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                         x:Name="RightListBox">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="vm:DiffLine">
-                            <Grid ColumnDefinitions="50,*">
-                                <Border Grid.Column="0" Background="#E0E0E0" Padding="4,2">
-                                    <TextBlock Text="{Binding LineNumberDisplay}" 
-                                               FontFamily="Consolas,Monaco,monospace" 
-                                               FontSize="12"
-                                               Foreground="Gray"
-                                               HorizontalAlignment="Right"/>
-                                </Border>
-                                <Border Grid.Column="1" Padding="4,2">
-                                    <Border.Background>
-                                        <MultiBinding Converter="{x:Static views:DiffTypeToColorConverter.Instance}">
-                                            <Binding Path="Type"/>
-                                        </MultiBinding>
-                                    </Border.Background>
-                                    <TextBlock Text="{Binding Content}" 
-                                               FontFamily="Consolas,Monaco,monospace" 
-                                               FontSize="12"
-                                               TextTrimming="None"/>
-                                </Border>
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <controls:TcInsetPanel Grid.Row="1" Padding="0">
+                    <DataGrid ItemsSource="{Binding RightLines}"
+                              ColumnDefinitionsSource="{Binding RightColumnDefinitions}"
+                              FilteringModel="{Binding RightFilteringModel}"
+                              SortingModel="{Binding RightSortingModel}"
+                              SearchModel="{Binding RightSearchModel}"
+                              SelectionMode="Single"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              BorderThickness="0"
+                              HeadersVisibility="None"
+                              GridLinesVisibility="None"
+                              IsReadOnly="True">
+                        <DataGrid.FastPathOptions>
+                            <DataGridFastPathOptions UseAccessorsOnly="True"
+                                                     ThrowOnMissingAccessor="True" />
+                        </DataGrid.FastPathOptions>
+                    </DataGrid>
+                </controls:TcInsetPanel>
             </Grid>
         </Grid>
 
-        <!-- Status Bar -->
-        <Border Grid.Row="3" Background="{DynamicResource SystemRegionBrush}" Padding="8">
+        <controls:TcBevelPanel Grid.Row="3" Padding="6,4" Margin="0,6,0,0">
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="{Binding Status}" VerticalAlignment="Center"/>
                 <Button Grid.Column="1" Content="Close" Click="Close_Click" Width="80"/>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
     </Grid>
 </UserControl>

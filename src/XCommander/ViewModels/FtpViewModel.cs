@@ -1,6 +1,13 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Data.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using XCommander.Converters;
+using XCommander.Helpers;
 using XCommander.Models;
 using XCommander.Services;
 
@@ -54,6 +61,11 @@ public partial class FtpConnectionViewModel : ViewModelBase
 
 public partial class FtpViewModel : ViewModelBase
 {
+    private const string NameColumnKey = "name";
+    private const string SizeColumnKey = "size";
+    private const string DateColumnKey = "date";
+    private const string PermissionsColumnKey = "permissions";
+
     private readonly IFtpService _ftpService;
     
     [ObservableProperty]
@@ -104,11 +116,148 @@ public partial class FtpViewModel : ViewModelBase
     
     public ObservableCollection<FtpItem> Items { get; } = [];
     public ObservableCollection<FtpConnectionViewModel> SavedConnections { get; } = [];
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
+    public ObservableCollection<DataGridColumnDefinition> SavedConnectionsColumnDefinitions { get; }
+    public FilteringModel SavedConnectionsFilteringModel { get; }
+    public SortingModel SavedConnectionsSortingModel { get; }
+    public SearchModel SavedConnectionsSearchModel { get; }
     
     public FtpViewModel(IFtpService ftpService)
     {
         _ftpService = ftpService;
         LoadSavedConnections();
+        SavedConnectionsFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SavedConnectionsSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SavedConnectionsSearchModel = new SearchModel();
+        SavedConnectionsColumnDefinitions = BuildSavedConnectionsColumnDefinitions();
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildSavedConnectionsColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<FtpConnectionViewModel>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Connection",
+                cellTemplateKey: "SavedConnectionTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "saved-connection";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<FtpConnectionViewModel, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<FtpConnectionViewModel, string>(
+                            item => item.Name),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not FtpConnectionViewModel connection)
+                                return string.Empty;
+                            return $"{connection.Name} {connection.Host} {connection.Username}";
+                        }
+                    };
+                })
+        };
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<FtpItem>();
+
+        IPropertyInfo displaySizeProperty = DataGridColumnHelper.CreateProperty(
+            nameof(FtpItem.DisplaySize),
+            (FtpItem item) => item.DisplaySize);
+        IPropertyInfo dateProperty = DataGridColumnHelper.CreateProperty(
+            nameof(FtpItem.DateModified),
+            (FtpItem item) => item.DateModified);
+        IPropertyInfo permissionsProperty = DataGridColumnHelper.CreateProperty(
+            nameof(FtpItem.Permissions),
+            (FtpItem item) => item.Permissions);
+
+        var dateColumn = builder.Text(
+            header: "Date Modified",
+            property: dateProperty,
+            getter: item => item.DateModified,
+            configure: column =>
+            {
+                column.ColumnKey = DateColumnKey;
+                column.Width = new DataGridLength(140);
+                column.IsReadOnly = true;
+                column.ShowFilterButton = true;
+            });
+
+        if (dateColumn.Binding != null)
+        {
+            dateColumn.Binding.Converter = DateTimeConverter.Instance;
+        }
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Name",
+                cellTemplateKey: "FtpItemNameTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = NameColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.MinWidth = 200;
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<FtpItem, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                }),
+            builder.Text(
+                header: "Size",
+                property: displaySizeProperty,
+                getter: item => item.DisplaySize,
+                configure: column =>
+                {
+                    column.ColumnKey = SizeColumnKey;
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<FtpItem, long>(
+                            item => item.Size)
+                    };
+                }),
+            dateColumn,
+            builder.Text(
+                header: "Permissions",
+                property: permissionsProperty,
+                getter: item => item.Permissions,
+                configure: column =>
+                {
+                    column.ColumnKey = PermissionsColumnKey;
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                })
+        };
     }
     
     private void LoadSavedConnections()

@@ -470,15 +470,17 @@ public class SelectionService : ISelectionService
     
     public SelectionComparison CompareSelections(IEnumerable<string> leftSelection, IEnumerable<string> rightSelection)
     {
-        var leftSet = new HashSet<string>(leftSelection.Select(Path.GetFileName), StringComparer.OrdinalIgnoreCase);
-        var rightSet = new HashSet<string>(rightSelection.Select(Path.GetFileName), StringComparer.OrdinalIgnoreCase);
+        string GetName(string path) => Path.GetFileName(path) ?? string.Empty;
+
+        var leftSet = new HashSet<string>(leftSelection.Select(GetName), StringComparer.OrdinalIgnoreCase);
+        var rightSet = new HashSet<string>(rightSelection.Select(GetName), StringComparer.OrdinalIgnoreCase);
         
         var leftItems = leftSelection.ToList();
         var rightItems = rightSelection.ToList();
         
-        var onlyInLeft = leftItems.Where(item => !rightSet.Contains(Path.GetFileName(item))).ToList();
-        var onlyInRight = rightItems.Where(item => !leftSet.Contains(Path.GetFileName(item))).ToList();
-        var inBoth = leftItems.Where(item => rightSet.Contains(Path.GetFileName(item))).ToList();
+        var onlyInLeft = leftItems.Where(item => !rightSet.Contains(GetName(item))).ToList();
+        var onlyInRight = rightItems.Where(item => !leftSet.Contains(GetName(item))).ToList();
+        var inBoth = leftItems.Where(item => rightSet.Contains(GetName(item))).ToList();
         
         return new SelectionComparison
         {
@@ -490,14 +492,16 @@ public class SelectionService : ISelectionService
     
     public IReadOnlyList<string> SelectCommonItems(IEnumerable<string> leftItems, IEnumerable<string> rightItems)
     {
-        var rightNames = new HashSet<string>(rightItems.Select(Path.GetFileName), StringComparer.OrdinalIgnoreCase);
-        return leftItems.Where(item => rightNames.Contains(Path.GetFileName(item))).ToList();
+        string GetName(string path) => Path.GetFileName(path) ?? string.Empty;
+        var rightNames = new HashSet<string>(rightItems.Select(GetName), StringComparer.OrdinalIgnoreCase);
+        return leftItems.Where(item => rightNames.Contains(GetName(item))).ToList();
     }
     
     public IReadOnlyList<string> SelectUniqueItems(IEnumerable<string> sourceItems, IEnumerable<string> compareItems)
     {
-        var compareNames = new HashSet<string>(compareItems.Select(Path.GetFileName), StringComparer.OrdinalIgnoreCase);
-        return sourceItems.Where(item => !compareNames.Contains(Path.GetFileName(item))).ToList();
+        string GetName(string path) => Path.GetFileName(path) ?? string.Empty;
+        var compareNames = new HashSet<string>(compareItems.Select(GetName), StringComparer.OrdinalIgnoreCase);
+        return sourceItems.Where(item => !compareNames.Contains(GetName(item))).ToList();
     }
     
     public string PatternToRegex(string wildcardPattern)

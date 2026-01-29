@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using SharpCompress.Archives;
 using SharpCompress.Archives.Zip;
 using SharpCompress.Common;
+using SharpCompress.Readers;
 using SharpCompress.Writers;
 
 namespace XCommander.Services;
@@ -253,7 +254,7 @@ public sealed class BackgroundArchiveService : IBackgroundArchiveService, IDispo
             ? operation.SourcePaths[0]
             : Path.GetDirectoryName(operation.SourcePaths[0]) ?? "";
         
-        using var archive = ZipArchive.Create();
+        using var archive = (ZipArchive)ZipArchive.CreateArchive();
         
         foreach (var file in allFiles)
         {
@@ -282,7 +283,7 @@ public sealed class BackgroundArchiveService : IBackgroundArchiveService, IDispo
             Directory.CreateDirectory(directory);
         }
         
-        archive.SaveTo(operation.ArchivePath, CompressionType.Deflate);
+        SaveArchiveToPath(archive, operation.ArchivePath);
     }
     
     private async Task ExecuteExtractAsync(
@@ -290,7 +291,7 @@ public sealed class BackgroundArchiveService : IBackgroundArchiveService, IDispo
         CancellationToken cancellationToken,
         Stopwatch stopwatch)
     {
-        using var archive = ArchiveFactory.Open(operation.ArchivePath);
+        using var archive = ArchiveFactory.OpenArchive(operation.ArchivePath, new ReaderOptions());
         
         var entries = archive.Entries.Where(e => !e.IsDirectory).ToList();
         operation.TotalFiles = entries.Count;
@@ -350,7 +351,7 @@ public sealed class BackgroundArchiveService : IBackgroundArchiveService, IDispo
         operation.TotalFiles = allFiles.Count;
         operation.TotalBytes = allFiles.Sum(f => new FileInfo(f).Length);
         
-        using var archive = ZipArchive.Open(operation.ArchivePath);
+        using var archive = (ZipArchive)ZipArchive.OpenArchive(operation.ArchivePath, new ReaderOptions());
         
         var basePath = operation.SourcePaths.Count == 1 && Directory.Exists(operation.SourcePaths[0])
             ? operation.SourcePaths[0]
@@ -377,7 +378,7 @@ public sealed class BackgroundArchiveService : IBackgroundArchiveService, IDispo
             ReportProgress(operation, stopwatch.Elapsed);
         }
         
-        archive.SaveTo(operation.ArchivePath, CompressionType.Deflate);
+        SaveArchiveToPath(archive, operation.ArchivePath);
     }
     
     private async Task ExecuteTestAsync(
@@ -385,7 +386,7 @@ public sealed class BackgroundArchiveService : IBackgroundArchiveService, IDispo
         CancellationToken cancellationToken,
         Stopwatch stopwatch)
     {
-        using var archive = ArchiveFactory.Open(operation.ArchivePath);
+        using var archive = ArchiveFactory.OpenArchive(operation.ArchivePath, new ReaderOptions());
         
         var entries = archive.Entries.Where(e => !e.IsDirectory).ToList();
         operation.TotalFiles = entries.Count;
@@ -418,7 +419,7 @@ public sealed class BackgroundArchiveService : IBackgroundArchiveService, IDispo
         CancellationToken cancellationToken,
         Stopwatch stopwatch)
     {
-        using var sourceArchive = ArchiveFactory.Open(operation.ArchivePath);
+        using var sourceArchive = ArchiveFactory.OpenArchive(operation.ArchivePath, new ReaderOptions());
         
         var entries = sourceArchive.Entries.Where(e => !e.IsDirectory).ToList();
         operation.TotalFiles = entries.Count;
@@ -430,7 +431,7 @@ public sealed class BackgroundArchiveService : IBackgroundArchiveService, IDispo
             Directory.CreateDirectory(directory);
         }
         
-        using var destArchive = ZipArchive.Create();
+        using var destArchive = (ZipArchive)ZipArchive.CreateArchive();
         
         foreach (var entry in entries)
         {
@@ -457,8 +458,24 @@ public sealed class BackgroundArchiveService : IBackgroundArchiveService, IDispo
         
         if (!string.IsNullOrEmpty(operation.DestinationPath))
         {
-            destArchive.SaveTo(operation.DestinationPath, CompressionType.Deflate);
+            SaveArchiveToPath(destArchive, operation.DestinationPath);
         }
+    }
+
+    private static void SaveArchiveToPath(ZipArchive archive, string archivePath)
+    {
+        var tempPath = archivePath + ".tmp";
+        using (var tempStream = File.Create(tempPath))
+        {
+            archive.SaveTo(tempStream, new WriterOptions(CompressionType.Deflate));
+        }
+
+        if (File.Exists(archivePath))
+        {
+            File.Delete(archivePath);
+        }
+
+        File.Move(tempPath, archivePath);
     }
     
     private async Task WaitIfPausedAsync(string operationId, CancellationToken cancellationToken)

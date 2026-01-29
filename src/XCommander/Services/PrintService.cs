@@ -6,6 +6,8 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using PdfSharpCore.Drawing;
+using PdfSharpCore.Pdf;
 
 namespace XCommander.Services;
 
@@ -277,19 +279,26 @@ public class PrintService : IPrintService
     public async Task ExportDocumentAsync(PrintDocument document, string outputPath, PrintExportFormat format,
         CancellationToken cancellationToken = default)
     {
-        await Task.Run(async () =>
+        await Task.Run(() =>
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            if (format == PrintExportFormat.Pdf)
+            {
+                ExportPdf(document, outputPath, cancellationToken);
+                return;
+            }
+            
             var content = format switch
             {
                 PrintExportFormat.PlainText => document.PlainTextContent,
                 PrintExportFormat.Html => document.HtmlContent,
                 PrintExportFormat.Rtf => ConvertToRtf(document),
                 PrintExportFormat.Csv => ConvertToCsv(document),
-                PrintExportFormat.Pdf => throw new NotSupportedException("PDF export requires additional library"),
                 _ => document.PlainTextContent
             };
             
-            await File.WriteAllTextAsync(outputPath, content, cancellationToken);
+            File.WriteAllText(outputPath, content);
         }, cancellationToken);
     }
     
@@ -608,6 +617,120 @@ public class PrintService : IPrintService
         }
         
         return sb.ToString();
+    }
+
+    private static void ExportPdf(PrintDocument document, string outputPath, CancellationToken cancellationToken)
+    {
+        var settings = document.PageSettings ?? new PrintPageSettings();
+        var pages = document.Pages.Count > 0
+            ? document.Pages
+            : new List<PrintPage> { new() { PageNumber = 1, Content = document.PlainTextContent } };
+
+        var fontSize = settings.FontSize > 0 ? settings.FontSize : 10;
+        var fontFamily = string.IsNullOrWhiteSpace(settings.FontFamily) ? "Courier" : settings.FontFamily;
+        XFont font;
+        try
+        {
+            font = new XFont(fontFamily, fontSize, XFontStyle.Regular);
+        }
+        catch
+        {
+            font = new XFont("Courier", fontSize, XFontStyle.Regular);
+        }
+
+        var (pageWidth, pageHeight) = GetPageSizePoints(settings.Size, settings.Orientation);
+        var marginLeft = MmToPoints(settings.Margins.Left);
+        var marginRight = MmToPoints(settings.Margins.Right);
+        var marginTop = MmToPoints(settings.Margins.Top);
+        var marginBottom = MmToPoints(settings.Margins.Bottom);
+        var contentWidth = Math.Max(0, pageWidth - marginLeft - marginRight);
+
+        var pdf = new PdfDocument
+        {
+            Info =
+            {
+                Title = document.Title,
+                CreationDate = document.GeneratedAt
+            }
+        };
+
+        foreach (var page in pages)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            var pdfPage = pdf.AddPage();
+            pdfPage.Width = pageWidth;
+            pdfPage.Height = pageHeight;
+
+            using var gfx = XGraphics.FromPdfPage(pdfPage);
+            var lineHeight = font.GetHeight();
+
+            var headerText = settings.ShowHeader ? page.Header ?? document.Title : null;
+            var footerText = settings.ShowFooter ? page.Footer ?? string.Empty : null;
+            if (settings.ShowFooter && settings.ShowPageNumbers)
+            {
+                if (!string.IsNullOrWhiteSpace(footerText))
+                    footerText += " | ";
+                footerText += $"Page {page.PageNumber}";
+            }
+
+            var y = marginTop;
+            if (!string.IsNullOrWhiteSpace(headerText))
+            {
+                gfx.DrawString(headerText, font, XBrushes.Black,
+                    new XRect(marginLeft, y, contentWidth, lineHeight), XStringFormats.TopLeft);
+                y += lineHeight;
+            }
+
+            var contentBottom = pageHeight - marginBottom;
+            if (!string.IsNullOrWhiteSpace(footerText))
+                contentBottom -= lineHeight;
+
+            var lines = page.Content.Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace("\r", "\n", StringComparison.Ordinal)
+                .Split('\n');
+            foreach (var line in lines)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (y + lineHeight > contentBottom)
+                    break;
+                
+                gfx.DrawString(line, font, XBrushes.Black,
+                    new XRect(marginLeft, y, contentWidth, lineHeight), XStringFormats.TopLeft);
+                y += lineHeight;
+            }
+
+            if (!string.IsNullOrWhiteSpace(footerText))
+            {
+                var footerY = pageHeight - marginBottom - lineHeight;
+                gfx.DrawString(footerText, font, XBrushes.Black,
+                    new XRect(marginLeft, footerY, contentWidth, lineHeight), XStringFormats.TopLeft);
+            }
+        }
+
+        pdf.Save(outputPath);
+    }
+
+    private static (double Width, double Height) GetPageSizePoints(PageSize size, PageOrientation orientation)
+    {
+        var (widthMm, heightMm) = size switch
+        {
+            PageSize.A3 => (297.0, 420.0),
+            PageSize.A4 => (210.0, 297.0),
+            PageSize.Letter => (215.9, 279.4),
+            PageSize.Legal => (215.9, 355.6),
+            PageSize.Tabloid => (279.4, 431.8),
+            _ => (210.0, 297.0)
+        };
+
+        var width = MmToPoints(widthMm);
+        var height = MmToPoints(heightMm);
+        return orientation == PageOrientation.Landscape ? (height, width) : (width, height);
+    }
+
+    private static double MmToPoints(double millimeters)
+    {
+        return millimeters / 25.4 * 72.0;
     }
     
     private class TreeStats

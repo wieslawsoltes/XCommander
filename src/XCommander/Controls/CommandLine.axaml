@@ -15,7 +15,7 @@
                        VerticalAlignment="Center"
                        Margin="0,0,4,0"
                        Opacity="0.7"
-                       FontFamily="Consolas, Menlo, Monaco, monospace"/>
+                       FontFamily="{DynamicResource MonoFontFamily}"/>
             
             <!-- Prompt -->
             <TextBlock Grid.Column="0"
@@ -23,7 +23,7 @@
                        VerticalAlignment="Center"
                        Margin="4,0"
                        FontWeight="Bold"
-                       FontFamily="Consolas, Menlo, Monaco, monospace"/>
+                       FontFamily="{DynamicResource MonoFontFamily}"/>
             
             <!-- Input TextBox -->
             <TextBox x:Name="CommandInput"
@@ -31,7 +31,7 @@
                      Text="{Binding #Root.CommandText, Mode=TwoWay}"
                      BorderThickness="0"
                      Background="Transparent"
-                     FontFamily="Consolas, Menlo, Monaco, monospace"
+                     FontFamily="{DynamicResource MonoFontFamily}"
                      VerticalAlignment="Center"
                      KeyDown="OnKeyDown"
                      Watermark="Enter command..."/>

@@ -1,60 +1,54 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:XCommander.Controls"
              xmlns:vm="using:XCommander.ViewModels"
              x:Class="XCommander.Views.ArchiveDialog"
              x:DataType="vm:ArchiveViewModel"
              MinWidth="800"
              MinHeight="500">
-    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="10">
         <!-- Header -->
-        <Border Grid.Row="0" Background="{DynamicResource SystemAccentColor}" Padding="16">
+        <controls:TcBevelPanel Grid.Row="0" Padding="6,4">
             <Grid ColumnDefinitions="Auto,*">
-                <TextBlock Text="📦 " FontSize="18"/>
-                <TextBlock Grid.Column="1" Text="{Binding ArchiveName}" FontSize="18" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="Archive:" FontWeight="SemiBold" Margin="0,0,6,0"/>
+                <TextBlock Grid.Column="1" Text="{Binding ArchiveName}" FontWeight="Bold"/>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
 
         <!-- Toolbar -->
-        <Border Grid.Row="1" Background="{DynamicResource SystemRegionBrush}" Padding="8">
+        <controls:TcBevelPanel Grid.Row="1" Padding="6,4" Margin="0,6,0,0">
             <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
-                <!-- Path & Actions -->
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
-                    <Button Content="⬆️ Up" Command="{Binding NavigateToCommand}" 
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6">
+                    <Button Content="Up" Command="{Binding NavigateToCommand}"
                             CommandParameter="{Binding Entries[0]}"
                             IsEnabled="{Binding CurrentPath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                            ToolTip.Tip="Go to parent folder"/>
-                    <TextBlock Text="Path:" VerticalAlignment="Center" Margin="8,0,4,0"/>
-                    <TextBlock Text="{Binding CurrentPath}" VerticalAlignment="Center" 
-                               FontFamily="Consolas,Monaco,monospace"/>
+                            MinWidth="60"/>
+                    <TextBlock Text="Path:" VerticalAlignment="Center" Margin="6,0,4,0"/>
+                    <TextBlock Text="{Binding CurrentPath}" VerticalAlignment="Center"
+                               FontFamily="{DynamicResource MonoFontFamily}"/>
                 </StackPanel>
 
-                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                    <Button Content="📥 Add Files" Command="{Binding RequestAddFilesCommand}" 
-                            IsEnabled="{Binding !IsOperationInProgress}"
-                            ToolTip.Tip="Add files to archive (ZIP only)"/>
-                    <Button Content="🗑 Delete" Command="{Binding DeleteSelectedFromArchiveCommand}" 
-                            IsEnabled="{Binding !IsOperationInProgress}"
-                            ToolTip.Tip="Delete selected entries from archive"/>
-                    <Separator Width="1" Background="Gray" Margin="4,2"/>
-                    <Button Content="Extract All" Click="ExtractAll_Click" 
-                            IsEnabled="{Binding !IsOperationInProgress}"
-                            ToolTip.Tip="Extract all files to a folder"/>
-                    <Button Content="Extract Selected" Click="ExtractSelected_Click" 
-                            IsEnabled="{Binding !IsOperationInProgress}"
-                            ToolTip.Tip="Extract selected files"/>
-                    <Button Content="Test" Command="{Binding TestArchiveCommand}" 
-                            IsEnabled="{Binding !IsOperationInProgress}"
-                            ToolTip.Tip="Test archive integrity"/>
-                    <Button Content="Cancel" Command="{Binding CancelCommand}" 
+                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                    <Button Content="Add Files" Command="{Binding RequestAddFilesCommand}"
+                            IsEnabled="{Binding !IsOperationInProgress}"/>
+                    <Button Content="Delete" Command="{Binding DeleteSelectedFromArchiveCommand}"
+                            IsEnabled="{Binding !IsOperationInProgress}"/>
+                    <TextBlock Text="|" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="4,0"/>
+                    <Button Content="Extract All" Click="ExtractAll_Click"
+                            IsEnabled="{Binding !IsOperationInProgress}"/>
+                    <Button Content="Extract Selected" Click="ExtractSelected_Click"
+                            IsEnabled="{Binding !IsOperationInProgress}"/>
+                    <Button Content="Test" Command="{Binding TestArchiveCommand}"
+                            IsEnabled="{Binding !IsOperationInProgress}"/>
+                    <Button Content="Cancel" Command="{Binding CancelCommand}"
                             IsEnabled="{Binding IsOperationInProgress}"/>
                 </StackPanel>
 
-                <!-- Selection -->
-                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" 
-                            Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-                    <Button Content="Select All" Command="{Binding SelectAllCommand}" Padding="8,4"/>
-                    <Button Content="Select None" Command="{Binding SelectNoneCommand}" Padding="8,4"/>
-                    <Separator Width="1" Background="Gray" Margin="8,0"/>
+                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                            Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
+                    <Button Content="Select All" Command="{Binding SelectAllCommand}" Width="80"/>
+                    <Button Content="Select None" Command="{Binding SelectNoneCommand}" Width="90"/>
+                    <TextBlock Text="|" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="6,0"/>
                     <TextBlock VerticalAlignment="Center">
                         <Run Text="Files: "/>
                         <Run Text="{Binding FileCount}" FontWeight="Bold"/>
@@ -70,42 +64,44 @@
                     </TextBlock>
                 </StackPanel>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
 
         <!-- File List -->
-        <DataGrid Grid.Row="2" ItemsSource="{Binding Entries}" 
-                  AutoGenerateColumns="False"
-                  CanUserReorderColumns="True"
-                  CanUserResizeColumns="True"
-                  CanUserSortColumns="True"
-                  SelectionMode="Extended"
-                  IsReadOnly="True"
-                  GridLinesVisibility="Horizontal"
-                  Margin="8"
-                  DoubleTapped="DataGrid_DoubleTapped">
-            <DataGrid.Columns>
-                <DataGridCheckBoxColumn Header="" Binding="{Binding IsSelected}" Width="30"/>
-                <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="30"/>
-                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
-                <DataGridTextColumn Header="Size" Binding="{Binding SizeDisplay}" Width="100"/>
-                <DataGridTextColumn Header="Packed" Binding="{Binding CompressedSizeDisplay}" Width="100"/>
-                <DataGridTextColumn Header="Ratio" Binding="{Binding RatioDisplay}" Width="60"/>
-                <DataGridTextColumn Header="Date" Binding="{Binding DateDisplay}" Width="130"/>
-            </DataGrid.Columns>
-        </DataGrid>
+        <controls:TcInsetPanel Grid.Row="2" Padding="0" Margin="0,6,0,0">
+            <DataGrid ItemsSource="{Binding Entries}"
+                      ColumnDefinitionsSource="{Binding ColumnDefinitions}"
+                      FilteringModel="{Binding FilteringModel}"
+                      SortingModel="{Binding SortingModel}"
+                      SearchModel="{Binding SearchModel}"
+                      AutoGenerateColumns="False"
+                      CanUserReorderColumns="True"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      SelectionMode="Extended"
+                      IsReadOnly="True"
+                      GridLinesVisibility="Horizontal"
+                      BorderThickness="0"
+                      Margin="0"
+                      DoubleTapped="DataGrid_DoubleTapped">
+                <DataGrid.FastPathOptions>
+                    <DataGridFastPathOptions UseAccessorsOnly="True"
+                                             ThrowOnMissingAccessor="True" />
+                </DataGrid.FastPathOptions>
+            </DataGrid>
+        </controls:TcInsetPanel>
 
         <!-- Progress -->
-        <Border Grid.Row="3" Background="{DynamicResource SystemRegionBrush}" Padding="8" 
-                IsVisible="{Binding IsOperationInProgress}">
+        <controls:TcBevelPanel Grid.Row="3" Padding="6,4" Margin="0,6,0,0"
+                               IsVisible="{Binding IsOperationInProgress}">
             <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="4"/>
-        </Border>
+        </controls:TcBevelPanel>
 
         <!-- Status Bar -->
-        <Border Grid.Row="4" Background="{DynamicResource SystemRegionBrush}" Padding="8">
+        <controls:TcBevelPanel Grid.Row="4" Padding="6,4" Margin="0,6,0,0">
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="{Binding Status}" VerticalAlignment="Center"/>
                 <Button Grid.Column="1" Content="Close" Click="Close_Click" Width="80"/>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
     </Grid>
 </UserControl>

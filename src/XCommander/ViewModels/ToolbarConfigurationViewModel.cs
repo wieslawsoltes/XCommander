@@ -1,4 +1,8 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using XCommander.Models;
@@ -71,6 +75,11 @@ public partial class ToolbarConfigurationViewModel : ViewModelBase
     
     [ObservableProperty]
     private int _selectedSizeIndex;
+
+    public ObservableCollection<DataGridColumnDefinition> ButtonColumnDefinitions { get; }
+    public FilteringModel ButtonFilteringModel { get; }
+    public SortingModel ButtonSortingModel { get; }
+    public SearchModel ButtonSearchModel { get; }
     
     public string[] AvailableSizes { get; } = ["Small", "Medium", "Large"];
     
@@ -84,10 +93,15 @@ public partial class ToolbarConfigurationViewModel : ViewModelBase
         "CopySelected",
         "MoveSelected",
         "DeleteSelected",
+        "RenameSelected",
+        "ViewSelected",
+        "EditSelected",
         "CreateNewFolder",
         "CreateNewFile",
         "Search",
         "NewTab",
+        "CloseTab",
+        "SwitchPanel",
         "ToggleBookmarks",
         "AddBookmark",
         "ToggleQuickView",
@@ -123,7 +137,49 @@ public partial class ToolbarConfigurationViewModel : ViewModelBase
     public ToolbarConfigurationViewModel()
     {
         _configuration = ToolbarConfiguration.Load();
+        ButtonFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        ButtonSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        ButtonSearchModel = new SearchModel();
+        ButtonColumnDefinitions = BuildButtonColumnDefinitions();
         LoadFromConfiguration();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildButtonColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<ToolbarButtonViewModel>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Button",
+                cellTemplateKey: "ToolbarButtonTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "button";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<ToolbarButtonViewModel, string>(
+                        item => item.Label);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<ToolbarButtonViewModel, string>(
+                            item => item.Label),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not ToolbarButtonViewModel button)
+                                return string.Empty;
+                            return $"{button.Label} {button.CommandName}";
+                        }
+                    };
+                })
+        };
     }
     
     private void LoadFromConfiguration()

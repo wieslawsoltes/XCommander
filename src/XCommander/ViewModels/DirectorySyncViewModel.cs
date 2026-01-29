@@ -4,8 +4,14 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Data.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using XCommander.Helpers;
 using XCommander.Services;
 
 namespace XCommander.ViewModels;
@@ -63,12 +69,174 @@ public partial class DirectorySyncViewModel : ViewModelBase
     public ObservableCollection<SyncItemViewModel> SyncItems { get; } = new();
     public ObservableCollection<SyncItemViewModel> SelectedItems { get; } = new();
 
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
+
     public string TotalBytesDisplay => FormatSize(TotalBytesToTransfer);
     public bool CanSync => SyncItems.Any(i => i.IsSelected && i.Action != SyncAction.None);
 
     public DirectorySyncViewModel(IFileSystemService fileSystemService)
     {
         _fileSystemService = fileSystemService;
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<SyncItemViewModel>();
+
+        IPropertyInfo leftSizeProperty = DataGridColumnHelper.CreateProperty(
+            nameof(SyncItemViewModel.LeftSizeDisplay),
+            (SyncItemViewModel item) => item.LeftSizeDisplay);
+        IPropertyInfo rightSizeProperty = DataGridColumnHelper.CreateProperty(
+            nameof(SyncItemViewModel.RightSizeDisplay),
+            (SyncItemViewModel item) => item.RightSizeDisplay);
+        IPropertyInfo leftModifiedProperty = DataGridColumnHelper.CreateProperty(
+            nameof(SyncItemViewModel.LeftModifiedDisplay),
+            (SyncItemViewModel item) => item.LeftModifiedDisplay);
+        IPropertyInfo rightModifiedProperty = DataGridColumnHelper.CreateProperty(
+            nameof(SyncItemViewModel.RightModifiedDisplay),
+            (SyncItemViewModel item) => item.RightModifiedDisplay);
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: string.Empty,
+                cellTemplateKey: "SyncItemSelectTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "select";
+                    column.Width = new DataGridLength(32);
+                    column.IsReadOnly = true;
+                    column.CanUserSort = false;
+                    column.ShowFilterButton = false;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<SyncItemViewModel, bool>(
+                        item => item.IsSelected);
+                    column.ValueType = typeof(bool);
+                }),
+            builder.Template(
+                header: "Name",
+                cellTemplateKey: "SyncItemNameTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "name";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<SyncItemViewModel, string>(
+                        item => item.RelativePath);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<SyncItemViewModel, string>(
+                            item => item.RelativePath),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not SyncItemViewModel syncItem)
+                                return string.Empty;
+                            return $"{syncItem.RelativePath} {syncItem.Status}";
+                        }
+                    };
+                }),
+            builder.Text(
+                header: "Left Size",
+                property: leftSizeProperty,
+                getter: item => item.LeftSizeDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = "left-size";
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<SyncItemViewModel, long>(
+                            item => item.LeftSize)
+                    };
+                }),
+            builder.Text(
+                header: "Right Size",
+                property: rightSizeProperty,
+                getter: item => item.RightSizeDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = "right-size";
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<SyncItemViewModel, long>(
+                            item => item.RightSize)
+                    };
+                }),
+            builder.Text(
+                header: "Left Modified",
+                property: leftModifiedProperty,
+                getter: item => item.LeftModifiedDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = "left-modified";
+                    column.Width = new DataGridLength(140);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<SyncItemViewModel, DateTime>(
+                            item => item.LeftModified)
+                    };
+                }),
+            builder.Text(
+                header: "Right Modified",
+                property: rightModifiedProperty,
+                getter: item => item.RightModifiedDisplay,
+                configure: column =>
+                {
+                    column.ColumnKey = "right-modified";
+                    column.Width = new DataGridLength(140);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<SyncItemViewModel, DateTime>(
+                            item => item.RightModified)
+                    };
+                }),
+            builder.Template(
+                header: "Action",
+                cellTemplateKey: "SyncItemActionTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "action";
+                    column.Width = new DataGridLength(80);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<SyncItemViewModel, string>(
+                        item => item.ActionDisplay);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<SyncItemViewModel, SyncAction>(
+                            item => item.Action),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not SyncItemViewModel syncItem)
+                                return string.Empty;
+                            return syncItem.ActionDisplay;
+                        }
+                    };
+                })
+        };
     }
 
     public void Initialize(string leftPath, string rightPath)

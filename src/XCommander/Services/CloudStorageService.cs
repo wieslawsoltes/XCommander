@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -19,6 +20,10 @@ namespace XCommander.Services;
 /// </summary>
 public class CloudStorageService : ICloudStorageService, IDisposable
 {
+    private const string SettingsRootKey = "RootPath";
+    private const string SettingsRootAltKey = "LocalRoot";
+    private const string SettingsRootLegacyKey = "Root";
+
     private readonly HttpClient _httpClient;
     private readonly List<CloudProvider> _providers;
     private readonly List<CloudAccount> _accounts;
@@ -365,24 +370,9 @@ public class CloudStorageService : ICloudStorageService, IDisposable
         
         try
         {
-            // OAuth authentication would go here based on provider
-            // For now, this is a placeholder implementation
-            switch (account.Provider)
-            {
-                case CloudProviderType.OneDrive:
-                case CloudProviderType.OneDriveBusiness:
-                    // Would use Microsoft Identity for OAuth
-                    break;
-                case CloudProviderType.GoogleDrive:
-                    // Would use Google OAuth
-                    break;
-                case CloudProviderType.Dropbox:
-                    // Would use Dropbox OAuth
-                    break;
-                default:
-                    // Non-OAuth providers would use stored credentials
-                    break;
-            }
+            // Basic implementation uses a local root folder per account.
+            // Providers can store a custom root in account.Settings["RootPath"].
+            _ = GetAccountRootPath(account);
             
             // Simulate successful authentication
             account.Status = CloudAccountStatus.Connected;
@@ -440,77 +430,97 @@ public class CloudStorageService : ICloudStorageService, IDisposable
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
-        {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
-        }
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var fullPath = ResolveCloudPath(root, path);
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
+        return await Task.Run<IReadOnlyList<CloudItem>>(() =>
         {
-            return Array.Empty<CloudItem>();
-        }
-        
-        // Implementation would vary by provider
-        // This is a placeholder that returns empty
-        return await Task.FromResult<IReadOnlyList<CloudItem>>(Array.Empty<CloudItem>());
+            var items = new List<CloudItem>();
+            
+            if (Directory.Exists(fullPath))
+            {
+                var dirInfo = new DirectoryInfo(fullPath);
+                foreach (var dir in dirInfo.EnumerateDirectories())
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    items.Add(CreateCloudItem(dir, root));
+                }
+                
+                foreach (var file in dirInfo.EnumerateFiles())
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    items.Add(CreateCloudItem(file, root));
+                }
+            }
+            else if (File.Exists(fullPath))
+            {
+                items.Add(CreateCloudItem(new FileInfo(fullPath), root));
+            }
+            
+            return items;
+        }, cancellationToken);
     }
     
     public async Task<CloudItem?> GetItemAsync(string accountId, string path, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
-        {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
-        }
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var fullPath = ResolveCloudPath(root, path);
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
+        return await Task.Run<CloudItem?>(() =>
         {
+            if (Directory.Exists(fullPath))
+            {
+                return CreateCloudItem(new DirectoryInfo(fullPath), root);
+            }
+            
+            if (File.Exists(fullPath))
+            {
+                return CreateCloudItem(new FileInfo(fullPath), root);
+            }
+            
             return null;
-        }
-        
-        // Implementation would vary by provider
-        return await Task.FromResult<CloudItem?>(null);
+        }, cancellationToken);
     }
     
     public async Task<Stream> DownloadAsync(string accountId, string path, IProgress<CloudTransferProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var fullPath = ResolveCloudPath(root, path);
+        
+        if (!File.Exists(fullPath))
         {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
+            throw new FileNotFoundException("Cloud file not found.", path);
         }
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
+        if (progress == null)
         {
-            throw new InvalidOperationException("Account not connected");
+            return new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
         
-        // Implementation would vary by provider
-        // This is a placeholder
-        var transferProgress = new CloudTransferProgress
-        {
-            AccountId = accountId,
-            FileName = Path.GetFileName(path),
-            CloudPath = path,
-            Direction = CloudTransferDirection.Download,
-            Status = CloudTransferStatus.InProgress
-        };
-        
-        progress?.Report(transferProgress);
-        TransferProgress?.Invoke(this, transferProgress);
-        
-        // Return empty stream as placeholder
-        return new MemoryStream();
+        await using var source = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var memory = new MemoryStream();
+        await CopyWithProgressAsync(accountId, path, source, memory, CloudTransferDirection.Download, progress, cancellationToken);
+        memory.Position = 0;
+        return memory;
     }
     
     public async Task DownloadToFileAsync(string accountId, string cloudPath, string localPath, IProgress<CloudTransferProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        using var stream = await DownloadAsync(accountId, cloudPath, progress, cancellationToken);
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var fullPath = ResolveCloudPath(root, cloudPath);
+        
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException("Cloud file not found.", cloudPath);
+        }
         
         var directory = Path.GetDirectoryName(localPath);
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -518,55 +528,35 @@ public class CloudStorageService : ICloudStorageService, IDisposable
             Directory.CreateDirectory(directory);
         }
         
-        using var fileStream = File.Create(localPath);
-        await stream.CopyToAsync(fileStream, cancellationToken);
+        await using var source = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await using var destination = new FileStream(localPath, FileMode.Create, FileAccess.Write, FileShare.None);
+        await CopyWithProgressAsync(accountId, cloudPath, source, destination, CloudTransferDirection.Download, progress, cancellationToken);
     }
     
     public async Task<CloudItem> UploadAsync(string accountId, string cloudPath, Stream content, IProgress<CloudTransferProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var fullPath = ResolveCloudPath(root, cloudPath);
+        
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
         {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
+            Directory.CreateDirectory(directory);
         }
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
-        {
-            throw new InvalidOperationException("Account not connected");
-        }
+        await using var destination = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+        await CopyWithProgressAsync(accountId, cloudPath, content, destination, CloudTransferDirection.Upload, progress, cancellationToken);
         
-        // Implementation would vary by provider
-        var transferProgress = new CloudTransferProgress
-        {
-            AccountId = accountId,
-            FileName = Path.GetFileName(cloudPath),
-            CloudPath = cloudPath,
-            Direction = CloudTransferDirection.Upload,
-            TotalBytes = content.Length,
-            Status = CloudTransferStatus.InProgress
-        };
-        
-        progress?.Report(transferProgress);
-        TransferProgress?.Invoke(this, transferProgress);
-        
-        // Return placeholder item
-        return new CloudItem
-        {
-            Id = Guid.NewGuid().ToString(),
-            Name = Path.GetFileName(cloudPath),
-            Path = cloudPath,
-            IsFolder = false,
-            Size = content.Length,
-            CreatedAt = DateTime.Now,
-            ModifiedAt = DateTime.Now
-        };
+        var fileInfo = new FileInfo(fullPath);
+        return CreateCloudItem(fileInfo, root);
     }
     
     public async Task<CloudItem> UploadFromFileAsync(string accountId, string cloudPath, string localPath, IProgress<CloudTransferProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        using var fileStream = File.OpenRead(localPath);
+        await using var fileStream = File.OpenRead(localPath);
         return await UploadAsync(accountId, cloudPath, fileStream, progress, cancellationToken);
     }
     
@@ -574,232 +564,569 @@ public class CloudStorageService : ICloudStorageService, IDisposable
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
-        {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
-        }
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var fullPath = ResolveCloudPath(root, path);
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
-        {
-            throw new InvalidOperationException("Account not connected");
-        }
-        
-        // Implementation would vary by provider
-        return new CloudItem
-        {
-            Id = Guid.NewGuid().ToString(),
-            Name = Path.GetFileName(path),
-            Path = path,
-            IsFolder = true,
-            CreatedAt = DateTime.Now,
-            ModifiedAt = DateTime.Now
-        };
+        Directory.CreateDirectory(fullPath);
+        return CreateCloudItem(new DirectoryInfo(fullPath), root);
     }
     
     public async Task DeleteAsync(string accountId, string path, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
-        {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
-        }
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var fullPath = ResolveCloudPath(root, path);
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
+        await Task.Run(() =>
         {
-            throw new InvalidOperationException("Account not connected");
-        }
-        
-        // Implementation would vary by provider
-        await Task.CompletedTask;
+            if (Directory.Exists(fullPath))
+            {
+                Directory.Delete(fullPath, true);
+                return;
+            }
+            
+            if (File.Exists(fullPath))
+            {
+                File.Delete(fullPath);
+            }
+        }, cancellationToken);
     }
     
     public async Task<CloudItem> MoveAsync(string accountId, string sourcePath, string destinationPath, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
-        {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
-        }
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var sourceFull = ResolveCloudPath(root, sourcePath);
+        var destinationFull = ResolveCloudPath(root, destinationPath);
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
+        var movedIsDirectory = false;
+        await Task.Run(() =>
         {
-            throw new InvalidOperationException("Account not connected");
-        }
+            if (Directory.Exists(destinationFull))
+            {
+                Directory.Delete(destinationFull, true);
+            }
+            else if (File.Exists(destinationFull))
+            {
+                File.Delete(destinationFull);
+            }
+            
+            if (Directory.Exists(sourceFull))
+            {
+                movedIsDirectory = true;
+                Directory.Move(sourceFull, destinationFull);
+                return;
+            }
+            
+            File.Move(sourceFull, destinationFull);
+        }, cancellationToken);
         
-        // Implementation would vary by provider
-        return new CloudItem
-        {
-            Id = Guid.NewGuid().ToString(),
-            Name = Path.GetFileName(destinationPath),
-            Path = destinationPath,
-            ModifiedAt = DateTime.Now
-        };
+        return movedIsDirectory
+            ? CreateCloudItem(new DirectoryInfo(destinationFull), root)
+            : CreateCloudItem(new FileInfo(destinationFull), root);
     }
     
     public async Task<CloudItem> CopyAsync(string accountId, string sourcePath, string destinationPath, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
-        {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
-        }
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var sourceFull = ResolveCloudPath(root, sourcePath);
+        var destinationFull = ResolveCloudPath(root, destinationPath);
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
+        var copyIsDirectory = false;
+        await Task.Run(() =>
         {
-            throw new InvalidOperationException("Account not connected");
-        }
-        
-        // Implementation would vary by provider
-        return new CloudItem
-        {
-            Id = Guid.NewGuid().ToString(),
-            Name = Path.GetFileName(destinationPath),
-            Path = destinationPath,
-            CreatedAt = DateTime.Now,
-            ModifiedAt = DateTime.Now
-        };
+            if (Directory.Exists(sourceFull))
+            {
+                copyIsDirectory = true;
+                CopyDirectory(sourceFull, destinationFull);
+                return;
+            }
+            
+            var destinationDir = Path.GetDirectoryName(destinationFull);
+            if (!string.IsNullOrEmpty(destinationDir) && !Directory.Exists(destinationDir))
+            {
+                Directory.CreateDirectory(destinationDir);
+            }
+            File.Copy(sourceFull, destinationFull, true);
+        }, cancellationToken);
+
+        return copyIsDirectory
+            ? CreateCloudItem(new DirectoryInfo(destinationFull), root)
+            : CreateCloudItem(new FileInfo(destinationFull), root);
     }
     
     public async Task<string?> GetShareLinkAsync(string accountId, string path, ShareLinkOptions? options = null, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var fullPath = ResolveCloudPath(root, path);
+        
+        if (Directory.Exists(fullPath) || File.Exists(fullPath))
         {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
+            return new Uri(fullPath).AbsoluteUri;
         }
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
-        {
-            return null;
-        }
-        
-        var provider = _providers.FirstOrDefault(p => p.Type == account.Provider);
-        if (provider?.SupportsSharing != true)
-        {
-            return null;
-        }
-        
-        // Implementation would vary by provider
-        return await Task.FromResult<string?>(null);
+        return null;
     }
     
     public async Task<IReadOnlyList<CloudItem>> SearchAsync(string accountId, string query, string? folderPath = null, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
-        {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
-        }
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var basePath = ResolveCloudPath(root, folderPath ?? string.Empty);
+        var comparison = GetPathComparison();
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
+        return await Task.Run<IReadOnlyList<CloudItem>>(() =>
         {
-            return Array.Empty<CloudItem>();
-        }
-        
-        var provider = _providers.FirstOrDefault(p => p.Type == account.Provider);
-        if (provider?.SupportsSearch != true)
-        {
-            return Array.Empty<CloudItem>();
-        }
-        
-        // Implementation would vary by provider
-        return await Task.FromResult<IReadOnlyList<CloudItem>>(Array.Empty<CloudItem>());
+            if (!Directory.Exists(basePath))
+            {
+                return Array.Empty<CloudItem>();
+            }
+            
+            var results = new List<CloudItem>();
+            foreach (var entry in Directory.EnumerateFileSystemEntries(basePath, "*", SearchOption.AllDirectories))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var name = Path.GetFileName(entry);
+                if (name.Contains(query, comparison))
+                {
+                    var info = Directory.Exists(entry)
+                        ? (FileSystemInfo)new DirectoryInfo(entry)
+                        : new FileInfo(entry);
+                    results.Add(CreateCloudItem(info, root));
+                }
+            }
+            
+            return results;
+        }, cancellationToken);
     }
     
     public async Task<CloudQuota> GetQuotaAsync(string accountId, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
-        {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
-        }
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
+        return await Task.Run(() =>
         {
-            return new CloudQuota { UsedBytes = 0, TotalBytes = 0 };
-        }
-        
-        // Implementation would vary by provider
-        return await Task.FromResult(new CloudQuota
-        {
-            UsedBytes = 0,
-            TotalBytes = 0
-        });
+            var used = CalculateDirectorySize(root);
+            var drive = new DriveInfo(Path.GetPathRoot(root)!);
+            return new CloudQuota
+            {
+                UsedBytes = used,
+                TotalBytes = drive.TotalSize
+            };
+        }, cancellationToken);
     }
     
     public async Task SynchronizeAsync(string accountId, string localPath, string cloudPath, SyncDirection direction, IProgress<CloudTransferProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var cloudRoot = ResolveCloudPath(root, cloudPath);
+        
+        await Task.Run(async () =>
         {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
-        }
-        
-        if (account == null || account.Status != CloudAccountStatus.Connected)
-        {
-            throw new InvalidOperationException("Account not connected");
-        }
-        
-        // Implementation would:
-        // 1. Compare local and cloud files
-        // 2. Determine which files need syncing based on direction
-        // 3. Upload/download files as needed
-        // 4. Report progress
-        
-        await Task.CompletedTask;
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            switch (direction)
+            {
+                case SyncDirection.Upload:
+                    await SyncCopyDirectoryAsync(accountId, localPath, cloudRoot, CloudTransferDirection.Upload, progress, cancellationToken);
+                    break;
+                case SyncDirection.Download:
+                    await SyncCopyDirectoryAsync(accountId, cloudRoot, localPath, CloudTransferDirection.Download, progress, cancellationToken);
+                    break;
+                case SyncDirection.Bidirectional:
+                    await SyncBidirectionalAsync(accountId, localPath, cloudRoot, progress, cancellationToken);
+                    break;
+            }
+        }, cancellationToken);
     }
     
     public async Task<IReadOnlyList<CloudItem>> GetRecentAsync(string accountId, int count = 50, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
-        CloudAccount? account;
-        lock (_lock)
-        {
-            account = _accounts.FirstOrDefault(a => a.Id == accountId);
-        }
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
+        return await Task.Run<IReadOnlyList<CloudItem>>(() =>
         {
-            return Array.Empty<CloudItem>();
-        }
-        
-        // Implementation would vary by provider
-        return await Task.FromResult<IReadOnlyList<CloudItem>>(Array.Empty<CloudItem>());
+            if (!Directory.Exists(root))
+            {
+                return Array.Empty<CloudItem>();
+            }
+            
+            var files = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(info => info.LastWriteTimeUtc)
+                .Take(count)
+                .Select(info => CreateCloudItem(info, root))
+                .ToList();
+            
+            return files;
+        }, cancellationToken);
     }
     
     public async Task<IReadOnlyList<CloudItem>> GetSharedWithMeAsync(string accountId, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken);
         
+        var account = GetConnectedAccount(accountId);
+        var root = GetAccountRootPath(account);
+        var sharedPath = Path.Combine(root, "Shared");
+        
+        if (!Directory.Exists(sharedPath))
+        {
+            return Array.Empty<CloudItem>();
+        }
+        
+        return await Task.Run<IReadOnlyList<CloudItem>>(() =>
+        {
+            var items = new List<CloudItem>();
+            var dir = new DirectoryInfo(sharedPath);
+            foreach (var entry in dir.EnumerateFileSystemInfos())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var item = CreateCloudItem(entry, root);
+                items.Add(new CloudItem
+                {
+                    Id = item.Id,
+                    Name = item.Name,
+                    Path = item.Path,
+                    ParentId = item.ParentId,
+                    ParentPath = item.ParentPath,
+                    IsFolder = item.IsFolder,
+                    Size = item.Size,
+                    CreatedAt = item.CreatedAt,
+                    ModifiedAt = item.ModifiedAt,
+                    MimeType = item.MimeType,
+                    DownloadUrl = item.DownloadUrl,
+                    ThumbnailUrl = item.ThumbnailUrl,
+                    IsShared = true,
+                    IsTrashed = item.IsTrashed,
+                    Checksum = item.Checksum,
+                    Metadata = item.Metadata
+                });
+            }
+            
+            return items;
+        }, cancellationToken);
+    }
+
+    private CloudAccount GetConnectedAccount(string accountId)
+    {
         CloudAccount? account;
         lock (_lock)
         {
             account = _accounts.FirstOrDefault(a => a.Id == accountId);
         }
         
-        if (account == null || account.Status != CloudAccountStatus.Connected)
+        if (account == null)
         {
-            return Array.Empty<CloudItem>();
+            throw new InvalidOperationException("Account not found");
         }
         
-        // Implementation would vary by provider
-        return await Task.FromResult<IReadOnlyList<CloudItem>>(Array.Empty<CloudItem>());
+        if (account.Status != CloudAccountStatus.Connected)
+        {
+            throw new InvalidOperationException("Account not connected");
+        }
+        
+        return account;
+    }
+
+    private static StringComparison GetPathComparison()
+    {
+        return OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    }
+
+    private string GetAccountRootPath(CloudAccount account)
+    {
+        var root = GetSetting(account, SettingsRootKey)
+                   ?? GetSetting(account, SettingsRootAltKey)
+                   ?? GetSetting(account, SettingsRootLegacyKey);
+
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            root = Path.Combine(appData, "XCommander", "Cloud", account.Id);
+        }
+
+        Directory.CreateDirectory(root);
+        return root;
+    }
+
+    private static string? GetSetting(CloudAccount account, string key)
+    {
+        return account.Settings.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value
+            : null;
+    }
+
+    private static string ResolveCloudPath(string root, string? path)
+    {
+        var relative = (path ?? string.Empty).Trim();
+        relative = relative.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (string.IsNullOrEmpty(relative))
+        {
+            return root;
+        }
+
+        var combined = Path.GetFullPath(Path.Combine(root, relative));
+        var rootFull = Path.GetFullPath(root);
+        var comparison = GetPathComparison();
+        
+        if (!combined.StartsWith(rootFull, comparison))
+        {
+            throw new InvalidOperationException("Invalid cloud path.");
+        }
+        
+        return combined;
+    }
+
+    private static CloudItem CreateCloudItem(FileSystemInfo info, string root)
+    {
+        var path = GetRelativePath(root, info.FullName);
+        return new CloudItem
+        {
+            Id = info.FullName,
+            Name = info.Name,
+            Path = path,
+            ParentPath = GetRelativePath(root, Path.GetDirectoryName(info.FullName) ?? root),
+            IsFolder = info is DirectoryInfo,
+            Size = info is FileInfo fileInfo ? fileInfo.Length : 0,
+            CreatedAt = info.CreationTime,
+            ModifiedAt = info.LastWriteTime,
+            Metadata = new Dictionary<string, object>
+            {
+                ["FullPath"] = info.FullName
+            }
+        };
+    }
+
+    private static string GetRelativePath(string root, string fullPath)
+    {
+        var relative = Path.GetRelativePath(root, fullPath);
+        if (relative == "." || relative == string.Empty)
+        {
+            return string.Empty;
+        }
+        return relative.Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    private async Task CopyWithProgressAsync(
+        string accountId,
+        string cloudPath,
+        Stream source,
+        Stream destination,
+        CloudTransferDirection direction,
+        IProgress<CloudTransferProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var totalBytes = source.CanSeek ? source.Length : 0;
+        var buffer = new byte[81920];
+        long transferred = 0;
+        var stopwatch = Stopwatch.StartNew();
+
+        ReportProgress(accountId, cloudPath, direction, 0, totalBytes, CloudTransferStatus.InProgress, null, progress, stopwatch);
+
+        int read;
+        while ((read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+        {
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            transferred += read;
+            ReportProgress(accountId, cloudPath, direction, transferred, totalBytes, CloudTransferStatus.InProgress, null, progress, stopwatch);
+        }
+
+        ReportProgress(accountId, cloudPath, direction, transferred, totalBytes, CloudTransferStatus.Completed, null, progress, stopwatch);
+    }
+
+    private void ReportProgress(
+        string accountId,
+        string cloudPath,
+        CloudTransferDirection direction,
+        long transferred,
+        long total,
+        CloudTransferStatus status,
+        string? error,
+        IProgress<CloudTransferProgress>? progress,
+        Stopwatch stopwatch)
+    {
+        var elapsed = stopwatch.Elapsed.TotalSeconds;
+        var bytesPerSecond = elapsed > 0 ? transferred / elapsed : 0;
+
+        var transferProgress = new CloudTransferProgress
+        {
+            AccountId = accountId,
+            FileName = Path.GetFileName(cloudPath),
+            CloudPath = cloudPath,
+            Direction = direction,
+            BytesTransferred = transferred,
+            TotalBytes = total,
+            BytesPerSecond = bytesPerSecond,
+            Status = status,
+            ErrorMessage = error
+        };
+
+        progress?.Report(transferProgress);
+        TransferProgress?.Invoke(this, transferProgress);
+    }
+
+    private static long CalculateDirectorySize(string path)
+    {
+        long total = 0;
+        foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        {
+            try
+            {
+                total += new FileInfo(file).Length;
+            }
+            catch
+            {
+                // Ignore unreadable files.
+            }
+        }
+        return total;
+    }
+
+    private static void CopyDirectory(string sourceDir, string destinationDir)
+    {
+        Directory.CreateDirectory(destinationDir);
+
+        foreach (var directory in Directory.GetDirectories(sourceDir))
+        {
+            var target = Path.Combine(destinationDir, Path.GetFileName(directory));
+            CopyDirectory(directory, target);
+        }
+
+        foreach (var file in Directory.GetFiles(sourceDir))
+        {
+            var target = Path.Combine(destinationDir, Path.GetFileName(file));
+            File.Copy(file, target, true);
+        }
+    }
+
+    private async Task SyncCopyDirectoryAsync(
+        string accountId,
+        string sourceDir,
+        string destinationDir,
+        CloudTransferDirection direction,
+        IProgress<CloudTransferProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(sourceDir))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(destinationDir);
+
+        foreach (var directory in Directory.GetDirectories(sourceDir))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var targetDir = Path.Combine(destinationDir, Path.GetFileName(directory));
+            await SyncCopyDirectoryAsync(accountId, directory, targetDir, direction, progress, cancellationToken);
+        }
+
+        foreach (var file in Directory.GetFiles(sourceDir))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var targetFile = Path.Combine(destinationDir, Path.GetFileName(file));
+            await using var sourceStream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+            await using var targetStream = new FileStream(targetFile, FileMode.Create, FileAccess.Write, FileShare.None);
+            await CopyWithProgressAsync(accountId, GetRelativePath(destinationDir, targetFile), sourceStream, targetStream, direction, progress, cancellationToken);
+        }
+    }
+
+    private async Task SyncBidirectionalAsync(
+        string accountId,
+        string localPath,
+        string cloudPath,
+        IProgress<CloudTransferProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(localPath))
+        {
+            Directory.CreateDirectory(localPath);
+        }
+
+        if (!Directory.Exists(cloudPath))
+        {
+            Directory.CreateDirectory(cloudPath);
+        }
+
+        var localFiles = Directory.EnumerateFiles(localPath, "*", SearchOption.AllDirectories)
+            .ToDictionary(path => Path.GetRelativePath(localPath, path), path => new FileInfo(path));
+        var cloudFiles = Directory.EnumerateFiles(cloudPath, "*", SearchOption.AllDirectories)
+            .ToDictionary(path => Path.GetRelativePath(cloudPath, path), path => new FileInfo(path));
+
+        var allKeys = new HashSet<string>(localFiles.Keys);
+        allKeys.UnionWith(cloudFiles.Keys);
+
+        foreach (var relative in allKeys)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            localFiles.TryGetValue(relative, out var localInfo);
+            cloudFiles.TryGetValue(relative, out var cloudInfo);
+
+            if (localInfo == null && cloudInfo != null)
+            {
+                var destination = Path.Combine(localPath, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                await using var sourceStream = new FileStream(cloudInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
+                await using var targetStream = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None);
+                await CopyWithProgressAsync(accountId, relative, sourceStream, targetStream, CloudTransferDirection.Download, progress, cancellationToken);
+                continue;
+            }
+
+            if (cloudInfo == null && localInfo != null)
+            {
+                var destination = Path.Combine(cloudPath, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                await using var sourceStream = new FileStream(localInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
+                await using var targetStream = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None);
+                await CopyWithProgressAsync(accountId, relative, sourceStream, targetStream, CloudTransferDirection.Upload, progress, cancellationToken);
+                continue;
+            }
+
+            if (localInfo == null || cloudInfo == null)
+            {
+                continue;
+            }
+
+            if (localInfo.LastWriteTimeUtc > cloudInfo.LastWriteTimeUtc)
+            {
+                var destination = Path.Combine(cloudPath, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                await using var sourceStream = new FileStream(localInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
+                await using var targetStream = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None);
+                await CopyWithProgressAsync(accountId, relative, sourceStream, targetStream, CloudTransferDirection.Upload, progress, cancellationToken);
+            }
+            else if (cloudInfo.LastWriteTimeUtc > localInfo.LastWriteTimeUtc)
+            {
+                var destination = Path.Combine(localPath, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                await using var sourceStream = new FileStream(cloudInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
+                await using var targetStream = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None);
+                await CopyWithProgressAsync(accountId, relative, sourceStream, targetStream, CloudTransferDirection.Download, progress, cancellationToken);
+            }
+        }
     }
     
     public void Dispose()

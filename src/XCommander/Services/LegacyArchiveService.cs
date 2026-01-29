@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using SharpCompress.Compressors.Xz;
 
 namespace XCommander.Services;
 
@@ -421,9 +422,10 @@ public class LegacyArchiveService : ILegacyArchiveService
         }
         else
         {
-            // Fallback: for .xz files we need proper LZMA SDK
-            // This is a placeholder - full implementation would use LZMA SDK
-            throw new NotSupportedException("XZ extraction requires the 'xz' command line tool or LZMA SDK");
+            await using var inputStream = File.OpenRead(archivePath);
+            await using var outputStream = File.Create(outputPath);
+            await using var xzStream = new XZStream(inputStream);
+            await xzStream.CopyToAsync(outputStream, cancellationToken);
         }
         
         progress?.Report(new LegacyArchiveProgress
@@ -456,9 +458,19 @@ public class LegacyArchiveService : ILegacyArchiveService
         
         // Use xz command line tool
         var level = options?.CompressionLevel ?? 6;
-        var result = await RunExternalToolAsync(XzFormat, $"-{level} --keep --stdout \"{inputFile}\" > \"{archivePath}\"", inputFile, cancellationToken);
-        if (result.ExitCode != 0)
-            throw new InvalidOperationException($"XZ compression failed: {result.Output}");
+        if (IsToolAvailable(XzFormat))
+        {
+            var result = await RunExternalToolAsync(XzFormat, $"-{level} --keep --stdout \"{inputFile}\" > \"{archivePath}\"", inputFile, cancellationToken);
+            if (result.ExitCode != 0)
+                throw new InvalidOperationException($"XZ compression failed: {result.Output}");
+        }
+        else
+        {
+            await using var inputStream = File.OpenRead(inputFile);
+            await using var outputStream = File.Create(archivePath);
+            await using var xzStream = new XZStream(outputStream);
+            await inputStream.CopyToAsync(xzStream, cancellationToken);
+        }
         
         progress?.Report(new LegacyArchiveProgress
         {

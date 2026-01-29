@@ -308,7 +308,7 @@ public class SessionStateService : ISessionStateService
         
         try
         {
-            var json = await File.ReadAllTextAsync(_stateFilePath);
+            var json = await File.ReadAllTextAsync(_stateFilePath).ConfigureAwait(false);
             var state = JsonSerializer.Deserialize<SessionState>(json, JsonOptions);
             
             lock (_lock)
@@ -351,7 +351,7 @@ public class SessionStateService : ISessionStateService
             Directory.CreateDirectory(directory);
         
         var json = JsonSerializer.Serialize(stateToSave, JsonOptions);
-        await File.WriteAllTextAsync(_stateFilePath, json);
+        await File.WriteAllTextAsync(_stateFilePath, json).ConfigureAwait(false);
     }
     
     public void SaveImmediate()
@@ -665,12 +665,12 @@ public class SessionStateService : ISessionStateService
             Directory.CreateDirectory(directory);
         
         var json = JsonSerializer.Serialize(stateToExport, JsonOptions);
-        await File.WriteAllTextAsync(filePath, json);
+        await File.WriteAllTextAsync(filePath, json).ConfigureAwait(false);
     }
     
     public async Task ImportAsync(string filePath)
     {
-        var json = await File.ReadAllTextAsync(filePath);
+        var json = await File.ReadAllTextAsync(filePath).ConfigureAwait(false);
         var importedState = JsonSerializer.Deserialize<SessionState>(json, JsonOptions);
         
         if (importedState == null)

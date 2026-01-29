@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using System.Collections.Generic;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 
@@ -25,9 +26,15 @@ public partial class QuickFilterBar : UserControl
     
     public static readonly StyledProperty<string?> SelectedPresetProperty =
         AvaloniaProperty.Register<QuickFilterBar, string?>(nameof(SelectedPreset));
-    
+
+    public static readonly StyledProperty<IEnumerable<string>?> PresetsProperty =
+        AvaloniaProperty.Register<QuickFilterBar, IEnumerable<string>?>(nameof(Presets));
+
     public static readonly StyledProperty<ICommand?> FilterChangedCommandProperty =
         AvaloniaProperty.Register<QuickFilterBar, ICommand?>(nameof(FilterChangedCommand));
+
+    public static readonly StyledProperty<ICommand?> FilterAppliedCommandProperty =
+        AvaloniaProperty.Register<QuickFilterBar, ICommand?>(nameof(FilterAppliedCommand));
     
     public string FilterText
     {
@@ -64,17 +71,28 @@ public partial class QuickFilterBar : UserControl
         get => GetValue(SelectedPresetProperty);
         set => SetValue(SelectedPresetProperty, value);
     }
+
+    public IEnumerable<string>? Presets
+    {
+        get => GetValue(PresetsProperty);
+        set => SetValue(PresetsProperty, value);
+    }
     
     public ICommand? FilterChangedCommand
     {
         get => GetValue(FilterChangedCommandProperty);
         set => SetValue(FilterChangedCommandProperty, value);
     }
+
+    public ICommand? FilterAppliedCommand
+    {
+        get => GetValue(FilterAppliedCommandProperty);
+        set => SetValue(FilterAppliedCommandProperty, value);
+    }
     
     public ICommand ClearFilterCommand { get; }
     public ICommand ApplyFilterCommand { get; }
     
-    public event EventHandler<string>? FilterChanged;
     public event EventHandler? FilterCleared;
     
     public QuickFilterBar()
@@ -89,26 +107,10 @@ public partial class QuickFilterBar : UserControl
     {
         base.OnPropertyChanged(change);
         
-        if (change.Property == FilterTextProperty)
-        {
-            OnFilterTextChanged();
-        }
-        else if (change.Property == CaseSensitiveProperty ||
-                 change.Property == UseRegexProperty ||
-                 change.Property == IncludeDirectoriesProperty)
-        {
-            ApplyFilter();
-        }
-        else if (change.Property == SelectedPresetProperty)
+        if (change.Property == SelectedPresetProperty)
         {
             OnPresetChanged(change.GetNewValue<string?>());
         }
-    }
-    
-    private void OnFilterTextChanged()
-    {
-        // Debounce: Apply filter after short delay
-        ApplyFilter();
     }
     
     private void OnPresetChanged(string? preset)
@@ -125,8 +127,7 @@ public partial class QuickFilterBar : UserControl
     
     private void ApplyFilter()
     {
-        FilterChanged?.Invoke(this, FilterText);
-        FilterChangedCommand?.Execute(FilterText);
+        FilterAppliedCommand?.Execute(FilterText);
     }
     
     private void ClearFilter()

@@ -22,6 +22,11 @@ public partial class App : Application
         
         // Core services
         services.AddSingleton<IFileSystemService, FileSystemService>();
+        services.AddSingleton<IAppSettingsService>(sp =>
+            new AppSettingsService(
+                sp.GetRequiredService<ITouchModeService>(),
+                sp.GetRequiredService<IAccessibilityService>()));
+        services.AddSingleton<IFileAssociationService, FileAssociationService>();
         services.AddSingleton<IFtpService, FtpService>();
         services.AddSingleton<ISftpService, SftpService>();
         services.AddSingleton<ITransferQueueService, TransferQueueService>();
@@ -50,12 +55,22 @@ public partial class App : Application
         // TC parity services - Tools
         services.AddSingleton<IPrintService, PrintService>();
         services.AddSingleton<IBatchJobService>(sp => 
-            new BatchJobService(sp.GetService<IFileSystemService>(), sp.GetService<IArchiveService>()));
+            new BatchJobService(
+                sp.GetService<IFileSystemService>(),
+                sp.GetService<IArchiveService>(),
+                sp.GetService<IEncodingService>(),
+                sp.GetService<ISplitMergeService>(),
+                sp.GetService<IFileChecksumService>(),
+                sp.GetService<IDuplicateFinderService>()));
         services.AddSingleton<IContentPluginService, ContentPluginService>();
         
         // TC parity services - UI
         services.AddSingleton<IButtonBarService, ButtonBarService>();
-        services.AddSingleton<IUserMenuService, UserMenuService>();
+        services.AddSingleton<IUserMenuService>(sp =>
+            new UserMenuService(
+                sp.GetService<IInternalCommandService>(),
+                sp.GetService<IFileChecksumService>(),
+                sp.GetService<INotificationService>()));
         services.AddSingleton<ICustomViewModesService, CustomViewModesService>();
         
         // TC parity services - Cloud & Network
@@ -68,6 +83,13 @@ public partial class App : Application
         services.AddSingleton<IAdvancedSearchService, AdvancedSearchService>();
         services.AddSingleton<IDirectoryHotlistService, DirectoryHotlistService>();
         services.AddSingleton<IAdvancedCopyService, AdvancedCopyService>();
+        services.AddSingleton<ITcConfigImportService>(sp =>
+            new TcConfigImportService(
+                sp.GetService<IBookmarkService>(),
+                sp.GetService<IDirectoryHotlistService>(),
+                sp.GetService<ICustomColumnService>(),
+                sp.GetService<IButtonBarService>(),
+                sp.GetService<IUserMenuService>()));
         
         // TC parity services - Legacy Archives
         services.AddSingleton<ILegacyArchiveService, LegacyArchiveService>();
@@ -79,7 +101,8 @@ public partial class App : Application
         services.AddSingleton<IAdvancedPreviewService, AdvancedPreviewService>();
         
         // TC parity services - Flat View
-        services.AddSingleton<IFlatViewService, FlatViewService>();
+        services.AddSingleton<IFlatViewService>(sp =>
+            new FlatViewService(sp.GetService<IArchiveService>()));
         
         // TC parity services - Enhanced UI/UX (Full Parity)
         services.AddSingleton<IOverwriteDialogService>(sp => 
@@ -92,6 +115,7 @@ public partial class App : Application
         services.AddSingleton<IOperationLogService, OperationLogService>();
         services.AddSingleton<IQuickFilterService, QuickFilterService>();
         services.AddSingleton<IAccessibilityService, AccessibilityService>();
+        services.AddSingleton<ISettingsNavigationService, SettingsNavigationService>();
         services.AddSingleton<IDragDropService>(sp => 
             new DragDropService(
                 sp.GetRequiredService<IFileSystemService>(),
@@ -110,10 +134,20 @@ public partial class App : Application
         
         // TC parity services - Background Transfer Queue
         services.AddSingleton<IBackgroundTransferService>(sp => 
-            new BackgroundTransferService(sp.GetRequiredService<ILongPathService>()));
+            new BackgroundTransferService(
+                sp.GetRequiredService<ILongPathService>(),
+                sp.GetService<IFileSystemService>(),
+                sp.GetService<ICloudStorageService>(),
+                sp.GetService<IDirectorySyncService>(),
+                sp.GetService<IArchiveService>()));
         
         // TC parity services - Custom Columns
-        services.AddSingleton<ICustomColumnService, CustomColumnService>();
+        services.AddSingleton<ICustomColumnService>(sp =>
+            new CustomColumnService(
+                sp.GetService<IContentPluginService>(),
+                sp.GetService<IPluginService>(),
+                sp.GetService<IDescriptionFileService>(),
+                sp.GetService<IFileChecksumService>()));
         
         // TC parity services - Plugin System (WCX, WDX, WFX, WLX)
         services.AddSingleton<IPluginService, PluginService>();
@@ -181,19 +215,37 @@ public partial class App : Application
         services.AddSingleton<ITouchModeService, TouchModeService>();
         
         // ViewModels
-        services.AddSingleton<MainWindowViewModel>(sp => 
+        services.AddSingleton<MainWindowViewModel>(sp =>
             new MainWindowViewModel(
                 sp.GetRequiredService<IFileSystemService>(),
+                sp.GetRequiredService<IAppSettingsService>(),
+                sp.GetService<IFileAssociationService>(),
+                sp.GetService<IBackgroundTransferService>(),
+                sp.GetService<IAdvancedSearchService>(),
+                sp.GetService<IArchiveService>(),
+                sp.GetService<ISessionStateService>(),
                 sp.GetService<IDescriptionFileService>(),
-                sp.GetService<ISelectionService>()));
+                sp.GetService<ISelectionService>(),
+                sp.GetService<IUserMenuService>(),
+                sp.GetService<ICustomViewModesService>()));
         
         var provider = services.BuildServiceProvider();
         
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            var settingsService = provider.GetRequiredService<IAppSettingsService>();
+            settingsService.Load();
+
             var mainVm = provider.GetRequiredService<MainWindowViewModel>();
+            var sessionStateService = provider.GetService<ISessionStateService>();
             var notificationService = provider.GetService<INotificationService>();
             var selectionHistoryService = provider.GetService<ISelectionHistoryService>();
+
+            if (sessionStateService != null && settingsService.Settings.RestoreSessionOnStartup)
+            {
+                var sessionState = sessionStateService.LoadAsync().GetAwaiter().GetResult();
+                mainVm.RestoreSession(sessionState);
+            }
             
             var mainWindow = new MainWindow
             {
@@ -204,7 +256,9 @@ public partial class App : Application
             mainWindow.InitializeServices(
                 notificationService,
                 selectionHistoryService,
-                provider.GetService<IDirectoryHotlistService>());
+                provider.GetService<IDirectoryHotlistService>(),
+                settingsService,
+                provider.GetService<ISettingsNavigationService>());
             
             desktop.MainWindow = mainWindow;
         }

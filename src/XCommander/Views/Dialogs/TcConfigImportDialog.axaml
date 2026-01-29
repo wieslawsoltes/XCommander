@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="using:XCommander.Controls"
         xmlns:vm="using:XCommander.ViewModels"
         mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="550"
         x:Class="XCommander.Views.Dialogs.TcConfigImportDialog"
@@ -12,15 +13,15 @@
         WindowStartupLocation="CenterOwner"
         CanResize="False">
     
-    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="20">
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="10">
         <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="Import Total Commander Settings" 
-                       FontSize="18" 
-                       FontWeight="SemiBold"/>
-            <TextBlock Text="{Binding StatusText}" 
-                       Opacity="0.7" 
-                       Margin="0,5,0,0"
+        <StackPanel Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock Text="Import Total Commander Settings"
+                       FontSize="14"
+                       FontWeight="Bold"/>
+            <TextBlock Text="{Binding StatusText}"
+                       Foreground="{DynamicResource TcMutedTextBrush}"
+                       Margin="0,2,0,0"
                        TextWrapping="Wrap"/>
         </StackPanel>
         
@@ -28,9 +29,7 @@
         <ScrollViewer Grid.Row="1">
             <StackPanel Spacing="15">
                 <!-- File Selection -->
-                <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                        CornerRadius="4"
-                        Padding="15">
+                <controls:TcBevelPanel Padding="6,4">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Step 1: Select wincmd.ini file" FontWeight="SemiBold"/>
                         <Grid ColumnDefinitions="*,Auto">
@@ -40,24 +39,22 @@
                             <Button Grid.Column="1" 
                                     Content="Browse..." 
                                     Click="OnBrowseClick"
-                                    Padding="15,6"
+                                    Padding="10,4"
                                     Margin="10,0,0,0"/>
                         </Grid>
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Button Content="Validate File" 
                                     Command="{Binding ValidateFileCommand}"
-                                    Padding="15,6"/>
+                                    Padding="10,4"/>
                             <TextBlock Text="{Binding ValidationStatus}" 
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                     </StackPanel>
-                </Border>
+                </controls:TcBevelPanel>
                 
                 <!-- Import Options -->
-                <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                        CornerRadius="4"
-                        Padding="15"
-                        IsEnabled="{Binding IsValidated}">
+                <controls:TcBevelPanel Padding="6,4"
+                                       IsEnabled="{Binding IsValidated}">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Step 2: Select settings to import" FontWeight="SemiBold"/>
                         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
@@ -87,13 +84,11 @@
                                       IsEnabled="{Binding HasUserMenu}"/>
                         </Grid>
                     </StackPanel>
-                </Border>
+                </controls:TcBevelPanel>
                 
                 <!-- Import Results -->
-                <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                        CornerRadius="4"
-                        Padding="15"
-                        IsVisible="{Binding IsImportComplete}">
+                <controls:TcBevelPanel Padding="6,4"
+                                       IsVisible="{Binding IsImportComplete}">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Import Results" FontWeight="SemiBold"/>
                         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
@@ -126,26 +121,27 @@
                             </ItemsControl>
                         </Expander>
                     </StackPanel>
-                </Border>
+                </controls:TcBevelPanel>
             </StackPanel>
         </ScrollViewer>
         
         <!-- Progress -->
-        <ProgressBar Grid.Row="2" 
-                     IsIndeterminate="True" 
+        <ProgressBar Grid.Row="2"
+                     IsIndeterminate="True"
                      IsVisible="{Binding IsImporting}"
-                     Margin="0,15"/>
+                     Margin="0,6"/>
         
         <!-- Buttons -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,15,0,0">
+        <controls:TcBevelPanel Grid.Row="3" Padding="6,4" Margin="0,6,0,0">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
             <Button Content="Import" 
                     Command="{Binding ImportCommand}"
                     IsEnabled="{Binding IsValidated}"
-                    Classes="accent"
-                    Padding="20,8"/>
+                    Padding="10,4"/>
             <Button Content="Close" 
                     Click="OnCloseClick"
-                    Padding="20,8"/>
+                    Padding="10,4"/>
         </StackPanel>
+        </controls:TcBevelPanel>
     </Grid>
 </Window>

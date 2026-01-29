@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -398,12 +399,16 @@ public class SystemToolsService : ISystemToolsService
         try
         {
             var envVars = Environment.GetEnvironmentVariables(target);
-            foreach (var key in envVars.Keys)
+            foreach (DictionaryEntry entry in envVars)
             {
+                var name = entry.Key?.ToString();
+                if (string.IsNullOrEmpty(name))
+                    continue;
+
                 variables.Add(new EnvironmentVariableInfo
                 {
-                    Name = key?.ToString() ?? string.Empty,
-                    Value = envVars[key]?.ToString(),
+                    Name = name,
+                    Value = entry.Value?.ToString(),
                     Scope = scope
                 });
             }

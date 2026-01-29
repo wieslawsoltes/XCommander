@@ -10,6 +10,8 @@ using System.Threading.Tasks;
 using SharpCompress.Archives;
 using SharpCompress.Archives.Zip;
 using SharpCompress.Common;
+using SharpCompress.Readers;
+using SharpCompress.Writers;
 
 namespace XCommander.Services;
 
@@ -46,7 +48,7 @@ public class ArchiveSyncService : IArchiveSyncService
         // Read archive contents
         await Task.Run(() =>
         {
-            using var archive = ArchiveFactory.Open(archivePath);
+            using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
             foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -284,7 +286,7 @@ public class ArchiveSyncService : IArchiveSyncService
             {
                 await Task.Run(() =>
                 {
-                    using var archive = ZipArchive.Open(archivePath);
+                    using var archive = (ZipArchive)ZipArchive.OpenArchive(archivePath, new ReaderOptions());
                     
                     // Delete first
                     foreach (var item in toDelete)
@@ -337,7 +339,11 @@ public class ArchiveSyncService : IArchiveSyncService
                     }
                     
                     // Save changes
-                    archive.SaveTo(archivePath + ".tmp", CompressionType.Deflate);
+                    var tempPath = archivePath + ".tmp";
+                    using (var tempStream = File.Create(tempPath))
+                    {
+                        archive.SaveTo(tempStream, new WriterOptions(CompressionType.Deflate));
+                    }
                     
                 }, cancellationToken);
                 
@@ -354,7 +360,7 @@ public class ArchiveSyncService : IArchiveSyncService
             {
                 await Task.Run(() =>
                 {
-                    using var archive = ArchiveFactory.Open(archivePath);
+                    using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
                     
                     foreach (var item in toExtract)
                     {
@@ -503,7 +509,7 @@ public class ArchiveSyncService : IArchiveSyncService
         {
             try
             {
-                using var archive = ArchiveFactory.Open(archivePath);
+                using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
                 
                 foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
                 {

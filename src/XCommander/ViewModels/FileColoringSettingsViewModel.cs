@@ -1,4 +1,8 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using XCommander.Services;
@@ -117,6 +121,11 @@ public partial class FileColoringSettingsViewModel : ViewModelBase
     private bool _editItalic;
     
     public ObservableCollection<FileColorRuleViewModel> Rules { get; } = [];
+
+    public ObservableCollection<DataGridColumnDefinition> RulesColumnDefinitions { get; }
+    public FilteringModel RulesFilteringModel { get; }
+    public SortingModel RulesSortingModel { get; }
+    public SearchModel RulesSearchModel { get; }
     
     public ObservableCollection<string> Presets { get; } =
     [
@@ -157,7 +166,49 @@ public partial class FileColoringSettingsViewModel : ViewModelBase
     public FileColoringSettingsViewModel(IFileColoringService? coloringService = null)
     {
         _coloringService = coloringService;
+        RulesFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        RulesSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        RulesSearchModel = new SearchModel();
+        RulesColumnDefinitions = BuildRuleColumnDefinitions();
         LoadRules();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildRuleColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<FileColorRuleViewModel>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Rule",
+                cellTemplateKey: "FileColorRuleTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "rule";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<FileColorRuleViewModel, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<FileColorRuleViewModel, string>(
+                            item => item.Name),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not FileColorRuleViewModel rule)
+                                return string.Empty;
+                            return $"{rule.Name} {rule.Criteria} {rule.Pattern}";
+                        }
+                    };
+                })
+        };
     }
     
     private void LoadRules()

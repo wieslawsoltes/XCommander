@@ -16,6 +16,7 @@ public class FlatViewService : IFlatViewService
 {
     private readonly List<FlatViewItem> _selectedItems = [];
     private readonly object _lock = new();
+    private readonly IArchiveService? _archiveService;
     private FlatViewResult? _currentView;
     private string _currentRootPath = string.Empty;
     private FlatViewOptions? _currentOptions;
@@ -23,6 +24,11 @@ public class FlatViewService : IFlatViewService
     public FlatViewResult? CurrentView => _currentView;
     
     public event EventHandler<FlatViewSelectionChangedEventArgs>? SelectionChanged;
+
+    public FlatViewService(IArchiveService? archiveService = null)
+    {
+        _archiveService = archiveService;
+    }
     
     public async Task<FlatViewResult> GetFlatViewAsync(string rootPath, FlatViewOptions? options = null,
         IProgress<FlatViewProgress>? progress = null,
@@ -123,6 +129,40 @@ public class FlatViewService : IFlatViewService
         int successful = 0;
         int failed = 0;
         long bytesProcessed = 0;
+        int itemIndex = 0;
+
+        if (operation == FlatViewOperation.Compress)
+        {
+            if (_archiveService == null)
+                throw new InvalidOperationException("Archive service not available");
+            
+            var archivePath = ResolveArchiveDestination(destination, items);
+            var sources = items.Select(i => i.FullPath).ToList();
+            var totalBytes = items.Where(i => !i.IsDirectory).Sum(i => i.Size);
+            
+            var archiveProgress = new Progress<ArchiveProgress>(p =>
+            {
+                progress?.Report(new FlatViewProgress
+                {
+                    Phase = "Compressing...",
+                    CurrentPath = p.CurrentEntry,
+                    FilesProcessed = p.EntriesProcessed,
+                    DirectoriesProcessed = 0
+                });
+            });
+            
+            await _archiveService.CreateArchiveAsync(archivePath, sources, InferArchiveType(archivePath),
+                CompressionLevel.Normal, archiveProgress, cancellationToken);
+            
+            stopwatch.Stop();
+            return result with
+            {
+                SuccessfulItems = items.Count,
+                FailedItems = 0,
+                BytesProcessed = totalBytes,
+                Duration = stopwatch.Elapsed
+            };
+        }
         
         foreach (var item in items)
         {
@@ -170,6 +210,31 @@ public class FlatViewService : IFlatViewService
                             File.Delete(item.FullPath);
                         bytesProcessed += item.Size;
                         break;
+                    
+                    case FlatViewOperation.Rename:
+                        if (string.IsNullOrWhiteSpace(destination))
+                            throw new InvalidOperationException("Rename operation requires a destination pattern");
+                        
+                        var targetPath = ResolveRenameTarget(item, destination, itemIndex, items.Count);
+                        if (item.IsDirectory)
+                        {
+                            Directory.Move(item.FullPath, targetPath);
+                        }
+                        else
+                        {
+                            File.Move(item.FullPath, targetPath, overwrite: true);
+                            bytesProcessed += item.Size;
+                        }
+                        break;
+                    
+                    case FlatViewOperation.SetAttributes:
+                        if (string.IsNullOrWhiteSpace(destination))
+                            throw new InvalidOperationException("SetAttributes operation requires an attribute specification");
+                        
+                        var currentAttributes = File.GetAttributes(item.FullPath);
+                        var updatedAttributes = ApplyAttributeSpec(currentAttributes, destination, item.IsDirectory);
+                        File.SetAttributes(item.FullPath, updatedAttributes);
+                        break;
                         
                     case FlatViewOperation.Calculate:
                         // Just count size
@@ -186,6 +251,10 @@ public class FlatViewService : IFlatViewService
             {
                 failed++;
                 result.Errors.Add($"{item.FullPath}: {ex.Message}");
+            }
+            finally
+            {
+                itemIndex++;
             }
         }
         
@@ -357,6 +426,168 @@ public class FlatViewService : IFlatViewService
             var destDir = Path.Combine(destination, Path.GetFileName(dir));
             CopyDirectory(dir, destDir);
         }
+    }
+
+    private string ResolveArchiveDestination(string? destination, IReadOnlyList<FlatViewItem> items)
+    {
+        if (!string.IsNullOrWhiteSpace(destination))
+            return destination;
+        
+        var baseDir = !string.IsNullOrWhiteSpace(_currentRootPath)
+            ? _currentRootPath
+            : items.FirstOrDefault()?.Directory ?? Environment.CurrentDirectory;
+        
+        var archiveName = $"FlatView_{DateTime.Now:yyyyMMdd_HHmmss}.zip";
+        return Path.Combine(baseDir, archiveName);
+    }
+    
+    private static ArchiveType InferArchiveType(string archivePath)
+    {
+        var extension = Path.GetExtension(archivePath).ToLowerInvariant();
+        return extension switch
+        {
+            ".7z" => ArchiveType.SevenZip,
+            ".tar" => ArchiveType.Tar,
+            ".gz" or ".gzip" => ArchiveType.GZip,
+            ".bz2" => ArchiveType.BZip2,
+            ".rar" => ArchiveType.Rar,
+            _ => ArchiveType.Zip
+        };
+    }
+    
+    private static string ResolveRenameTarget(FlatViewItem item, string destination, int index, int total)
+    {
+        if (Path.IsPathRooted(destination))
+        {
+            if (Directory.Exists(destination)
+                || destination.EndsWith(Path.DirectorySeparatorChar)
+                || destination.EndsWith(Path.AltDirectorySeparatorChar))
+            {
+                return Path.Combine(destination, item.Name);
+            }
+            
+            if (total == 1)
+                return destination;
+            
+            var destDir = Path.GetDirectoryName(destination) ?? item.Directory;
+            var destName = BuildRenameName(Path.GetFileName(destination), item, index, total);
+            return Path.Combine(destDir, destName);
+        }
+        
+        var targetName = BuildRenameName(destination, item, index, total);
+        return Path.Combine(item.Directory, targetName);
+    }
+    
+    private static string BuildRenameName(string template, FlatViewItem item, int index, int total)
+    {
+        var baseName = Path.GetFileNameWithoutExtension(item.Name);
+        var extension = Path.GetExtension(item.Name);
+        var target = template;
+        
+        if (template.Contains("{name}", StringComparison.OrdinalIgnoreCase)
+            || template.Contains("{index}", StringComparison.OrdinalIgnoreCase)
+            || template.Contains("{ext}", StringComparison.OrdinalIgnoreCase)
+            || template.Contains("{basename}", StringComparison.OrdinalIgnoreCase))
+        {
+            target = target.Replace("{name}", baseName, StringComparison.OrdinalIgnoreCase);
+            target = target.Replace("{basename}", baseName, StringComparison.OrdinalIgnoreCase);
+            target = target.Replace("{ext}", extension, StringComparison.OrdinalIgnoreCase);
+            target = target.Replace("{index}", (index + 1).ToString(), StringComparison.OrdinalIgnoreCase);
+            return target;
+        }
+        
+        if (total == 1)
+            return template;
+        
+        var destBase = Path.GetFileNameWithoutExtension(template);
+        var destExt = Path.GetExtension(template);
+        if (string.IsNullOrWhiteSpace(destExt))
+            destExt = extension;
+        
+        return $"{destBase}_{index + 1}{destExt}";
+    }
+    
+    private static FileAttributes ApplyAttributeSpec(FileAttributes current, string spec, bool isDirectory)
+    {
+        var tokens = spec.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+            return current;
+        
+        var hasModifiers = tokens.Any(t => t.StartsWith('+') || t.StartsWith('-'));
+        var directoryFlag = isDirectory ? FileAttributes.Directory : 0;
+        
+        if (!hasModifiers)
+        {
+            var combined = FileAttributes.Normal;
+            var applied = false;
+            foreach (var token in tokens)
+            {
+                var attr = ParseAttributeToken(token);
+                if (attr == FileAttributes.Normal)
+                {
+                    combined = FileAttributes.Normal;
+                    applied = true;
+                    continue;
+                }
+                if (attr == 0)
+                    continue;
+                combined |= attr;
+                applied = true;
+            }
+            
+            if (!applied)
+                return current;
+            
+            if (combined == FileAttributes.Normal)
+                combined = 0;
+            
+            return combined | directoryFlag;
+        }
+        
+        var updated = current;
+        foreach (var token in tokens)
+        {
+            var trimmed = token.Trim();
+            if (trimmed.Length == 0)
+                continue;
+            
+            var sign = trimmed[0];
+            var key = sign == '+' || sign == '-' ? trimmed[1..] : trimmed;
+            var attr = ParseAttributeToken(key);
+            
+            if (attr == FileAttributes.Normal)
+            {
+                updated = directoryFlag;
+                continue;
+            }
+            if (attr == 0)
+                continue;
+            
+            if (sign == '-')
+                updated &= ~attr;
+            else
+                updated |= attr;
+        }
+        
+        if (isDirectory)
+            updated |= FileAttributes.Directory;
+        
+        return updated;
+    }
+    
+    private static FileAttributes ParseAttributeToken(string token)
+    {
+        var key = token.Trim().ToLowerInvariant();
+        if (key is "n" or "normal")
+            return FileAttributes.Normal;
+        return key switch
+        {
+            "r" or "ro" or "readonly" => FileAttributes.ReadOnly,
+            "h" or "hidden" => FileAttributes.Hidden,
+            "s" or "system" => FileAttributes.System,
+            "a" or "archive" => FileAttributes.Archive,
+            _ => 0
+        };
     }
     
     private void RaiseSelectionChanged()

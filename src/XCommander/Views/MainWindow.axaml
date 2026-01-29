@@ -4,6 +4,12 @@
         xmlns:views="using:XCommander.Views"
         xmlns:models="using:XCommander.Models"
         xmlns:controls="using:XCommander.Controls"
+        xmlns:conv="using:XCommander.Converters"
+        xmlns:dock="using:Dock.Avalonia.Controls"
+        xmlns:dockRx="using:Dock.Model.ReactiveUI.Controls"
+        xmlns:i="using:Avalonia.Xaml.Interactivity"
+        xmlns:ia="using:Avalonia.Xaml.Interactions.Core"
+        xmlns:behaviors="using:XCommander.Behaviors"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
@@ -12,7 +18,57 @@
         Title="XCommander"
         Width="1200" Height="700"
         MinWidth="800" MinHeight="500"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Classes.high-contrast="{Binding Settings.AccessibilityHighContrastEnabled}">
+    <i:Interaction.Behaviors>
+        <behaviors:WindowSessionStateBehavior State="{Binding WindowSessionState, Mode=TwoWay}"/>
+        <ia:EventTriggerBehavior EventName="Closing">
+            <ia:InvokeCommandAction Command="{Binding SaveSessionCommand}"/>
+        </ia:EventTriggerBehavior>
+    </i:Interaction.Behaviors>
+
+    <Window.Resources>
+        <conv:EqualsConverter x:Key="EqualsConverter"/>
+    </Window.Resources>
+
+    <Window.DataTemplates>
+        <DataTemplate x:DataType="dockRx:Tool">
+            <ContentControl Content="{Binding Context}" />
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:DirectoryTreeViewModel">
+            <controls:TcInsetPanel Padding="0">
+                <views:DirectoryTreePanel />
+            </controls:TcInsetPanel>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:BookmarksViewModel">
+            <controls:TcInsetPanel Padding="0">
+                <views:BookmarksPanel />
+            </controls:TcInsetPanel>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:QuickViewViewModel">
+            <controls:TcInsetPanel Padding="0">
+                <views:QuickViewPanel />
+            </controls:TcInsetPanel>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:TabbedPanelViewModel">
+            <views:TabbedFilePanel />
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:UserMenuItemViewModel">
+            <MenuItem Header="{Binding Label}"
+                      IsEnabled="{Binding IsEnabled}"
+                      IsVisible="{Binding IsVisible}"
+                      Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ExecuteUserMenuItemCommand}"
+                      CommandParameter="{Binding}"
+                      ItemsSource="{Binding SubItems}">
+                <MenuItem.Icon>
+                    <TextBlock Text="{Binding Icon}"/>
+                </MenuItem.Icon>
+            </MenuItem>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:UserMenuSeparatorViewModel">
+            <Separator/>
+        </DataTemplate>
+    </Window.DataTemplates>
     
     <Window.KeyBindings>
         <!-- Navigation -->
@@ -86,20 +142,118 @@
                 <MenuItem Header="_Invert Selection" Command="{Binding ActivePanel.ActiveTab.InvertSelectionCommand}" InputGesture="Ctrl+I"/>
             </MenuItem>
             <MenuItem Header="_View">
+                <MenuItem Header="_Brief"
+                          Command="{Binding ActivePanel.ActiveTab.SetViewModeCommand}"
+                          CommandParameter="{x:Static vm:FilePanelViewMode.List}"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding ActivePanel.ActiveTab.IsListView}"/>
+                <MenuItem Header="_Full"
+                          Command="{Binding ActivePanel.ActiveTab.SetViewModeCommand}"
+                          CommandParameter="{x:Static vm:FilePanelViewMode.Details}"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding ActivePanel.ActiveTab.IsDetailsView}"/>
+                <MenuItem Header="_Thumbnails"
+                          Command="{Binding ActivePanel.ActiveTab.SetViewModeCommand}"
+                          CommandParameter="{x:Static vm:FilePanelViewMode.Thumbnails}"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding ActivePanel.ActiveTab.IsThumbnailsView}"/>
+                <MenuItem Header="View _Modes"
+                          ItemsSource="{Binding ViewModes}">
+                    <MenuItem.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ViewModeItemViewModel">
+                            <MenuItem Header="{Binding Name}"
+                                      Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ActivateViewModeCommand}"
+                                      CommandParameter="{Binding}"
+                                      ToggleType="CheckBox"
+                                      IsChecked="{Binding IsActive}"
+                                      ToolTip.Tip="{Binding Description}"/>
+                        </DataTemplate>
+                    </MenuItem.ItemTemplate>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="_Sort By">
+                    <MenuItem Header="_Name"
+                              Command="{Binding ActivePanel.ActiveTab.SortByCommand}"
+                              CommandParameter="Name"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding ActivePanel.ActiveTab.SortColumn, Converter={StaticResource EqualsConverter}, ConverterParameter=Name}"/>
+                    <MenuItem Header="_Extension"
+                              Command="{Binding ActivePanel.ActiveTab.SortByCommand}"
+                              CommandParameter="Extension"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding ActivePanel.ActiveTab.SortColumn, Converter={StaticResource EqualsConverter}, ConverterParameter=Extension}"/>
+                    <MenuItem Header="_Size"
+                              Command="{Binding ActivePanel.ActiveTab.SortByCommand}"
+                              CommandParameter="Size"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding ActivePanel.ActiveTab.SortColumn, Converter={StaticResource EqualsConverter}, ConverterParameter=Size}"/>
+                    <MenuItem Header="_Date"
+                              Command="{Binding ActivePanel.ActiveTab.SortByCommand}"
+                              CommandParameter="Date"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding ActivePanel.ActiveTab.SortColumn, Converter={StaticResource EqualsConverter}, ConverterParameter=Date}"/>
+                </MenuItem>
+                <MenuItem Header="_Reverse Order" Command="{Binding ToggleSortDirectionCommand}"/>
+                <Separator/>
                 <MenuItem Header="_Refresh" Command="{Binding ActivePanel.ActiveTab.RefreshCommand}" InputGesture="Ctrl+R"/>
                 <Separator/>
-                <MenuItem Header="Show _Hidden Files" 
-                          Command="{Binding ActivePanel.ActiveTab.ToggleHiddenFilesCommand}" 
-                          InputGesture="Ctrl+H"/>
-                <MenuItem Header="_Directory Tree" 
-                          Command="{Binding ToggleDirectoryTreeCommand}" 
-                          InputGesture="Alt+F1"/>
-                <MenuItem Header="_Quick View Panel" 
-                          Command="{Binding ToggleQuickViewCommand}" 
-                          InputGesture="Ctrl+Q"/>
-                <MenuItem Header="_Bookmarks Panel" 
-                          Command="{Binding ToggleBookmarksPanelCommand}" 
-                          InputGesture="Ctrl+B"/>
+                <MenuItem Header="Show _Hidden Files"
+                          Command="{Binding ActivePanel.ActiveTab.ToggleHiddenFilesCommand}"
+                          InputGesture="Ctrl+H"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding ActivePanel.ActiveTab.ShowHiddenFiles}"/>
+                <MenuItem Header="Show _System Files"
+                          Command="{Binding ActivePanel.ActiveTab.ToggleSystemFilesCommand}"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding ActivePanel.ActiveTab.ShowSystemFiles}"/>
+                <Separator/>
+                <MenuItem Header="Show File _Extensions"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Settings.ShowFileExtensions, Mode=TwoWay}"/>
+                <MenuItem Header="Show File _Sizes"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Settings.ShowFileSizes, Mode=TwoWay}"/>
+                <MenuItem Header="Show File _Dates"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Settings.ShowFileDates, Mode=TwoWay}"/>
+                <MenuItem Header="Show _Grid Lines"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Settings.ShowGridLines, Mode=TwoWay}"/>
+                <Separator/>
+                <MenuItem Header="Show _Toolbar"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Settings.ShowToolbar, Mode=TwoWay}"/>
+                <MenuItem Header="Show _Status Bar"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Settings.ShowStatusBar, Mode=TwoWay}"/>
+                <MenuItem Header="Show _Command Line"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Settings.ShowCommandLine, Mode=TwoWay}"/>
+                <MenuItem Header="Show _Function Key Bar"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Settings.ShowFunctionKeyBar, Mode=TwoWay}"/>
+                <MenuItem Header="Show _Drive Bar"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Settings.ShowDriveBar, Mode=TwoWay}"/>
+                <MenuItem Header="Show _Path Bar"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Settings.ShowPathBar, Mode=TwoWay}"/>
+                <Separator/>
+                <MenuItem Header="_Directory Tree"
+                          Command="{Binding ToggleDirectoryTreeCommand}"
+                          InputGesture="Alt+F1"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding IsDirectoryTreeVisible}"/>
+                <MenuItem Header="_Quick View Panel"
+                          Command="{Binding ToggleQuickViewCommand}"
+                          InputGesture="Ctrl+Q"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding IsQuickViewVisible}"/>
+                <MenuItem Header="_Bookmarks Panel"
+                          Command="{Binding ToggleBookmarksPanelCommand}"
+                          InputGesture="Ctrl+B"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding IsBookmarksPanelVisible}"/>
             </MenuItem>
             <MenuItem Header="_Commands">
                 <MenuItem Header="_Search..." Click="OnSearchClick" InputGesture="Alt+F7"/>
@@ -126,6 +280,8 @@
                 <Separator/>
                 <MenuItem Header="Se_ttings..." Command="{Binding OpenSettingsCommand}" InputGesture="Ctrl+,"/>
             </MenuItem>
+            <MenuItem Header="_User"
+                      ItemsSource="{Binding UserMenuItems}"/>
             <MenuItem Header="_Bookmarks">
                 <MenuItem Header="_Directory Hotlist..." Click="OnHotlistClick" InputGesture="Ctrl+D"/>
                 <MenuItem Header="_Show Bookmarks Panel" 
@@ -158,7 +314,8 @@
         
         <!-- Dynamic Toolbar -->
         <controls:TcBevelPanel Grid.Row="1"
-                               Padding="4">
+                               Padding="4"
+                               IsVisible="{Binding Settings.ShowToolbar}">
             <ItemsControl ItemsSource="{Binding ToolbarButtons}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -190,76 +347,48 @@
         </controls:TcBevelPanel>
         
         <!-- Main Panels -->
-        <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto,*,Auto">
-            <!-- Directory Tree Panel -->
-            <Border Grid.Column="0" 
-                    Width="220"
-                    IsVisible="{Binding IsDirectoryTreeVisible}">
-                <views:DirectoryTreePanel DataContext="{Binding DirectoryTree}"/>
-            </Border>
-            
-            <!-- Bookmarks Panel -->
-            <Border Grid.Column="1" 
-                    Width="250"
-                    IsVisible="{Binding IsBookmarksPanelVisible}">
-                <views:BookmarksPanel x:Name="BookmarksPanel" DataContext="{Binding Bookmarks}"/>
-            </Border>
-            
-            <!-- Left Panel -->
-            <views:TabbedFilePanel Grid.Column="2"
-                                   x:Name="LeftPanelControl"
-                                   DataContext="{Binding LeftPanel}"/>
-            
-            <!-- Splitter -->
-            <GridSplitter Grid.Column="3" 
-                          Width="4" 
-                          ResizeDirection="Columns"/>
-            
-            <!-- Right Panel -->
-            <views:TabbedFilePanel Grid.Column="4"
-                                   x:Name="RightPanelControl"
-                                   DataContext="{Binding RightPanel}"/>
-            
-            <!-- Quick View Panel -->
-            <Border Grid.Column="5" 
-                    Width="350"
-                    IsVisible="{Binding IsQuickViewVisible}">
-                <views:QuickViewPanel DataContext="{Binding QuickView}"/>
-            </Border>
-        </Grid>
+        <dock:DockControl Grid.Row="2"
+                          Layout="{Binding DockLayout}"
+                          Factory="{Binding DockFactory}"
+                          InitializeLayout="False"
+                          InitializeFactory="True"/>
         
         <!-- Progress Bar (shown during operations) -->
-        <Grid Grid.Row="3" 
-              IsVisible="{Binding IsOperationInProgress}"
-              Margin="4">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <ProgressBar Grid.Column="0" 
-                         Value="{Binding OperationProgress}" 
-                         Minimum="0" 
-                         Maximum="100"
-                         Height="20"/>
-            <TextBlock Grid.Column="1" 
-                       Text="{Binding OperationStatus}" 
-                       Margin="8,0,0,0"
-                       VerticalAlignment="Center"/>
-        </Grid>
+        <controls:TcBevelPanel Grid.Row="3"
+                               IsVisible="{Binding IsOperationInProgress}"
+                               Padding="4"
+                               Margin="4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <ProgressBar Grid.Column="0"
+                             Value="{Binding OperationProgress}"
+                             Minimum="0"
+                             Maximum="100"
+                             Height="20"/>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding OperationStatus}"
+                           Margin="8,0,0,0"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </controls:TcBevelPanel>
         
         <!-- Command Line -->
         <controls:TcBevelPanel Grid.Row="4"
                                Padding="4"
-                               Margin="4">
+                               Margin="4"
+                               IsVisible="{Binding Settings.ShowCommandLine}">
             <Grid ColumnDefinitions="Auto,*">
                 <TextBlock Grid.Column="0"
                            Text=">"
                            VerticalAlignment="Center"
                            Margin="8,0,4,0"
-                           FontFamily="Consolas,Menlo,monospace"/>
+                           FontFamily="{DynamicResource MonoFontFamily}"/>
                 <TextBox Grid.Column="1"
                          Text="{Binding CommandLine}"
-                         FontFamily="Consolas,Menlo,monospace"
+                         FontFamily="{DynamicResource MonoFontFamily}"
                          BorderThickness="0"
                          Background="Transparent"
                          x:Name="CommandLineTextBox">
@@ -275,6 +404,7 @@
         <!-- Function Key Bar -->
         <controls:TcBevelPanel Grid.Row="5"
                                Padding="2"
+                               IsVisible="{Binding Settings.ShowFunctionKeyBar}"
                                AutomationProperties.Name="Function key bar">
             <Grid ColumnDefinitions="*,*,*,*,*,*,*,*">
                 <Button Grid.Column="0" 

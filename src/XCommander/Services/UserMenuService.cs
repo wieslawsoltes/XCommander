@@ -3,10 +3,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 
 namespace XCommander.Services;
 
@@ -31,6 +34,19 @@ public class UserMenuService : IUserMenuService
     private List<UserMenu> _menus = new();
     private bool _isLoaded;
     private readonly object _lock = new();
+    private readonly IInternalCommandService? _internalCommandService;
+    private readonly IFileChecksumService? _fileChecksumService;
+    private readonly INotificationService? _notificationService;
+
+    public UserMenuService(
+        IInternalCommandService? internalCommandService = null,
+        IFileChecksumService? fileChecksumService = null,
+        INotificationService? notificationService = null)
+    {
+        _internalCommandService = internalCommandService;
+        _fileChecksumService = fileChecksumService;
+        _notificationService = notificationService;
+    }
     
     private static readonly List<ParameterPlaceholder> Placeholders = new()
     {
@@ -250,32 +266,29 @@ public class UserMenuService : IUserMenuService
         CancellationToken cancellationToken = default)
     {
         if (item.Command == null) return;
-        
-        await Task.Run(() =>
+
+        switch (item.Command.Type)
         {
-            switch (item.Command.Type)
-            {
-                case MenuCommandType.External:
-                    ExecuteExternalCommand(item.Command, context);
-                    break;
-                    
-                case MenuCommandType.InternalCommand:
-                    ExecuteInternalCommand(item.Command, context);
-                    break;
-                    
-                case MenuCommandType.ChangePath:
-                    ExecuteChangePath(item.Command, context);
-                    break;
-                    
-                case MenuCommandType.OpenWithDefault:
-                    ExecuteOpenWithDefault(item.Command, context);
-                    break;
-                    
-                case MenuCommandType.CommandSequence:
-                    ExecuteCommandSequence(item.Command, context);
-                    break;
-            }
-        }, cancellationToken);
+            case MenuCommandType.External:
+                await ExecuteExternalCommandAsync(item.Command, context, cancellationToken);
+                break;
+
+            case MenuCommandType.InternalCommand:
+                await ExecuteInternalCommandAsync(item.Command, context, cancellationToken);
+                break;
+
+            case MenuCommandType.ChangePath:
+                await ExecuteChangePathAsync(item.Command, context, cancellationToken);
+                break;
+
+            case MenuCommandType.OpenWithDefault:
+                await ExecuteOpenWithDefaultAsync(item.Command, context, cancellationToken);
+                break;
+
+            case MenuCommandType.CommandSequence:
+                await ExecuteCommandSequenceAsync(item.Command, context, cancellationToken);
+                break;
+        }
     }
     
     public async Task<UserMenu> ImportAsync(string filePath, CancellationToken cancellationToken = default)
@@ -577,14 +590,17 @@ public class UserMenuService : IUserMenuService
         }
     }
     
-    private void ExecuteExternalCommand(UserMenuCommand command, MenuExecutionContext context)
+    private async Task ExecuteExternalCommandAsync(
+        UserMenuCommand command,
+        MenuExecutionContext context,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(command.CommandLine)) return;
-        
+
         var commandLine = SubstituteParameters(command.CommandLine, context);
         var parameters = SubstituteParameters(command.Parameters ?? "", context);
         var workingDir = SubstituteParameters(command.WorkingDirectory ?? context.SourcePath ?? "", context);
-        
+
         var processInfo = new ProcessStartInfo
         {
             FileName = commandLine,
@@ -592,38 +608,107 @@ public class UserMenuService : IUserMenuService
             WorkingDirectory = workingDir,
             UseShellExecute = true
         };
-        
+
         if (command.RunAsAdmin && OperatingSystem.IsWindows())
         {
             processInfo.Verb = "runas";
         }
-        
+
         var process = Process.Start(processInfo);
-        
+
         if (command.WaitForFinish && process != null)
         {
-            process.WaitForExit();
+            await process.WaitForExitAsync(cancellationToken);
         }
     }
-    
-    private void ExecuteInternalCommand(UserMenuCommand command, MenuExecutionContext context)
+
+    private async Task ExecuteInternalCommandAsync(
+        UserMenuCommand command,
+        MenuExecutionContext context,
+        CancellationToken cancellationToken)
     {
-        // Internal commands would be handled by a command dispatcher
-        // This is a placeholder for the actual implementation
+        var action = command.InternalAction?.Trim();
+        if (string.IsNullOrEmpty(action)) return;
+
+        if (context.InternalCommandHandlerAsync != null)
+        {
+            await context.InternalCommandHandlerAsync(action);
+            return;
+        }
+
+        if (_internalCommandService != null)
+        {
+            var resolved = action.StartsWith("internal:", StringComparison.OrdinalIgnoreCase)
+                ? action.Substring("internal:".Length)
+                : action;
+            var internalCommand = _internalCommandService.GetCommand(resolved);
+            if (internalCommand != null)
+            {
+                var execContext = BuildCommandExecutionContext(context);
+                await _internalCommandService.ExecuteAsync(internalCommand.Id, execContext, cancellationToken: cancellationToken);
+                return;
+            }
+        }
+
+        await ExecuteBuiltInInternalActionAsync(action, context, cancellationToken);
     }
-    
-    private void ExecuteChangePath(UserMenuCommand command, MenuExecutionContext context)
+
+    private async Task ExecuteChangePathAsync(
+        UserMenuCommand command,
+        MenuExecutionContext context,
+        CancellationToken cancellationToken)
     {
-        // Path changes would be handled by the panel view model
-        // This is a placeholder for the actual implementation
+        var path = SubstituteParameters(command.CommandLine ?? command.Parameters ?? "", context);
+        if (string.IsNullOrWhiteSpace(path)) return;
+
+        if (!Path.IsPathRooted(path) && !path.Contains("://", StringComparison.Ordinal))
+        {
+            var basePath = context.SourcePath ?? Environment.CurrentDirectory;
+            path = Path.GetFullPath(Path.Combine(basePath, path));
+        }
+
+        var target = command.InternalAction?.Trim().ToLowerInvariant();
+        if (target == "source" || target == "left")
+        {
+            if (context.ChangeSourcePathAsync != null)
+                await context.ChangeSourcePathAsync(path);
+            return;
+        }
+
+        if (target == "target" || target == "right")
+        {
+            if (context.ChangeTargetPathAsync != null)
+                await context.ChangeTargetPathAsync(path);
+            return;
+        }
+
+        if (context.ChangeActivePathAsync != null)
+        {
+            await context.ChangeActivePathAsync(path);
+            return;
+        }
+
+        if (context.ChangeSourcePathAsync != null)
+        {
+            await context.ChangeSourcePathAsync(path);
+            return;
+        }
+
+        if (context.ChangeTargetPathAsync != null)
+        {
+            await context.ChangeTargetPathAsync(path);
+        }
     }
-    
-    private void ExecuteOpenWithDefault(UserMenuCommand command, MenuExecutionContext context)
+
+    private Task ExecuteOpenWithDefaultAsync(
+        UserMenuCommand command,
+        MenuExecutionContext context,
+        CancellationToken cancellationToken)
     {
-        var filePath = context.CurrentFileName != null 
+        var filePath = context.CurrentFileName != null
             ? Path.Combine(context.SourcePath ?? "", context.CurrentFileName)
             : null;
-        
+
         if (filePath != null && File.Exists(filePath))
         {
             Process.Start(new ProcessStartInfo
@@ -632,12 +717,272 @@ public class UserMenuService : IUserMenuService
                 UseShellExecute = true
             });
         }
+
+        return Task.CompletedTask;
     }
-    
-    private void ExecuteCommandSequence(UserMenuCommand command, MenuExecutionContext context)
+
+    private async Task ExecuteCommandSequenceAsync(
+        UserMenuCommand command,
+        MenuExecutionContext context,
+        CancellationToken cancellationToken)
     {
-        // Command sequences would parse and execute multiple commands
-        // This is a placeholder for the actual implementation
+        var sequence = command.CommandLine ?? command.Parameters ?? "";
+        if (string.IsNullOrWhiteSpace(sequence)) return;
+
+        var steps = SplitCommandSequence(sequence);
+        foreach (var step in steps)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var resolved = SubstituteParameters(step, context).Trim();
+            if (string.IsNullOrWhiteSpace(resolved))
+                continue;
+
+            if (resolved.StartsWith("internal:", StringComparison.OrdinalIgnoreCase))
+            {
+                var action = resolved.Substring("internal:".Length).Trim();
+                await ExecuteInternalCommandAsync(new UserMenuCommand
+                {
+                    Type = MenuCommandType.InternalCommand,
+                    InternalAction = action
+                }, context, cancellationToken);
+                continue;
+            }
+
+            if (resolved.StartsWith("cd:", StringComparison.OrdinalIgnoreCase) ||
+                resolved.StartsWith("path:", StringComparison.OrdinalIgnoreCase))
+            {
+                var pathValue = resolved.Contains(':') ? resolved.Substring(resolved.IndexOf(':') + 1).Trim() : "";
+                await ExecuteChangePathAsync(new UserMenuCommand
+                {
+                    Type = MenuCommandType.ChangePath,
+                    CommandLine = pathValue,
+                    InternalAction = command.InternalAction
+                }, context, cancellationToken);
+                continue;
+            }
+
+            if (resolved.StartsWith("open:", StringComparison.OrdinalIgnoreCase))
+            {
+                var pathValue = resolved.Substring("open:".Length).Trim();
+                if (!string.IsNullOrWhiteSpace(pathValue))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = pathValue,
+                        UseShellExecute = true
+                    });
+                }
+                else
+                {
+                    await ExecuteOpenWithDefaultAsync(command, context, cancellationToken);
+                }
+                continue;
+            }
+
+            var (fileName, args) = SplitCommandLine(resolved);
+            await ExecuteExternalCommandAsync(new UserMenuCommand
+            {
+                Type = MenuCommandType.External,
+                CommandLine = fileName,
+                Parameters = args,
+                WorkingDirectory = command.WorkingDirectory,
+                RunAsAdmin = command.RunAsAdmin,
+                WaitForFinish = command.WaitForFinish
+            }, context, cancellationToken);
+        }
+    }
+
+    private static CommandExecutionContext BuildCommandExecutionContext(MenuExecutionContext context)
+    {
+        var selected = ResolveSelectedPaths(context);
+        var currentExtension = context.CurrentExtension;
+        if (string.IsNullOrEmpty(currentExtension) && !string.IsNullOrEmpty(context.CurrentFileName))
+            currentExtension = Path.GetExtension(context.CurrentFileName);
+
+        return new CommandExecutionContext
+        {
+            SourcePath = context.SourcePath,
+            TargetPath = context.TargetPath,
+            CurrentFileName = context.CurrentFileName,
+            CurrentFileExtension = currentExtension,
+            SelectedFiles = selected,
+            Variables = context.Variables != null
+                ? new Dictionary<string, string>(context.Variables)
+                : new Dictionary<string, string>()
+        };
+    }
+
+    private async Task ExecuteBuiltInInternalActionAsync(
+        string action,
+        MenuExecutionContext context,
+        CancellationToken cancellationToken)
+    {
+        var normalized = action.Trim().ToLowerInvariant();
+        switch (normalized)
+        {
+            case "clipboard.copypath":
+                await CopyPathToClipboardAsync(context);
+                break;
+
+            case "file.calculatemd5":
+                await CalculateMd5Async(context, cancellationToken);
+                break;
+
+            case "file.compare":
+                await CompareFilesAsync(context, cancellationToken);
+                break;
+        }
+    }
+
+    private async Task CopyPathToClipboardAsync(MenuExecutionContext context)
+    {
+        try
+        {
+            var selected = ResolveSelectedPaths(context);
+            var text = selected.Count > 0
+                ? string.Join(Environment.NewLine, selected)
+                : (context.SourcePath ?? string.Empty);
+
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                var clipboard = desktop.MainWindow?.Clipboard;
+                if (clipboard != null)
+                {
+                    await clipboard.SetTextAsync(text);
+                    return;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore clipboard errors
+        }
+    }
+
+    private async Task CalculateMd5Async(MenuExecutionContext context, CancellationToken cancellationToken)
+    {
+        if (_fileChecksumService == null) return;
+
+        var target = ResolvePrimaryFilePath(context);
+        if (string.IsNullOrEmpty(target))
+        {
+            _notificationService?.ShowWarning("No file selected.", "MD5");
+            return;
+        }
+
+        var result = await _fileChecksumService.CalculateChecksumAsync(target, ChecksumAlgorithm.MD5, cancellationToken);
+        if (result.Success)
+        {
+            _notificationService?.ShowInfo($"{Path.GetFileName(target)}: {result.Hash}", "MD5");
+        }
+        else
+        {
+            _notificationService?.ShowError(result.ErrorMessage ?? "Failed to calculate MD5.", "MD5");
+        }
+    }
+
+    private async Task CompareFilesAsync(MenuExecutionContext context, CancellationToken cancellationToken)
+    {
+        if (_fileChecksumService == null) return;
+
+        var selected = ResolveSelectedPaths(context);
+        if (selected.Count < 2)
+        {
+            _notificationService?.ShowWarning("Select two files to compare.", "Compare");
+            return;
+        }
+
+        var match = await _fileChecksumService.CompareFilesAsync(selected[0], selected[1], ChecksumAlgorithm.SHA256, cancellationToken);
+        var message = match ? "Files match." : "Files differ.";
+        _notificationService?.ShowInfo(message, "Compare");
+    }
+
+    private static IReadOnlyList<string> ResolveSelectedPaths(MenuExecutionContext context)
+    {
+        if (context.SelectedFilesSource != null && context.SelectedFilesSource.Count > 0)
+            return NormalizePaths(context.SelectedFilesSource, context.SourcePath);
+        if (context.SelectedFiles != null && context.SelectedFiles.Count > 0)
+            return NormalizePaths(context.SelectedFiles, context.SourcePath);
+
+        if (!string.IsNullOrEmpty(context.CurrentFileName) && !string.IsNullOrEmpty(context.SourcePath))
+        {
+            return new[] { Path.Combine(context.SourcePath, context.CurrentFileName) };
+        }
+
+        return Array.Empty<string>();
+    }
+
+    private static IReadOnlyList<string> NormalizePaths(IReadOnlyList<string> paths, string? basePath)
+    {
+        if (string.IsNullOrEmpty(basePath))
+            return paths.ToList();
+
+        return paths.Select(p => Path.IsPathRooted(p) ? p : Path.Combine(basePath, p)).ToList();
+    }
+
+    private static string? ResolvePrimaryFilePath(MenuExecutionContext context)
+    {
+        var selected = ResolveSelectedPaths(context);
+        return selected.Count > 0 ? selected[0] : null;
+    }
+
+    private static IReadOnlyList<string> SplitCommandSequence(string sequence)
+    {
+        var steps = new List<string>();
+        var current = new StringBuilder();
+        var inQuotes = false;
+
+        foreach (var ch in sequence)
+        {
+            if (ch == '"' && (current.Length == 0 || current[^1] != '\\'))
+            {
+                inQuotes = !inQuotes;
+                current.Append(ch);
+                continue;
+            }
+
+            if (!inQuotes && (ch == ';' || ch == '\n' || ch == '\r'))
+            {
+                var entry = current.ToString().Trim();
+                if (!string.IsNullOrEmpty(entry))
+                    steps.Add(entry);
+                current.Clear();
+                continue;
+            }
+
+            current.Append(ch);
+        }
+
+        var last = current.ToString().Trim();
+        if (!string.IsNullOrEmpty(last))
+            steps.Add(last);
+
+        return steps;
+    }
+
+    private static (string FileName, string Arguments) SplitCommandLine(string commandLine)
+    {
+        var trimmed = commandLine.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            return (string.Empty, string.Empty);
+
+        if (trimmed.StartsWith("\"", StringComparison.Ordinal))
+        {
+            var endQuote = trimmed.IndexOf('"', 1);
+            if (endQuote > 1)
+            {
+                var fileName = trimmed.Substring(1, endQuote - 1);
+                var args = trimmed.Substring(endQuote + 1).TrimStart();
+                return (fileName, args);
+            }
+        }
+
+        var firstSpace = trimmed.IndexOf(' ');
+        if (firstSpace < 0)
+            return (trimmed, string.Empty);
+
+        return (trimmed.Substring(0, firstSpace), trimmed.Substring(firstSpace + 1).TrimStart());
     }
     
     private static string SubstituteParameters(string input, MenuExecutionContext context)
@@ -680,6 +1025,14 @@ public class UserMenuService : IUserMenuService
         else
         {
             result = result.Replace("%Z", context.CurrentFileName != null ? $"\"{context.CurrentFileName}\"" : "");
+        }
+
+        if (context.Variables != null)
+        {
+            foreach (var variable in context.Variables)
+            {
+                result = result.Replace($"%{variable.Key}%", variable.Value);
+            }
         }
         
         return result;

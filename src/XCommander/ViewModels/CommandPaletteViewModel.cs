@@ -1,4 +1,8 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -56,13 +60,60 @@ public partial class CommandPaletteViewModel : ViewModelBase
     
     [ObservableProperty]
     private bool _isOpen;
+
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
     
     public event EventHandler? RequestClose;
     public event EventHandler<CommandItem>? CommandExecuted;
 
     public CommandPaletteViewModel()
     {
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
         RegisterDefaultCommands();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<CommandItem>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Command",
+                cellTemplateKey: "CommandItemTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "command";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<CommandItem, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<CommandItem, string>(
+                            item => item.Name),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not CommandItem command)
+                                return string.Empty;
+                            return $"{command.Name} {command.Description} {command.Category} {command.Shortcut}";
+                        }
+                    };
+                })
+        };
     }
 
     partial void OnSearchTextChanged(string value)
@@ -259,6 +310,8 @@ public partial class CommandPaletteViewModel : ViewModelBase
         Action refresh,
         Action goToParent,
         Action switchPanel,
+        Action goBack,
+        Action goForward,
         Action search,
         Action multiRename,
         Action compare,
@@ -276,6 +329,10 @@ public partial class CommandPaletteViewModel : ViewModelBase
         Action plugins,
         Action columns,
         Action quickView,
+        Action detailView,
+        Action thumbnailView,
+        Action showHidden,
+        Action commandPalette,
         Action about,
         Action exit)
     {
@@ -290,6 +347,12 @@ public partial class CommandPaletteViewModel : ViewModelBase
         SetCommandAction("nav.refresh", refresh);
         SetCommandAction("nav.goToParent", goToParent);
         SetCommandAction("nav.switchPanel", switchPanel);
+        SetCommandAction("nav.goBack", goBack);
+        SetCommandAction("nav.goForward", goForward);
+        SetCommandAction("view.quickView", quickView);
+        SetCommandAction("view.detailView", detailView);
+        SetCommandAction("view.thumbnailView", thumbnailView);
+        SetCommandAction("view.showHidden", showHidden);
         SetCommandAction("tools.search", search);
         SetCommandAction("tools.multiRename", multiRename);
         SetCommandAction("tools.compare", compare);
@@ -306,7 +369,7 @@ public partial class CommandPaletteViewModel : ViewModelBase
         SetCommandAction("config.settings", settings);
         SetCommandAction("config.plugins", plugins);
         SetCommandAction("config.columns", columns);
-        SetCommandAction("view.quickView", quickView);
+        SetCommandAction("app.commandPalette", commandPalette);
         SetCommandAction("app.about", about);
         SetCommandAction("app.exit", exit);
     }

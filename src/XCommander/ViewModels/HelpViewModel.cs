@@ -1,4 +1,8 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -28,7 +32,46 @@ public partial class HelpViewModel : ViewModelBase
     
     public HelpViewModel()
     {
+        CategoriesFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        CategoriesSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        CategoriesSearchModel = new SearchModel();
+        CategoriesColumnDefinitions = BuildCategoriesColumnDefinitions();
         LoadCategory("Overview");
+    }
+
+    public ObservableCollection<DataGridColumnDefinition> CategoriesColumnDefinitions { get; }
+    public FilteringModel CategoriesFilteringModel { get; }
+    public SortingModel CategoriesSortingModel { get; }
+    public SearchModel CategoriesSearchModel { get; }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildCategoriesColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<string>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Category",
+                cellTemplateKey: "HelpCategoryTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "category";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<string, string>(item => item);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<string, string>(item => item)
+                    };
+                })
+        };
     }
     
     partial void OnSelectedCategoryChanged(string value)

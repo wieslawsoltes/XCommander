@@ -1,44 +1,51 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:XCommander.Controls"
              xmlns:vm="using:XCommander.ViewModels"
              x:Class="XCommander.Views.CreateArchiveDialog"
              x:DataType="vm:CreateArchiveViewModel"
              MinWidth="600"
              MinHeight="400">
-    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
-        <!-- Header -->
-        <Border Grid.Row="0" Background="{DynamicResource SystemAccentColor}" Padding="16">
-            <TextBlock Text="Create Archive" FontSize="18" FontWeight="Bold" Foreground="White"/>
-        </Border>
+    <UserControl.Resources>
+        <DataTemplate x:Key="CreateArchiveActionTemplate"
+                      x:DataType="vm:FileToArchive">
+            <Button Content="✕"
+                    Command="{Binding $parent[DataGrid].((vm:CreateArchiveViewModel)DataContext).RemoveFileCommand}"
+                    CommandParameter="{Binding}"
+                    Padding="4,2"
+                    ToolTip.Tip="Remove from archive"/>
+        </DataTemplate>
+    </UserControl.Resources>
 
-        <!-- Options -->
-        <Border Grid.Row="1" Background="{DynamicResource SystemRegionBrush}" Padding="12">
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="10">
+        <controls:TcBevelPanel Grid.Row="0" Padding="6,4">
+            <TextBlock Text="Create Archive" FontWeight="Bold"/>
+        </controls:TcBevelPanel>
+
+        <controls:TcBevelPanel Grid.Row="1" Padding="6,4" Margin="0,6,0,0">
             <Grid RowDefinitions="Auto,Auto,Auto">
-                <!-- Archive Path -->
-                <Grid Grid.Row="0" ColumnDefinitions="100,*,Auto" Margin="0,0,0,8">
+                <Grid Grid.Row="0" ColumnDefinitions="100,*,Auto" Margin="0,0,0,6">
                     <TextBlock Text="Archive:" VerticalAlignment="Center"/>
-                    <TextBox Grid.Column="1" Text="{Binding ArchivePath}" 
-                             IsEnabled="{Binding !IsCreating}" Margin="0,0,8,0"/>
+                    <TextBox Grid.Column="1" Text="{Binding ArchivePath}"
+                             IsEnabled="{Binding !IsCreating}" Margin="0,0,6,0"/>
                     <Button Grid.Column="2" Content="..." Width="30" Click="BrowsePath_Click"
                             IsEnabled="{Binding !IsCreating}"/>
                 </Grid>
 
-                <!-- Archive Type -->
-                <Grid Grid.Row="1" ColumnDefinitions="100,Auto,100,Auto" Margin="0,0,0,8">
+                <Grid Grid.Row="1" ColumnDefinitions="100,Auto,100,Auto" Margin="0,0,0,6">
                     <TextBlock Text="Type:" VerticalAlignment="Center"/>
-                    <ComboBox Grid.Column="1" ItemsSource="{Binding ArchiveTypes}" 
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding ArchiveTypes}"
                               SelectedItem="{Binding SelectedType}"
                               IsEnabled="{Binding !IsCreating}"
                               Width="120"/>
-                    <TextBlock Grid.Column="2" Text="Compression:" VerticalAlignment="Center" Margin="16,0,0,0"/>
-                    <ComboBox Grid.Column="3" ItemsSource="{Binding CompressionLevels}" 
+                    <TextBlock Grid.Column="2" Text="Compression:" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    <ComboBox Grid.Column="3" ItemsSource="{Binding CompressionLevels}"
                               SelectedItem="{Binding SelectedCompressionLevel}"
                               IsEnabled="{Binding !IsCreating}"
                               Width="120"/>
                 </Grid>
 
-                <!-- Summary -->
-                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="16">
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12">
                     <TextBlock VerticalAlignment="Center">
                         <Run Text="Files: "/>
                         <Run Text="{Binding Files.Count}" FontWeight="Bold"/>
@@ -49,52 +56,45 @@
                     </TextBlock>
                 </StackPanel>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
 
-        <!-- File List -->
-        <DataGrid Grid.Row="2" ItemsSource="{Binding Files}" 
-                  AutoGenerateColumns="False"
-                  CanUserResizeColumns="True"
-                  SelectionMode="Single"
-                  IsReadOnly="True"
-                  GridLinesVisibility="Horizontal"
-                  Margin="8">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="30"/>
-                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
-                <DataGridTextColumn Header="Size" Binding="{Binding SizeDisplay}" Width="100"/>
-                <DataGridTemplateColumn Header="" Width="40">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate DataType="vm:FileToArchive">
-                            <Button Content="✕" 
-                                    Command="{Binding $parent[DataGrid].((vm:CreateArchiveViewModel)DataContext).RemoveFileCommand}"
-                                    CommandParameter="{Binding}"
-                                    Padding="4,2"
-                                    ToolTip.Tip="Remove from archive"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-            </DataGrid.Columns>
-        </DataGrid>
+        <controls:TcInsetPanel Grid.Row="2" Padding="0" Margin="0,6,0,0">
+            <DataGrid ItemsSource="{Binding Files}"
+                      AutoGenerateColumns="False"
+                      ColumnDefinitionsSource="{Binding ColumnDefinitions}"
+                      FilteringModel="{Binding FilteringModel}"
+                      SortingModel="{Binding SortingModel}"
+                      SearchModel="{Binding SearchModel}"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      SelectionMode="Single"
+                      IsReadOnly="True"
+                      GridLinesVisibility="Horizontal"
+                      BorderThickness="0"
+                      Margin="0">
+                <DataGrid.FastPathOptions>
+                    <DataGridFastPathOptions UseAccessorsOnly="True"
+                                             ThrowOnMissingAccessor="True" />
+                </DataGrid.FastPathOptions>
+            </DataGrid>
+        </controls:TcInsetPanel>
 
-        <!-- Progress -->
-        <Border Grid.Row="3" Background="{DynamicResource SystemRegionBrush}" Padding="8" 
-                IsVisible="{Binding IsCreating}">
+        <controls:TcBevelPanel Grid.Row="3" Padding="6,4" Margin="0,6,0,0"
+                               IsVisible="{Binding IsCreating}">
             <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="4"/>
-        </Border>
+        </controls:TcBevelPanel>
 
-        <!-- Button Bar -->
-        <Border Grid.Row="4" Background="{DynamicResource SystemRegionBrush}" Padding="12">
+        <controls:TcBevelPanel Grid.Row="4" Padding="6,4" Margin="0,6,0,0">
             <Grid ColumnDefinitions="*,Auto,Auto,Auto">
                 <TextBlock Text="{Binding Status}" VerticalAlignment="Center"/>
-                <Button Grid.Column="1" Content="Create" Command="{Binding CreateCommand}" 
+                <Button Grid.Column="1" Content="Create" Command="{Binding CreateCommand}"
                         IsEnabled="{Binding !IsCreating}"
-                        Width="80" Margin="0,0,8,0"/>
-                <Button Grid.Column="2" Content="Cancel" Command="{Binding CancelCommand}" 
+                        Width="80" Margin="0,0,6,0"/>
+                <Button Grid.Column="2" Content="Cancel" Command="{Binding CancelCommand}"
                         IsEnabled="{Binding IsCreating}"
-                        Width="80" Margin="0,0,8,0"/>
+                        Width="80" Margin="0,0,6,0"/>
                 <Button Grid.Column="3" Content="Close" Click="Close_Click" Width="80"/>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
     </Grid>
 </UserControl>

@@ -18,6 +18,10 @@ public sealed class BackgroundTransferService : IBackgroundTransferService, IDis
     private readonly ConcurrentQueue<string> _pendingQueue = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellationTokens = new();
     private readonly ILongPathService _longPathService;
+    private readonly IFileSystemService? _fileSystemService;
+    private readonly ICloudStorageService? _cloudStorageService;
+    private readonly IDirectorySyncService? _directorySyncService;
+    private readonly IArchiveService? _archiveService;
     private readonly SemaphoreSlim _concurrencyLimiter;
     private readonly object _lock = new();
     
@@ -37,9 +41,17 @@ public sealed class BackgroundTransferService : IBackgroundTransferService, IDis
     public event EventHandler<TransferProgressEventArgs>? ProgressChanged;
     public event EventHandler<EventArgs>? QueueEmpty;
     
-    public BackgroundTransferService(ILongPathService longPathService)
+    public BackgroundTransferService(ILongPathService longPathService,
+        IFileSystemService? fileSystemService = null,
+        ICloudStorageService? cloudStorageService = null,
+        IDirectorySyncService? directorySyncService = null,
+        IArchiveService? archiveService = null)
     {
         _longPathService = longPathService;
+        _fileSystemService = fileSystemService;
+        _cloudStorageService = cloudStorageService;
+        _directorySyncService = directorySyncService;
+        _archiveService = archiveService;
         _concurrencyLimiter = new SemaphoreSlim(_maxConcurrentTransfers, _maxConcurrentTransfers);
     }
     
@@ -516,6 +528,46 @@ public sealed class BackgroundTransferService : IBackgroundTransferService, IDis
                         }, cancellationToken);
                         break;
                     
+                    case TransferOperationType.Upload:
+                        await ExecuteUploadAsync(operation, (bytes, file) =>
+                        {
+                            processedBytes += bytes;
+                            UpdateProgress(operationId, processedBytes, processedFiles, file, stopwatch.Elapsed);
+                        }, cancellationToken);
+                        break;
+                    
+                    case TransferOperationType.Download:
+                        await ExecuteDownloadAsync(operation, (bytes, file) =>
+                        {
+                            processedBytes += bytes;
+                            UpdateProgress(operationId, processedBytes, processedFiles, file, stopwatch.Elapsed);
+                        }, cancellationToken);
+                        break;
+                    
+                    case TransferOperationType.Sync:
+                        await ExecuteSyncAsync(operation, (bytes, file) =>
+                        {
+                            processedBytes += bytes;
+                            UpdateProgress(operationId, processedBytes, processedFiles, file, stopwatch.Elapsed);
+                        }, cancellationToken);
+                        break;
+                    
+                    case TransferOperationType.Archive:
+                        await ExecuteArchiveAsync(operation, (bytes, file) =>
+                        {
+                            processedBytes += bytes;
+                            UpdateProgress(operationId, processedBytes, processedFiles, file, stopwatch.Elapsed);
+                        }, cancellationToken);
+                        break;
+                    
+                    case TransferOperationType.Extract:
+                        await ExecuteExtractAsync(operation, (bytes, file) =>
+                        {
+                            processedBytes += bytes;
+                            UpdateProgress(operationId, processedBytes, processedFiles, file, stopwatch.Elapsed);
+                        }, cancellationToken);
+                        break;
+                    
                     default:
                         throw new NotSupportedException($"Operation type {operation.Type} not yet implemented");
                 }
@@ -685,40 +737,466 @@ public sealed class BackgroundTransferService : IBackgroundTransferService, IDis
         }
     }
     
-    private Task ExecuteDeleteAsync(TransferOperation operation,
+    private async Task ExecuteDeleteAsync(TransferOperation operation,
         Action<string> progressCallback, CancellationToken cancellationToken)
     {
         var files = operation.Files.Count > 0 
             ? operation.Files 
             : new[] { operation.SourcePath };
+
+        if (_fileSystemService != null)
+        {
+            var progress = new Progress<FileOperationProgress>(p =>
+            {
+                if (!string.IsNullOrWhiteSpace(p.CurrentItem))
+                    progressCallback(p.CurrentItem);
+            });
+
+            await _fileSystemService.DeleteAsync(
+                files,
+                permanent: !operation.Options.UseRecycleBin,
+                progress,
+                cancellationToken);
+            return;
+        }
         
         foreach (var file in files)
         {
             cancellationToken.ThrowIfCancellationRequested();
             
             var longPath = _longPathService.NormalizePath(file);
-            
-            if (operation.Options.UseRecycleBin)
-            {
-                // Would use FileSystem.DeleteFile with SendToRecycleBin option
-                // For now, just delete directly
-                if (Directory.Exists(longPath))
-                    Directory.Delete(longPath, true);
-                else
-                    File.Delete(longPath);
-            }
+
+            if (Directory.Exists(longPath))
+                Directory.Delete(longPath, true);
             else
-            {
-                if (Directory.Exists(longPath))
-                    Directory.Delete(longPath, true);
-                else
-                    File.Delete(longPath);
-            }
+                File.Delete(longPath);
             
             progressCallback(file);
         }
+    }
+
+    private async Task ExecuteUploadAsync(TransferOperation operation,
+        Action<long, string> progressCallback, CancellationToken cancellationToken)
+    {
+        if (_cloudStorageService == null)
+            throw new InvalidOperationException("Cloud storage service is not available");
         
-        return Task.CompletedTask;
+        if (!TryParseCloudLocation(operation.TargetPath, out var accountId, out var cloudTarget))
+            throw new InvalidOperationException("Upload requires target path in format cloud://{accountId}/{path}");
+        
+        var localFiles = ResolveLocalFiles(operation);
+        if (localFiles.Count == 0)
+            throw new InvalidOperationException("Upload requires source file(s)");
+        var isDirectoryUpload = Directory.Exists(operation.SourcePath) || localFiles.Count > 1;
+        var targetIsFolder = cloudTarget.EndsWith("/", StringComparison.Ordinal);
+        
+        foreach (var localPath in localFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            var relative = Directory.Exists(operation.SourcePath)
+                ? Path.GetRelativePath(operation.SourcePath, localPath)
+                : Path.GetFileName(localPath);
+            var cloudPath = targetIsFolder || isDirectoryUpload
+                ? CombineCloudPath(cloudTarget, relative)
+                : cloudTarget;
+            
+            if (operation.Options.SkipExisting || !operation.Options.OverwriteExisting)
+            {
+                var existing = await _cloudStorageService.GetItemAsync(accountId, cloudPath, cancellationToken);
+                if (existing != null)
+                {
+                    if (operation.Options.SkipExisting)
+                        continue;
+                    if (!operation.Options.OverwriteExisting)
+                        throw new IOException($"Cloud target already exists: {cloudPath}");
+                }
+            }
+            
+            long lastTransferred = 0;
+            var progress = new Progress<CloudTransferProgress>(p =>
+            {
+                var delta = p.BytesTransferred - lastTransferred;
+                if (delta > 0)
+                {
+                    progressCallback(delta, localPath);
+                    lastTransferred = p.BytesTransferred;
+                }
+            });
+            
+            await _cloudStorageService.UploadFromFileAsync(accountId, cloudPath, localPath, progress, cancellationToken);
+        }
+    }
+    
+    private async Task ExecuteDownloadAsync(TransferOperation operation,
+        Action<long, string> progressCallback, CancellationToken cancellationToken)
+    {
+        if (_cloudStorageService == null)
+            throw new InvalidOperationException("Cloud storage service is not available");
+        
+        if (!TryParseCloudLocation(operation.SourcePath, out var accountId, out var cloudSource))
+            throw new InvalidOperationException("Download requires source path in format cloud://{accountId}/{path}");
+        
+        var targetRoot = operation.TargetPath ?? Environment.CurrentDirectory;
+        var cloudFiles = ResolveCloudFiles(operation, cloudSource)
+            .Select(path => NormalizeCloudPath(path, accountId))
+            .ToList();
+        
+        if (cloudFiles.Count == 0)
+        {
+            var item = await _cloudStorageService.GetItemAsync(accountId, cloudSource, cancellationToken);
+            if (item != null && item.IsFolder)
+            {
+                await DownloadCloudDirectoryAsync(accountId, cloudSource, targetRoot, operation, progressCallback, cancellationToken);
+                return;
+            }
+            
+            await DownloadCloudFileAsync(accountId, cloudSource, targetRoot, operation, progressCallback, cancellationToken);
+            return;
+        }
+        
+        foreach (var cloudPath in cloudFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await DownloadCloudFileAsync(accountId, cloudPath, targetRoot, operation, progressCallback, cancellationToken);
+        }
+    }
+    
+    private async Task ExecuteSyncAsync(TransferOperation operation,
+        Action<long, string> progressCallback, CancellationToken cancellationToken)
+    {
+        var sourceIsCloud = TryParseCloudLocation(operation.SourcePath, out var sourceAccount, out var sourceCloud);
+        var targetIsCloud = TryParseCloudLocation(operation.TargetPath, out var targetAccount, out var targetCloud);
+        
+        if (sourceIsCloud && targetIsCloud)
+            throw new NotSupportedException("Cloud-to-cloud sync is not supported");
+        
+        if (sourceIsCloud || targetIsCloud)
+        {
+            if (_cloudStorageService == null)
+                throw new InvalidOperationException("Cloud storage service is not available");
+            
+            var accountId = sourceIsCloud ? sourceAccount : targetAccount;
+            var cloudPath = sourceIsCloud ? sourceCloud : targetCloud;
+            var localPath = sourceIsCloud ? operation.TargetPath : operation.SourcePath;
+            
+            if (string.IsNullOrWhiteSpace(localPath))
+                throw new InvalidOperationException("Sync requires a local path");
+            
+            var direction = ResolveCloudSyncDirection(operation.Options, sourceIsCloud);
+            long lastTransferred = 0;
+            var progress = new Progress<CloudTransferProgress>(p =>
+            {
+                var delta = p.BytesTransferred - lastTransferred;
+                if (delta > 0)
+                {
+                    progressCallback(delta, p.FileName);
+                    lastTransferred = p.BytesTransferred;
+                }
+            });
+            
+            await _cloudStorageService.SynchronizeAsync(accountId, localPath!, cloudPath, direction, progress, cancellationToken);
+            return;
+        }
+        
+        if (_directorySyncService == null)
+            throw new InvalidOperationException("Directory sync service is not available");
+        
+        if (string.IsNullOrWhiteSpace(operation.TargetPath))
+            throw new InvalidOperationException("Sync requires source and target paths");
+        
+        var options = new SyncOptions();
+        long lastBytes = 0;
+        var progressInfo = new Progress<SyncProgressInfo>(p =>
+        {
+            var delta = p.ProcessedBytes - lastBytes;
+            if (delta > 0)
+            {
+                progressCallback(delta, p.CurrentFile);
+                lastBytes = p.ProcessedBytes;
+            }
+        });
+        
+        var entries = await _directorySyncService.CompareDirectoriesAsync(
+            operation.SourcePath,
+            operation.TargetPath,
+            options,
+            progressInfo,
+            cancellationToken);
+        
+        entries = _directorySyncService.AutoAssignActions(entries, options);
+        await _directorySyncService.SynchronizeAsync(entries, options, progressInfo, cancellationToken);
+    }
+    
+    private async Task ExecuteArchiveAsync(TransferOperation operation,
+        Action<long, string> progressCallback, CancellationToken cancellationToken)
+    {
+        if (_archiveService == null)
+            throw new InvalidOperationException("Archive service is not available");
+        
+        var destination = operation.TargetPath;
+        if (string.IsNullOrWhiteSpace(destination))
+            throw new InvalidOperationException("Archive operation requires a target archive path");
+        
+        var sources = (operation.Files.Count > 0
+                ? operation.Files
+                : new[] { operation.SourcePath })
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .ToList();
+        
+        if (sources.Count == 0)
+            throw new InvalidOperationException("Archive operation requires source files");
+        
+        long lastBytes = 0;
+        var progress = new Progress<ArchiveProgress>(p =>
+        {
+            var delta = p.BytesProcessed - lastBytes;
+            if (delta > 0)
+            {
+                progressCallback(delta, p.CurrentEntry);
+                lastBytes = p.BytesProcessed;
+            }
+        });
+        
+        var type = InferArchiveType(destination);
+        await _archiveService.CreateArchiveAsync(destination, sources, type, CompressionLevel.Normal, progress, cancellationToken);
+    }
+    
+    private async Task ExecuteExtractAsync(TransferOperation operation,
+        Action<long, string> progressCallback, CancellationToken cancellationToken)
+    {
+        if (_archiveService == null)
+            throw new InvalidOperationException("Archive service is not available");
+        
+        if (string.IsNullOrWhiteSpace(operation.SourcePath))
+            throw new InvalidOperationException("Extract operation requires a source archive path");
+        
+        var destination = operation.TargetPath ?? Path.GetDirectoryName(operation.SourcePath) ?? Environment.CurrentDirectory;
+        Directory.CreateDirectory(destination);
+        
+        long lastBytes = 0;
+        var progress = new Progress<ArchiveProgress>(p =>
+        {
+            var delta = p.BytesProcessed - lastBytes;
+            if (delta > 0)
+            {
+                progressCallback(delta, p.CurrentEntry);
+                lastBytes = p.BytesProcessed;
+            }
+        });
+        
+        await _archiveService.ExtractAllAsync(operation.SourcePath, destination, progress, cancellationToken);
+    }
+
+    private static IReadOnlyList<string> ResolveLocalFiles(TransferOperation operation)
+    {
+        if (operation.Files.Count > 0)
+            return operation.Files.ToList();
+        
+        if (!string.IsNullOrWhiteSpace(operation.SourcePath))
+        {
+            if (Directory.Exists(operation.SourcePath))
+            {
+                return Directory.EnumerateFiles(operation.SourcePath, "*", SearchOption.AllDirectories).ToList();
+            }
+            
+            return new[] { operation.SourcePath };
+        }
+        
+        return Array.Empty<string>();
+    }
+    
+    private static IReadOnlyList<string> ResolveCloudFiles(TransferOperation operation, string cloudSource)
+    {
+        if (operation.Files.Count > 0)
+            return operation.Files.ToList();
+        
+        if (!string.IsNullOrWhiteSpace(operation.SourcePath))
+            return Array.Empty<string>();
+        
+        return new[] { cloudSource };
+    }
+    
+    private async Task DownloadCloudDirectoryAsync(string accountId, string cloudPath, string localRoot,
+        TransferOperation operation,
+        Action<long, string> progressCallback, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(localRoot);
+        
+        var items = await _cloudStorageService!.ListAsync(accountId, cloudPath, cancellationToken);
+        foreach (var item in items)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            var relative = GetRelativeCloudPath(cloudPath, item.Path);
+            var localPath = Path.Combine(localRoot, relative.Replace('/', Path.DirectorySeparatorChar));
+            
+            if (item.IsFolder)
+            {
+                await DownloadCloudDirectoryAsync(accountId, item.Path, localPath, operation, progressCallback, cancellationToken);
+            }
+            else
+            {
+                await DownloadCloudFileAsync(accountId, item.Path, localPath, operation, progressCallback, cancellationToken);
+            }
+        }
+    }
+    
+    private async Task DownloadCloudFileAsync(string accountId, string cloudPath, string localTarget,
+        TransferOperation operation,
+        Action<long, string> progressCallback, CancellationToken cancellationToken)
+    {
+        var finalPath = ResolveLocalTargetPath(localTarget, cloudPath);
+        
+        if (File.Exists(finalPath))
+        {
+            if (operation.Options.SkipExisting)
+                return;
+            if (!operation.Options.OverwriteExisting)
+                throw new IOException($"Target already exists: {finalPath}");
+        }
+        
+        var targetDir = Path.GetDirectoryName(finalPath);
+        if (!string.IsNullOrWhiteSpace(targetDir))
+        {
+            Directory.CreateDirectory(targetDir);
+        }
+        
+        long lastTransferred = 0;
+        var progress = new Progress<CloudTransferProgress>(p =>
+        {
+            var delta = p.BytesTransferred - lastTransferred;
+            if (delta > 0)
+            {
+                progressCallback(delta, finalPath);
+                lastTransferred = p.BytesTransferred;
+            }
+        });
+        
+        await _cloudStorageService!.DownloadToFileAsync(accountId, cloudPath, finalPath, progress, cancellationToken);
+    }
+    
+    private static bool TryParseCloudLocation(string? value, out string accountId, out string cloudPath)
+    {
+        accountId = string.Empty;
+        cloudPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+        
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
+        {
+            var remainder = trimmed.Substring("cloud://".Length);
+            var slashIndex = remainder.IndexOf('/');
+            if (slashIndex < 0)
+            {
+                accountId = remainder;
+                cloudPath = string.Empty;
+                return !string.IsNullOrWhiteSpace(accountId);
+            }
+            
+            accountId = remainder[..slashIndex];
+            cloudPath = remainder[(slashIndex + 1)..];
+            cloudPath = cloudPath.TrimStart('/');
+            return !string.IsNullOrWhiteSpace(accountId);
+        }
+        
+        if (trimmed.StartsWith("cloud:", StringComparison.OrdinalIgnoreCase))
+        {
+            var remainder = trimmed.Substring("cloud:".Length);
+            var slashIndex = remainder.IndexOf('/');
+            if (slashIndex < 0)
+            {
+                accountId = remainder;
+                cloudPath = string.Empty;
+                return !string.IsNullOrWhiteSpace(accountId);
+            }
+            
+            accountId = remainder[..slashIndex];
+            cloudPath = remainder[(slashIndex + 1)..];
+            cloudPath = cloudPath.TrimStart('/');
+            return !string.IsNullOrWhiteSpace(accountId);
+        }
+        
+        return false;
+    }
+
+    private static string NormalizeCloudPath(string value, string expectedAccountId)
+    {
+        if (TryParseCloudLocation(value, out var accountId, out var cloudPath))
+        {
+            if (!string.Equals(accountId, expectedAccountId, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Cloud path account mismatch: {accountId}");
+            return cloudPath;
+        }
+        
+        return value;
+    }
+    
+    private static string CombineCloudPath(string basePath, string relativePath)
+    {
+        var sanitizedBase = basePath.Replace('\\', '/').Trim('/');
+        var sanitizedRelative = relativePath.Replace('\\', '/').TrimStart('/');
+        if (string.IsNullOrEmpty(sanitizedBase))
+            return sanitizedRelative;
+        if (string.IsNullOrEmpty(sanitizedRelative))
+            return sanitizedBase;
+        return $"{sanitizedBase}/{sanitizedRelative}";
+    }
+    
+    private static string GetRelativeCloudPath(string rootPath, string itemPath)
+    {
+        var normalizedRoot = rootPath.Replace('\\', '/').Trim('/');
+        var normalizedItem = itemPath.Replace('\\', '/').Trim('/');
+        if (string.IsNullOrEmpty(normalizedRoot))
+            return normalizedItem;
+        if (normalizedItem.StartsWith(normalizedRoot + "/", StringComparison.OrdinalIgnoreCase))
+            return normalizedItem[(normalizedRoot.Length + 1)..];
+        return normalizedItem;
+    }
+    
+    private static string ResolveLocalTargetPath(string targetPath, string cloudPath)
+    {
+        if (string.IsNullOrWhiteSpace(targetPath))
+            return Path.GetFileName(cloudPath);
+        
+        var path = targetPath;
+        if (Directory.Exists(path) || path.EndsWith(Path.DirectorySeparatorChar) || path.EndsWith(Path.AltDirectorySeparatorChar))
+        {
+            return Path.Combine(path, Path.GetFileName(cloudPath));
+        }
+        
+        return path;
+    }
+    
+    private static SyncDirection ResolveCloudSyncDirection(TransferOptions options, bool sourceIsCloud)
+    {
+        if (!string.IsNullOrWhiteSpace(options.ConflictResolution))
+        {
+            return options.ConflictResolution.Trim().ToLowerInvariant() switch
+            {
+                "upload" => SyncDirection.Upload,
+                "download" => SyncDirection.Download,
+                "bidirectional" or "both" => SyncDirection.Bidirectional,
+                _ => sourceIsCloud ? SyncDirection.Download : SyncDirection.Upload
+            };
+        }
+        
+        return sourceIsCloud ? SyncDirection.Download : SyncDirection.Upload;
+    }
+    
+    private static ArchiveType InferArchiveType(string archivePath)
+    {
+        var extension = Path.GetExtension(archivePath).ToLowerInvariant();
+        return extension switch
+        {
+            ".7z" => ArchiveType.SevenZip,
+            ".tar" => ArchiveType.Tar,
+            ".gz" or ".gzip" => ArchiveType.GZip,
+            ".bz2" => ArchiveType.BZip2,
+            ".rar" => ArchiveType.Rar,
+            _ => ArchiveType.Zip
+        };
     }
     
     public void Dispose()

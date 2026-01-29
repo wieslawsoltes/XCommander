@@ -1,4 +1,10 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using System.IO.Compression;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using XCommander.Plugins;
@@ -77,6 +83,11 @@ public partial class PluginMarketplaceViewModel : ViewModelBase
     
     [ObservableProperty]
     private bool _showAvailable = true;
+
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
     
     public ObservableCollection<MarketplacePluginItem> AllPlugins { get; } = [];
     public ObservableCollection<MarketplacePluginItem> FilteredPlugins { get; } = [];
@@ -96,7 +107,49 @@ public partial class PluginMarketplaceViewModel : ViewModelBase
     public PluginMarketplaceViewModel(PluginManager? pluginManager = null)
     {
         _pluginManager = pluginManager;
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
         LoadInstalledPlugins();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<MarketplacePluginItem>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Plugin",
+                cellTemplateKey: "MarketplacePluginTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "marketplace-plugin";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<MarketplacePluginItem, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<MarketplacePluginItem, string>(
+                            item => item.Name),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not MarketplacePluginItem plugin)
+                                return string.Empty;
+                            return $"{plugin.Name} {plugin.Description} {plugin.Author} {plugin.Category}";
+                        }
+                    };
+                })
+        };
     }
     
     partial void OnSearchQueryChanged(string value)
@@ -194,12 +247,35 @@ public partial class PluginMarketplaceViewModel : ViewModelBase
         
         try
         {
-            // TODO: Implement actual download and installation
-            await Task.Delay(1000);
+            var packagePath = FindPackagePath(plugin);
+            if (packagePath == null)
+            {
+                throw new FileNotFoundException($"Package not found for '{plugin.Id}'. Expected in '{GetMarketplaceRoot()}'.");
+            }
+
+            var pluginsRoot = GetPluginsRoot();
+
+            if (Directory.Exists(packagePath))
+            {
+                InstallFromDirectory(packagePath, pluginsRoot, plugin.Id);
+            }
+            else if (packagePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                InstallFromZip(packagePath, pluginsRoot, plugin.Id);
+            }
+            else if (packagePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            {
+                InstallFromDll(packagePath, pluginsRoot);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Unsupported package format: {Path.GetFileName(packagePath)}");
+            }
             
             plugin.IsInstalled = true;
             InstalledCount++;
             AvailableCount--;
+            ApplyFilter();
             
             StatusText = $"Plugin '{plugin.Name}' installed successfully. Restart to activate.";
         }
@@ -224,12 +300,52 @@ public partial class PluginMarketplaceViewModel : ViewModelBase
         
         try
         {
-            // TODO: Implement actual uninstallation
-            await Task.Delay(500);
+            var pluginsRoot = GetPluginsRoot();
+            var removed = false;
+
+            if (_pluginManager != null)
+            {
+                var loaded = _pluginManager.LoadedPlugins.FirstOrDefault(p => p.Metadata.Id == plugin.Id);
+                if (loaded != null)
+                {
+                    await _pluginManager.DisablePluginAsync(plugin.Id);
+                    if (Directory.Exists(loaded.PluginDirectory))
+                    {
+                        Directory.Delete(loaded.PluginDirectory, true);
+                        removed = true;
+                    }
+                }
+            }
+
+            if (!removed)
+            {
+                var pluginDir = Path.Combine(pluginsRoot, plugin.Id);
+                if (Directory.Exists(pluginDir))
+                {
+                    Directory.Delete(pluginDir, true);
+                    removed = true;
+                }
+            }
+
+            if (!removed)
+            {
+                var dllPath = Path.Combine(pluginsRoot, $"{plugin.Id}.dll");
+                if (File.Exists(dllPath))
+                {
+                    File.Delete(dllPath);
+                    removed = true;
+                }
+            }
+
+            if (!removed)
+            {
+                throw new DirectoryNotFoundException($"Could not locate installed files for '{plugin.Id}'.");
+            }
             
             plugin.IsInstalled = false;
             InstalledCount--;
             AvailableCount++;
+            ApplyFilter();
             
             StatusText = $"Plugin '{plugin.Name}' uninstalled. Restart required.";
         }
@@ -382,7 +498,7 @@ public partial class PluginMarketplaceViewModel : ViewModelBase
     {
         try
         {
-            var pluginsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins");
+            var pluginsDir = GetPluginsRoot();
             
             if (!Directory.Exists(pluginsDir))
             {
@@ -402,5 +518,103 @@ public partial class PluginMarketplaceViewModel : ViewModelBase
             StatusText = $"Error opening plugins folder: {ex.Message}";
         }
     }
-}
 
+    private static string GetPluginsRoot()
+    {
+        var pluginsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins");
+        Directory.CreateDirectory(pluginsDir);
+        return pluginsDir;
+    }
+
+    private static string GetMarketplaceRoot()
+    {
+        var marketplaceDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "XCommander",
+            "Marketplace");
+        Directory.CreateDirectory(marketplaceDir);
+        return marketplaceDir;
+    }
+
+    private static string? FindPackagePath(MarketplacePluginItem plugin)
+    {
+        var marketplaceDir = GetMarketplaceRoot();
+        var zipPath = Path.Combine(marketplaceDir, $"{plugin.Id}.zip");
+        if (File.Exists(zipPath)) return zipPath;
+
+        var dllPath = Path.Combine(marketplaceDir, $"{plugin.Id}.dll");
+        if (File.Exists(dllPath)) return dllPath;
+
+        var dirPath = Path.Combine(marketplaceDir, plugin.Id);
+        if (Directory.Exists(dirPath)) return dirPath;
+
+        return null;
+    }
+
+    private static void InstallFromDll(string dllPath, string pluginsRoot)
+    {
+        var targetPath = Path.Combine(pluginsRoot, Path.GetFileName(dllPath));
+        File.Copy(dllPath, targetPath, true);
+    }
+
+    private static void InstallFromDirectory(string sourceDir, string pluginsRoot, string pluginId)
+    {
+        var targetDir = Path.Combine(pluginsRoot, pluginId);
+        if (Directory.Exists(targetDir))
+        {
+            Directory.Delete(targetDir, true);
+        }
+        CopyDirectory(sourceDir, targetDir);
+    }
+
+    private static void InstallFromZip(string zipPath, string pluginsRoot, string pluginId)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"xcmd_plugin_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            ZipFile.ExtractToDirectory(zipPath, tempDir, true);
+
+            var topLevelDirs = Directory.GetDirectories(tempDir);
+            var topLevelFiles = Directory.GetFiles(tempDir);
+            var sourceRoot = tempDir;
+
+            if (topLevelDirs.Length == 1 && topLevelFiles.Length == 0)
+            {
+                sourceRoot = topLevelDirs[0];
+            }
+
+            var targetDir = Path.Combine(pluginsRoot, pluginId);
+            if (Directory.Exists(targetDir))
+            {
+                Directory.Delete(targetDir, true);
+            }
+            CopyDirectory(sourceRoot, targetDir);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    private static void CopyDirectory(string sourceDir, string targetDir)
+    {
+        Directory.CreateDirectory(targetDir);
+
+        foreach (var file in Directory.GetFiles(sourceDir))
+        {
+            var targetPath = Path.Combine(targetDir, Path.GetFileName(file));
+            File.Copy(file, targetPath, true);
+        }
+
+        foreach (var directory in Directory.GetDirectories(sourceDir))
+        {
+            var targetPath = Path.Combine(targetDir, Path.GetFileName(directory));
+            CopyDirectory(directory, targetPath);
+        }
+    }
+}

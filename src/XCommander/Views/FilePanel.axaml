@@ -14,6 +14,65 @@
     <UserControl.Resources>
         <converters:DateTimeConverter x:Key="DateTimeConverter"/>
         <converters:BoolToOpacityConverter x:Key="BoolToOpacityConverter"/>
+        <DataTemplate x:Key="FileItemNameTemplate"
+                      x:DataType="vm:FileItemViewModel">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="6"
+                        Margin="4,2"
+                        Opacity="{Binding IsHidden, Converter={StaticResource BoolToOpacityConverter}}">
+                <TextBlock Text="{Binding Icon}"
+                           FontSize="14"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           FlowDirection="{Binding NameFlowDirection}"/>
+            </StackPanel>
+        </DataTemplate>
+        <Flyout x:Key="FilePanelNameFilterFlyout"
+                x:DataType="vm:FilePanelViewModel"
+                Placement="Bottom"
+                FlyoutPresenterTheme="{StaticResource DataGridFilterFlyoutPresenterTheme}"
+                Content="{Binding NameFilter}"
+                ContentTemplate="{StaticResource DataGridFilterTextEditorTemplate}" />
+        <Flyout x:Key="FilePanelExtensionFilterFlyout"
+                x:DataType="vm:FilePanelViewModel"
+                Placement="Bottom"
+                FlyoutPresenterTheme="{StaticResource DataGridFilterFlyoutPresenterTheme}"
+                Content="{Binding ExtensionFilter}"
+                ContentTemplate="{StaticResource DataGridFilterTextEditorTemplate}" />
+        <Flyout x:Key="FilePanelSizeFilterFlyout"
+                x:DataType="vm:FilePanelViewModel"
+                Placement="Bottom"
+                FlyoutPresenterTheme="{StaticResource DataGridFilterFlyoutPresenterTheme}"
+                Content="{Binding SizeFilter}"
+                ContentTemplate="{StaticResource DataGridFilterNumberEditorTemplate}" />
+        <Flyout x:Key="FilePanelDateFilterFlyout"
+                x:DataType="vm:FilePanelViewModel"
+                Placement="Bottom"
+                FlyoutPresenterTheme="{StaticResource DataGridFilterFlyoutPresenterTheme}"
+                Content="{Binding DateFilter}"
+                ContentTemplate="{StaticResource DataGridFilterDateEditorTemplate}" />
+        <ControlTheme x:Key="FilePanelNameColumnHeaderTheme"
+                      TargetType="DataGridColumnHeader"
+                      BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="FilterFlyout" Value="{StaticResource FilePanelNameFilterFlyout}" />
+        </ControlTheme>
+        <ControlTheme x:Key="FilePanelExtensionColumnHeaderTheme"
+                      TargetType="DataGridColumnHeader"
+                      BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="FilterFlyout" Value="{StaticResource FilePanelExtensionFilterFlyout}" />
+        </ControlTheme>
+        <ControlTheme x:Key="FilePanelSizeColumnHeaderTheme"
+                      TargetType="DataGridColumnHeader"
+                      BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="FilterFlyout" Value="{StaticResource FilePanelSizeFilterFlyout}" />
+        </ControlTheme>
+        <ControlTheme x:Key="FilePanelDateColumnHeaderTheme"
+                      TargetType="DataGridColumnHeader"
+                      BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="FilterFlyout" Value="{StaticResource FilePanelDateFilterFlyout}" />
+        </ControlTheme>
     </UserControl.Resources>
     
     <Border Classes.active="{Binding IsActive}"
@@ -91,6 +150,10 @@
             <DataGrid Grid.Row="2" 
                       x:Name="FileListDataGrid"
                       ItemsSource="{Binding Items}"
+                      ColumnDefinitionsSource="{Binding ColumnDefinitions}"
+                      FilteringModel="{Binding FilteringModel}"
+                      SortingModel="{Binding SortingModel}"
+                      SearchModel="{Binding SearchModel}"
                       SelectedItem="{Binding SelectedItem}"
                       SelectionMode="Extended"
                       CanUserResizeColumns="True"
@@ -216,35 +279,10 @@
                         </MenuItem>
                     </MenuFlyout>
                 </DataGrid.ContextFlyout>
-                <DataGrid.Columns>
-                    <DataGridTemplateColumn Header="Name" Width="*" MinWidth="150">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate x:DataType="vm:FileItemViewModel">
-                                <StackPanel Orientation="Horizontal" 
-                                            Spacing="6" 
-                                            Margin="4,2"
-                                            Opacity="{Binding IsHidden, Converter={StaticResource BoolToOpacityConverter}}">
-                                    <TextBlock Text="{Binding Icon}" 
-                                               FontSize="14"
-                                               VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding Name}" 
-                                               VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis"
-                                               FlowDirection="{Binding NameFlowDirection}"/>
-                                </StackPanel>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Ext" 
-                                        Binding="{Binding Extension}" 
-                                        Width="60"/>
-                    <DataGridTextColumn Header="Size" 
-                                        Binding="{Binding DisplaySize}" 
-                                        Width="80"/>
-                    <DataGridTextColumn Header="Date Modified" 
-                                        Binding="{Binding DateModified, Converter={StaticResource DateTimeConverter}}" 
-                                        Width="130"/>
-                </DataGrid.Columns>
+                <DataGrid.FastPathOptions>
+                    <DataGridFastPathOptions UseAccessorsOnly="True"
+                                             ThrowOnMissingAccessor="True" />
+                </DataGrid.FastPathOptions>
             </DataGrid>
             
             <!-- File List - Thumbnails View -->

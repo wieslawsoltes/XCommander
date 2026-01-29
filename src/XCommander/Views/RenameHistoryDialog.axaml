@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="using:XCommander.Controls"
         xmlns:vm="using:XCommander.ViewModels"
         mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400"
         x:Class="XCommander.Views.RenameHistoryDialog"
@@ -10,68 +11,59 @@
         Width="700"
         Height="500"
         WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <DataTemplate x:Key="RenameHistoryActionsTemplate"
+                      x:DataType="vm:RenameBatch">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button Content="Undo"
+                        Padding="8,4"
+                        Command="{Binding $parent[Window].((vm:MultiRenameViewModel)DataContext).UndoBatchCommand}"
+                        CommandParameter="{Binding}"/>
+                <Button Content="Details"
+                        Padding="8,4"
+                        Click="OnViewBatchDetails"
+                        Tag="{Binding}"/>
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
     
     <Grid RowDefinitions="Auto,*,Auto" Margin="10">
         <!-- Header -->
-        <TextBlock Grid.Row="0" 
-                   Text="Previous Rename Operations" 
-                   FontWeight="SemiBold" 
-                   FontSize="14"
-                   Margin="0,0,0,10"/>
+        <controls:TcBevelPanel Grid.Row="0" Padding="6,4">
+            <TextBlock Text="Previous Rename Operations" FontWeight="Bold"/>
+        </controls:TcBevelPanel>
         
         <!-- History List -->
-        <DataGrid Grid.Row="1"
-                  ItemsSource="{Binding RenameHistory}"
-                  AutoGenerateColumns="False"
-                  CanUserResizeColumns="True"
-                  IsReadOnly="True"
-                  SelectionMode="Single"
-                  GridLinesVisibility="Horizontal">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Date/Time" 
-                                    Binding="{Binding Timestamp, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" 
-                                    Width="150"/>
-                <DataGridTextColumn Header="Description" 
-                                    Binding="{Binding Description}" 
-                                    Width="*"/>
-                <DataGridTextColumn Header="Files" 
-                                    Binding="{Binding Operations.Count}" 
-                                    Width="60"/>
-                <DataGridTemplateColumn Header="Actions" Width="120">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate x:DataType="vm:RenameBatch">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <Button Content="↩ Undo" 
-                                        Padding="8,4"
-                                        Command="{Binding $parent[Window].((vm:MultiRenameViewModel)DataContext).UndoBatchCommand}"
-                                        CommandParameter="{Binding}"
-                                        ToolTip.Tip="Revert all renames in this batch"/>
-                                <Button Content="👁" 
-                                        Padding="8,4"
-                                        Click="OnViewBatchDetails"
-                                        Tag="{Binding}"
-                                        ToolTip.Tip="View details"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-            </DataGrid.Columns>
-        </DataGrid>
+        <controls:TcInsetPanel Grid.Row="1" Padding="0" Margin="0,6,0,0">
+            <DataGrid ItemsSource="{Binding RenameHistory}"
+                      AutoGenerateColumns="False"
+                      ColumnDefinitionsSource="{Binding HistoryColumnDefinitions}"
+                      FilteringModel="{Binding HistoryFilteringModel}"
+                      SortingModel="{Binding HistorySortingModel}"
+                      SearchModel="{Binding HistorySearchModel}"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      IsReadOnly="True"
+                      SelectionMode="Single"
+                      BorderThickness="0"
+                      GridLinesVisibility="Horizontal">
+                <DataGrid.FastPathOptions>
+                    <DataGridFastPathOptions UseAccessorsOnly="True"
+                                             ThrowOnMissingAccessor="True" />
+                </DataGrid.FastPathOptions>
+            </DataGrid>
+        </controls:TcInsetPanel>
         
         <!-- Buttons -->
-        <StackPanel Grid.Row="2" 
-                    Orientation="Horizontal" 
-                    HorizontalAlignment="Right"
-                    Spacing="10"
-                    Margin="0,10,0,0">
-            <Button Content="Clear All History" 
-                    Command="{Binding ClearHistoryCommand}"
-                    Padding="15,8"
-                    ToolTip.Tip="Permanently delete all rename history"/>
-            <Button Content="Close" 
-                    Click="OnCloseClick"
-                    Padding="15,8"/>
-        </StackPanel>
+        <controls:TcBevelPanel Grid.Row="2" Padding="6,4" Margin="0,6,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+                <Button Content="Clear All History"
+                        Command="{Binding ClearHistoryCommand}"/>
+                <Button Content="Close"
+                        Click="OnCloseClick"/>
+            </StackPanel>
+        </controls:TcBevelPanel>
     </Grid>
     
     <Window.KeyBindings>

@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:XCommander.Controls"
         xmlns:vm="using:XCommander.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -11,104 +12,54 @@
         WindowStartupLocation="CenterOwner"
         CanResize="False"
         ShowInTaskbar="False">
-    
-    <Grid RowDefinitions="Auto,*,Auto,Auto">
-        <!-- Header with Logo -->
-        <Border Grid.Row="0"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
-                Padding="32,24">
-            <StackPanel HorizontalAlignment="Center" Spacing="8">
-                <!-- Application Icon -->
-                <Border Background="{DynamicResource SystemAccentColor}"
-                        CornerRadius="12"
-                        Padding="16"
-                        HorizontalAlignment="Center">
-                    <TextBlock Text="📁" FontSize="48"/>
-                </Border>
-                
-                <!-- Application Name -->
-                <TextBlock Text="{Binding ApplicationName}"
-                           FontSize="28"
-                           FontWeight="Bold"
-                           HorizontalAlignment="Center"/>
-                
-                <!-- Version -->
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="10">
+        <controls:TcBevelPanel Grid.Row="0" Padding="6,4">
+            <StackPanel Spacing="2">
+                <TextBlock Text="{Binding ApplicationName}" FontWeight="Bold" FontSize="14"/>
                 <TextBlock Text="{Binding Version, StringFormat='Version {0}'}"
-                           FontSize="14"
-                           Opacity="0.7"
-                           HorizontalAlignment="Center"/>
-            </StackPanel>
-        </Border>
-        
-        <!-- Description -->
-        <StackPanel Grid.Row="1" 
-                    Margin="24,16"
-                    Spacing="16">
-            <TextBlock Text="{Binding Description}"
-                       TextWrapping="Wrap"
-                       TextAlignment="Center"
-                       FontSize="14"
-                       LineHeight="22"/>
-            
-            <Separator Margin="32,0"/>
-            
-            <!-- Features List -->
-            <TextBlock Text="Key Features:"
-                       FontWeight="SemiBold"
-                       FontSize="13"/>
-            <TextBlock FontSize="12"
-                       Opacity="0.85"
-                       LineHeight="20"
-                       Margin="8,0,0,0">
-                <Run Text="• Dual-panel file management"/><LineBreak/>
-                <Run Text="• Archive support (ZIP, 7z, TAR, GZ)"/><LineBreak/>
-                <Run Text="• FTP/SFTP connections"/><LineBreak/>
-                <Run Text="• Multi-rename tool"/><LineBreak/>
-                <Run Text="• File comparison and sync"/><LineBreak/>
-                <Run Text="• Configurable toolbar and columns"/><LineBreak/>
-                <Run Text="• Plugin system"/>
-            </TextBlock>
-        </StackPanel>
-        
-        <!-- System Info -->
-        <Border Grid.Row="2"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                Padding="16,8">
-            <TextBlock Text="{Binding SystemInfo}"
-                       FontSize="11"
-                       Opacity="0.6"
-                       HorizontalAlignment="Center"
-                       FontFamily="Consolas, Menlo, Monaco, monospace"/>
-        </Border>
-        
-        <!-- Footer with Buttons -->
-        <Border Grid.Row="3"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                Padding="16,12">
-            <Grid ColumnDefinitions="*,Auto,Auto">
-                <!-- Copyright -->
-                <TextBlock Grid.Column="0"
-                           Text="{Binding Copyright}"
-                           VerticalAlignment="Center"
                            FontSize="11"
-                           Opacity="0.6"/>
-                
-                <!-- Project Link -->
+                           Foreground="{DynamicResource TcMutedTextBrush}"/>
+            </StackPanel>
+        </controls:TcBevelPanel>
+
+        <controls:TcInsetPanel Grid.Row="1" Padding="8" Margin="0,6,0,0">
+            <StackPanel Spacing="8">
+                <TextBlock Text="{Binding Description}"
+                           TextWrapping="Wrap"
+                           FontSize="12"/>
+                <TextBlock Text="Key Features:" FontWeight="SemiBold" FontSize="12"/>
+                <TextBlock FontSize="11" LineHeight="18" Margin="6,0,0,0">
+                    <Run Text="• Dual-panel file management"/><LineBreak/>
+                    <Run Text="• Archive support (ZIP, 7z, TAR, GZ)"/><LineBreak/>
+                    <Run Text="• FTP/SFTP connections"/><LineBreak/>
+                    <Run Text="• Multi-rename tool"/><LineBreak/>
+                    <Run Text="• File comparison and sync"/><LineBreak/>
+                    <Run Text="• Configurable toolbar and columns"/><LineBreak/>
+                    <Run Text="• Plugin system"/>
+                </TextBlock>
+            </StackPanel>
+        </controls:TcInsetPanel>
+
+        <controls:TcBevelPanel Grid.Row="2" Padding="6,4" Margin="0,6,0,0">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <StackPanel Grid.Column="0" Spacing="2">
+                    <TextBlock Text="{Binding Copyright}" FontSize="11" Foreground="{DynamicResource TcMutedTextBrush}"/>
+                    <TextBlock Text="{Binding SystemInfo}"
+                               FontSize="10"
+                               Foreground="{DynamicResource TcMutedTextBrush}"
+                               FontFamily="{DynamicResource MonoFontFamily}"/>
+                </StackPanel>
                 <Button Grid.Column="1"
-                        Content="🌐 GitHub"
+                        Content="Project"
                         Command="{Binding OpenProjectUrlCommand}"
-                        Padding="12,6"
-                        Margin="0,0,8,0"
-                        Background="Transparent"
-                        BorderThickness="1"/>
-                
-                <!-- Close Button -->
+                        Padding="10,4"
+                        Margin="0,0,6,0"/>
                 <Button Grid.Column="2"
                         Content="Close"
                         Click="OnCloseClick"
-                        MinWidth="80"
-                        HorizontalContentAlignment="Center"/>
+                        MinWidth="80"/>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
     </Grid>
 </Window>

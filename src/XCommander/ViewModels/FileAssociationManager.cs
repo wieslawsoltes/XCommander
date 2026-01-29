@@ -1,7 +1,13 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Data.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using XCommander.Helpers;
 
 namespace XCommander.ViewModels;
 
@@ -34,12 +40,20 @@ public partial class FileAssociation : ObservableObject
 /// </summary>
 public partial class FileAssociationManager : ObservableObject
 {
+    private const string ExtensionColumnKey = "extension";
+    private const string DescriptionColumnKey = "description";
+    private const string SystemColumnKey = "system";
+
     private static readonly string AssociationsFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "XCommander",
         "file_associations.json");
     
     public ObservableCollection<FileAssociation> Associations { get; } = [];
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
     
     [ObservableProperty]
     private FileAssociation? _selectedAssociation;
@@ -56,6 +70,71 @@ public partial class FileAssociationManager : ObservableObject
         {
             InitializeDefaults();
         }
+
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<FileAssociation>();
+
+        IPropertyInfo extensionProperty = DataGridColumnHelper.CreateProperty(
+            nameof(FileAssociation.Extension),
+            (FileAssociation item) => item.Extension,
+            (item, value) => item.Extension = value);
+        IPropertyInfo descriptionProperty = DataGridColumnHelper.CreateProperty(
+            nameof(FileAssociation.Description),
+            (FileAssociation item) => item.Description,
+            (item, value) => item.Description = value);
+        IPropertyInfo systemProperty = DataGridColumnHelper.CreateProperty(
+            nameof(FileAssociation.UseSystemDefault),
+            (FileAssociation item) => item.UseSystemDefault,
+            (item, value) => item.UseSystemDefault = value);
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Text(
+                header: "Extension",
+                property: extensionProperty,
+                getter: item => item.Extension,
+                setter: (item, value) => item.Extension = value,
+                configure: column =>
+                {
+                    column.ColumnKey = ExtensionColumnKey;
+                    column.Width = new DataGridLength(80);
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Description",
+                property: descriptionProperty,
+                getter: item => item.Description,
+                setter: (item, value) => item.Description = value,
+                configure: column =>
+                {
+                    column.ColumnKey = DescriptionColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.ShowFilterButton = true;
+                }),
+            builder.CheckBox(
+                header: "System",
+                property: systemProperty,
+                getter: item => item.UseSystemDefault,
+                setter: (item, value) => item.UseSystemDefault = value,
+                configure: column =>
+                {
+                    column.ColumnKey = SystemColumnKey;
+                    column.Width = new DataGridLength(60);
+                    column.ShowFilterButton = true;
+                })
+        };
     }
     
     private void InitializeDefaults()

@@ -1,8 +1,14 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Data.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using XCommander.Helpers;
 
 namespace XCommander.ViewModels;
 
@@ -113,6 +119,15 @@ public class RenameHistoryManager
 
 public partial class MultiRenameViewModel : ViewModelBase
 {
+    private const string OriginalNameColumnKey = "original-name";
+    private const string NewNameColumnKey = "new-name";
+    private const string StatusColumnKey = "status";
+    private const string ActionsColumnKey = "actions";
+    private const string HistoryDateColumnKey = "history-date";
+    private const string HistoryDescriptionColumnKey = "history-description";
+    private const string HistoryFilesColumnKey = "history-files";
+    private const string HistoryActionsColumnKey = "history-actions";
+
     private readonly RenameHistoryManager _historyManager = new();
     
     [ObservableProperty]
@@ -146,6 +161,15 @@ public partial class MultiRenameViewModel : ViewModelBase
     private CaseTransform _extensionCase = CaseTransform.None;
     
     public ObservableCollection<RenameItem> Items { get; } = [];
+    public ObservableCollection<DataGridColumnDefinition> ItemColumnDefinitions { get; }
+    public FilteringModel ItemFilteringModel { get; }
+    public SortingModel ItemSortingModel { get; }
+    public SearchModel ItemSearchModel { get; }
+
+    public ObservableCollection<DataGridColumnDefinition> HistoryColumnDefinitions { get; }
+    public FilteringModel HistoryFilteringModel { get; }
+    public SortingModel HistorySortingModel { get; }
+    public SearchModel HistorySearchModel { get; }
     
     // Placeholders available:
     // [N] - Original name (without extension)
@@ -163,6 +187,169 @@ public partial class MultiRenameViewModel : ViewModelBase
     
     public MultiRenameViewModel()
     {
+        ItemFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        ItemSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        ItemSearchModel = new SearchModel();
+
+        HistoryFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        HistorySortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        HistorySearchModel = new SearchModel();
+
+        ItemColumnDefinitions = BuildItemColumnDefinitions();
+        HistoryColumnDefinitions = BuildHistoryColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildItemColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<RenameItem>();
+
+        IPropertyInfo originalNameProperty = DataGridColumnHelper.CreateProperty(
+            nameof(RenameItem.OriginalName),
+            (RenameItem item) => item.OriginalName,
+            (item, value) => item.OriginalName = value);
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Text(
+                header: "Original Name",
+                property: originalNameProperty,
+                getter: item => item.OriginalName,
+                configure: column =>
+                {
+                    column.ColumnKey = OriginalNameColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Template(
+                header: "New Name",
+                cellTemplateKey: "RenameItemNewNameTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = NewNameColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<RenameItem, string>(
+                        item => item.NewName);
+                    column.ValueType = typeof(string);
+                }),
+            builder.Template(
+                header: "Status",
+                cellTemplateKey: "RenameItemStatusTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = StatusColumnKey;
+                    column.Width = new DataGridLength(100);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<RenameItem, string>(
+                        item => item.HasError ? "Error" : item.HasConflict ? "Conflict" : item.IsRenamed ? "Done" : string.Empty);
+                    column.ValueType = typeof(string);
+                }),
+            builder.Template(
+                header: string.Empty,
+                cellTemplateKey: "RenameItemActionsTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = ActionsColumnKey;
+                    column.Width = new DataGridLength(90);
+                    column.IsReadOnly = true;
+                    column.CanUserSort = false;
+                    column.ShowFilterButton = false;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<RenameItem, string>(
+                        item => item.OriginalName);
+                    column.ValueType = typeof(string);
+                })
+        };
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildHistoryColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<RenameBatch>();
+
+        IPropertyInfo timestampProperty = DataGridColumnHelper.CreateProperty(
+            nameof(RenameBatch.Timestamp),
+            (RenameBatch item) => item.Timestamp);
+        IPropertyInfo descriptionProperty = DataGridColumnHelper.CreateProperty(
+            nameof(RenameBatch.Description),
+            (RenameBatch item) => item.Description);
+        IPropertyInfo countProperty = DataGridColumnHelper.CreateProperty(
+            "OperationCount",
+            (RenameBatch item) => item.Operations.Count);
+
+        var dateColumn = builder.Text(
+            header: "Date/Time",
+            property: timestampProperty,
+            getter: item => item.Timestamp,
+            configure: column =>
+            {
+                column.ColumnKey = HistoryDateColumnKey;
+                column.Width = new DataGridLength(150);
+                column.IsReadOnly = true;
+                column.ShowFilterButton = true;
+            });
+
+        if (dateColumn.Binding != null)
+        {
+            dateColumn.Binding.StringFormat = "yyyy-MM-dd HH:mm:ss";
+        }
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            dateColumn,
+            builder.Text(
+                header: "Description",
+                property: descriptionProperty,
+                getter: item => item.Description,
+                configure: column =>
+                {
+                    column.ColumnKey = HistoryDescriptionColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Files",
+                property: countProperty,
+                getter: item => item.Operations.Count,
+                configure: column =>
+                {
+                    column.ColumnKey = HistoryFilesColumnKey;
+                    column.Width = new DataGridLength(60);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<RenameBatch, int>(
+                            item => item.Operations.Count)
+                    };
+                }),
+            builder.Template(
+                header: "Actions",
+                cellTemplateKey: "RenameHistoryActionsTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = HistoryActionsColumnKey;
+                    column.Width = new DataGridLength(140);
+                    column.IsReadOnly = true;
+                    column.CanUserSort = false;
+                    column.ShowFilterButton = false;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<RenameBatch, string>(
+                        item => item.Description);
+                    column.ValueType = typeof(string);
+                })
+        };
     }
     
     public void Initialize(IEnumerable<string> filePaths)

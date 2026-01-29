@@ -1,6 +1,13 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Controls.DataGridHierarchical;
+using Avalonia.Data.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using XCommander.Helpers;
 using XCommander.Services;
 
 namespace XCommander.ViewModels;
@@ -116,24 +123,94 @@ public partial class DirectoryTreeNodeViewModel : ViewModelBase
 public partial class DirectoryTreeViewModel : ViewModelBase
 {
     private readonly IFileSystemService _fileSystemService;
+    private const string NameColumnKey = "name";
+    private bool _isSelectionSync;
     
     [ObservableProperty]
     private bool _isVisible;
     
     [ObservableProperty]
     private DirectoryTreeNodeViewModel? _selectedNode;
+
+    [ObservableProperty]
+    private HierarchicalNode? _selectedHierarchicalNode;
     
     [ObservableProperty]
     private string _currentPath = string.Empty;
     
     public ObservableCollection<DirectoryTreeNodeViewModel> RootNodes { get; } = [];
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
+    public HierarchicalModel<DirectoryTreeNodeViewModel> HierarchicalModel { get; }
     
     public event EventHandler<string>? NavigationRequested;
     
     public DirectoryTreeViewModel(IFileSystemService fileSystemService)
     {
         _fileSystemService = fileSystemService;
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+        HierarchicalModel = BuildHierarchicalModel();
         LoadRootNodes();
+    }
+
+    private static HierarchicalModel<DirectoryTreeNodeViewModel> BuildHierarchicalModel()
+    {
+        var options = new HierarchicalOptions<DirectoryTreeNodeViewModel>
+        {
+            ChildrenSelector = node => node.Children,
+            IsLeafSelector = node => node.Children.Count == 0,
+            IsExpandedSelector = node => node.IsExpanded,
+            IsExpandedSetter = (node, isExpanded) => node.IsExpanded = isExpanded,
+            ExpandedStateKeyMode = ExpandedStateKeyMode.Custom,
+            ExpandedStateKeySelector = node => node.FullPath
+        };
+
+        return new HierarchicalModel<DirectoryTreeNodeViewModel>(options);
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<HierarchicalNode>();
+
+        IPropertyInfo itemProperty = DataGridColumnHelper.CreateProperty(
+            "Item",
+            (HierarchicalNode node) => (DirectoryTreeNodeViewModel)node.Item);
+
+        var nameColumn = builder.Hierarchical(
+            header: "Folder",
+            property: itemProperty,
+            getter: node => (DirectoryTreeNodeViewModel)node.Item,
+            configure: column =>
+            {
+                column.ColumnKey = NameColumnKey;
+                column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                column.IsReadOnly = true;
+                column.ShowFilterButton = true;
+                column.CellTemplateKey = "DirectoryTreeNodeTemplate";
+                column.ValueAccessor = new DataGridColumnValueAccessor<HierarchicalNode, string>(
+                    node => ((DirectoryTreeNodeViewModel)node.Item).Name);
+                column.ValueType = typeof(string);
+                column.Options = new DataGridColumnDefinitionOptions
+                {
+                    SortValueAccessor = new DataGridColumnValueAccessor<HierarchicalNode, string>(
+                        node => ((DirectoryTreeNodeViewModel)node.Item).Name)
+                };
+            });
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            nameColumn
+        };
     }
     
     public void LoadRootNodes()
@@ -157,6 +234,8 @@ public partial class DirectoryTreeViewModel : ViewModelBase
         {
             System.Diagnostics.Debug.WriteLine($"Error loading root nodes: {ex.Message}");
         }
+
+        HierarchicalModel.SetRoots(RootNodes);
     }
     
     private string GetDriveIcon(DriveType type)
@@ -173,10 +252,27 @@ public partial class DirectoryTreeViewModel : ViewModelBase
     
     partial void OnSelectedNodeChanged(DirectoryTreeNodeViewModel? value)
     {
+        if (!_isSelectionSync)
+        {
+            _isSelectionSync = true;
+            SelectedHierarchicalNode = value == null ? null : ((IHierarchicalModel)HierarchicalModel).FindNode(value);
+            _isSelectionSync = false;
+        }
+
         if (value != null && !string.IsNullOrEmpty(value.FullPath))
         {
             NavigationRequested?.Invoke(this, value.FullPath);
         }
+    }
+
+    partial void OnSelectedHierarchicalNodeChanged(HierarchicalNode? value)
+    {
+        if (_isSelectionSync)
+            return;
+
+        _isSelectionSync = true;
+        SelectedNode = value?.Item as DirectoryTreeNodeViewModel;
+        _isSelectionSync = false;
     }
     
     [RelayCommand]

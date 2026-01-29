@@ -1,4 +1,5 @@
 using Moq;
+using XCommander.Models;
 using XCommander.Services;
 using XCommander.ViewModels;
 
@@ -7,12 +8,14 @@ namespace XCommander.Tests.ViewModels;
 public class TabbedPanelViewModelTests
 {
     private readonly Mock<IFileSystemService> _fileSystemServiceMock;
+    private readonly AppSettings _settings;
     private readonly TabbedPanelViewModel _viewModel;
     
     public TabbedPanelViewModelTests()
     {
         _fileSystemServiceMock = new Mock<IFileSystemService>();
-        _viewModel = new TabbedPanelViewModel(_fileSystemServiceMock.Object);
+        _settings = new AppSettings();
+        _viewModel = new TabbedPanelViewModel(_fileSystemServiceMock.Object, _settings);
     }
     
     [Fact]
@@ -214,7 +217,7 @@ public class TabbedPanelViewModelTests
         // Arrange
         _viewModel.Initialize("/");
         var otherService = new Mock<IFileSystemService>();
-        var otherTab = new TabViewModel(otherService.Object);
+        var otherTab = new TabViewModel(otherService.Object, new AppSettings());
         var initialCount = _viewModel.Tabs.Count;
         
         // Act
@@ -233,7 +236,7 @@ public class TabbedPanelViewModelTests
         _viewModel.Initialize("/");
         _viewModel.AddNewTab();
         var otherService = new Mock<IFileSystemService>();
-        var otherTab = new TabViewModel(otherService.Object);
+        var otherTab = new TabViewModel(otherService.Object, new AppSettings());
         
         // Act
         _viewModel.AcceptTab(otherTab, 1);

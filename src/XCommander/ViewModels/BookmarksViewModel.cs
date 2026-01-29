@@ -1,5 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using XCommander.Models;
@@ -52,6 +56,7 @@ public partial class BookmarksViewModel : ViewModelBase
     private static readonly string BookmarksFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "XCommander", "bookmarks.json");
+    private readonly AppSettings _settings;
     
     [ObservableProperty]
     private ObservableCollection<BookmarkItemViewModel> _bookmarks = new();
@@ -70,9 +75,97 @@ public partial class BookmarksViewModel : ViewModelBase
     
     public event EventHandler<string>? NavigateRequested;
 
-    public BookmarksViewModel()
+    public ObservableCollection<DataGridColumnDefinition> BookmarksColumnDefinitions { get; }
+    public FilteringModel BookmarksFilteringModel { get; }
+    public SortingModel BookmarksSortingModel { get; }
+    public SearchModel BookmarksSearchModel { get; }
+    public ObservableCollection<DataGridColumnDefinition> RecentColumnDefinitions { get; }
+    public FilteringModel RecentFilteringModel { get; }
+    public SortingModel RecentSortingModel { get; }
+    public SearchModel RecentSearchModel { get; }
+
+    public BookmarksViewModel(AppSettings settings)
     {
+        _settings = settings;
+        _settings.PropertyChanged += OnSettingsChanged;
+        BookmarksFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        BookmarksSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        BookmarksSearchModel = new SearchModel();
+        BookmarksColumnDefinitions = BuildBookmarksColumnDefinitions();
+        RecentFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        RecentSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        RecentSearchModel = new SearchModel();
+        RecentColumnDefinitions = BuildRecentColumnDefinitions();
         Load();
+        TrimRecentLocations();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildBookmarksColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<BookmarkItemViewModel>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Bookmark",
+                cellTemplateKey: "BookmarkItemTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "bookmark";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<BookmarkItemViewModel, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<BookmarkItemViewModel, string>(
+                            item => item.Name),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not BookmarkItemViewModel bookmark)
+                                return string.Empty;
+                            return $"{bookmark.Name} {bookmark.Path}";
+                        }
+                    };
+                })
+        };
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildRecentColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<string>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Location",
+                cellTemplateKey: "RecentLocationTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "location";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<string, string>(item => item);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<string, string>(item => item)
+                    };
+                })
+        };
     }
 
     public void Load()
@@ -270,7 +363,8 @@ public partial class BookmarksViewModel : ViewModelBase
         RecentLocations.Insert(0, path);
         
         // Limit to max
-        while (RecentLocations.Count > 20)
+        var limit = Math.Max(1, _settings.RecentPathsLimit);
+        while (RecentLocations.Count > limit)
         {
             RecentLocations.RemoveAt(RecentLocations.Count - 1);
         }
@@ -292,5 +386,22 @@ public partial class BookmarksViewModel : ViewModelBase
             return;
             
         NavigateRequested?.Invoke(this, path);
+    }
+
+    private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppSettings.RecentPathsLimit))
+        {
+            TrimRecentLocations();
+        }
+    }
+
+    private void TrimRecentLocations()
+    {
+        var limit = Math.Max(1, _settings.RecentPathsLimit);
+        while (RecentLocations.Count > limit)
+        {
+            RecentLocations.RemoveAt(RecentLocations.Count - 1);
+        }
     }
 }

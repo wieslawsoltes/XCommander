@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -127,6 +128,6 @@ public class NotificationIconConverter : IValueConverter
     
     public object? ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
     {
-        throw new NotImplementedException();
+        return BindingOperations.DoNothing;
     }
 }

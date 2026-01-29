@@ -5,6 +5,10 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -58,6 +62,90 @@ public partial class FileCompareViewModel : ViewModelBase
 
     public ObservableCollection<DiffLine> LeftLines { get; } = new();
     public ObservableCollection<DiffLine> RightLines { get; } = new();
+
+    public ObservableCollection<DataGridColumnDefinition> LeftColumnDefinitions { get; }
+    public FilteringModel LeftFilteringModel { get; }
+    public SortingModel LeftSortingModel { get; }
+    public SearchModel LeftSearchModel { get; }
+
+    public ObservableCollection<DataGridColumnDefinition> RightColumnDefinitions { get; }
+    public FilteringModel RightFilteringModel { get; }
+    public SortingModel RightSortingModel { get; }
+    public SearchModel RightSearchModel { get; }
+
+    public FileCompareViewModel()
+    {
+        LeftFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        LeftSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        LeftSearchModel = new SearchModel();
+        LeftColumnDefinitions = BuildLineColumnDefinitions();
+
+        RightFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        RightSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        RightSearchModel = new SearchModel();
+        RightColumnDefinitions = BuildLineColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildLineColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<DiffLine>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "#",
+                cellTemplateKey: "DiffLineNumberTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "line-number";
+                    column.Width = new DataGridLength(50);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<DiffLine, string>(
+                        item => item.LineNumberDisplay);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<DiffLine, int>(
+                            item => item.LineNumber)
+                    };
+                }),
+            builder.Template(
+                header: "Content",
+                cellTemplateKey: "DiffLineContentTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "content";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<DiffLine, string>(
+                        item => item.Content);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<DiffLine, string>(
+                            item => item.Content),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not DiffLine line)
+                                return string.Empty;
+                            return line.Content;
+                        }
+                    };
+                })
+        };
+    }
 
     public void Initialize(string? leftPath, string? rightPath)
     {

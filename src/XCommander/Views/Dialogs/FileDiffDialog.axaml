@@ -2,175 +2,157 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:XCommander.Controls"
              xmlns:vm="using:XCommander.ViewModels"
              xmlns:conv="using:XCommander.Converters"
+             xmlns:diff="clr-namespace:DiffPlex.DiffBuilder.Model;assembly=DiffPlex"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
              x:Class="XCommander.Views.Dialogs.FileDiffDialog"
              x:DataType="vm:FileDiffViewModel">
-    
-    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
-        <!-- Toolbar -->
-        <Border Grid.Row="0" 
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                Padding="8">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="DiffLineActionTemplate"
+                      x:DataType="vm:DiffLineViewModel">
+            <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Center">
+                <Button Content="←" Padding="4,2"
+                        Command="{Binding $parent[DataGrid].((vm:FileDiffViewModel)DataContext).CopyLineToLeftCommand}"
+                        CommandParameter="{Binding}"
+                        IsVisible="{Binding HasConflict}"/>
+                <TextBlock Text="{Binding ChangeIcon}" VerticalAlignment="Center" FontWeight="Bold" Margin="4,0"/>
+                <Button Content="→" Padding="4,2"
+                        Command="{Binding $parent[DataGrid].((vm:FileDiffViewModel)DataContext).CopyLineToRightCommand}"
+                        CommandParameter="{Binding}"
+                        IsVisible="{Binding HasConflict}"/>
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="InlineDiffTypeTemplate"
+                      x:DataType="diff:DiffPiece">
+            <TextBlock Text="{Binding Type, Converter={x:Static conv:ChangeTypeToIconConverter.Instance}}"
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"/>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="10">
+        <controls:TcBevelPanel Grid.Row="0" Padding="6,4">
             <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="⇄ Swap" Command="{Binding SwapFilesCommand}"
-                            ToolTip.Tip="Swap left and right files" Padding="12,6"/>
-                    <Button Content="⟳ Refresh" Command="{Binding RefreshCommand}"
-                            ToolTip.Tip="Recompute diff" Padding="12,6"/>
-                    <Separator Margin="4,0"/>
-                    <ToggleButton Content="Inline View" 
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Content="Swap" Command="{Binding SwapFilesCommand}" Padding="8,4"/>
+                    <Button Content="Refresh" Command="{Binding RefreshCommand}" Padding="8,4"/>
+                    <TextBlock Text="|" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="4,0"/>
+                    <ToggleButton Content="Inline View"
                                   IsChecked="{Binding DisplayMode, Converter={x:Static conv:DiffModeConverter.Instance}}"
-                                  Padding="12,6"
-                                  ToolTip.Tip="Toggle between side-by-side and inline view"/>
-                    <Separator Margin="4,0"/>
-                    <!-- Merge controls -->
-                    <Button Content="← All" Command="{Binding CopyAllToLeftCommand}"
-                            ToolTip.Tip="Copy all changes from right to left" Padding="12,6"/>
-                    <Button Content="All →" Command="{Binding CopyAllToRightCommand}"
-                            ToolTip.Tip="Copy all changes from left to right" Padding="12,6"/>
-                    <Separator Margin="4,0"/>
-                    <Button Content="↑ Prev" Command="{Binding NavigateToPreviousDiffCommand}"
-                            ToolTip.Tip="Navigate to previous difference" Padding="12,6"/>
-                    <Button Content="↓ Next" Command="{Binding NavigateToNextDiffCommand}"
-                            ToolTip.Tip="Navigate to next difference" Padding="12,6"/>
+                                  Padding="8,4"/>
+                    <TextBlock Text="|" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="4,0"/>
+                    <Button Content="All ←" Command="{Binding CopyAllToLeftCommand}" Padding="8,4"/>
+                    <Button Content="All →" Command="{Binding CopyAllToRightCommand}" Padding="8,4"/>
+                    <TextBlock Text="|" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="4,0"/>
+                    <Button Content="Prev" Command="{Binding NavigateToPreviousDiffCommand}" Padding="8,4"/>
+                    <Button Content="Next" Command="{Binding NavigateToNextDiffCommand}" Padding="8,4"/>
                 </StackPanel>
-                
+
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                    <CheckBox Content="Ignore whitespace" IsChecked="{Binding IgnoreWhitespace}"
-                              VerticalAlignment="Center"/>
-                    <CheckBox Content="Ignore case" IsChecked="{Binding IgnoreCase}"
-                              VerticalAlignment="Center"/>
+                    <CheckBox Content="Ignore whitespace" IsChecked="{Binding IgnoreWhitespace}" VerticalAlignment="Center"/>
+                    <CheckBox Content="Ignore case" IsChecked="{Binding IgnoreCase}" VerticalAlignment="Center"/>
                 </StackPanel>
             </Grid>
-        </Border>
-        
-        <!-- File Names Header -->
-        <Grid Grid.Row="1" ColumnDefinitions="*,*" 
-              Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+        </controls:TcBevelPanel>
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,*"
+              Background="{DynamicResource TcChromeBackgroundBrush}"
               IsVisible="{Binding DisplayMode, Converter={x:Static conv:IsSideBySideConverter.Instance}}">
-            <Border Padding="8,4" BorderThickness="0,0,1,0"
-                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}">
+            <Border Padding="6,3" BorderThickness="0,0,1,0"
+                    BorderBrush="{DynamicResource TcBorderMidBrush}">
                 <StackPanel>
                     <TextBlock Text="{Binding LeftFileName}" FontWeight="SemiBold"/>
                     <TextBlock Text="{Binding LeftFilePath}" FontSize="10"
-                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                               Foreground="{DynamicResource TcMutedTextBrush}"
                                TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Border>
-            <Border Grid.Column="1" Padding="8,4">
+            <Border Grid.Column="1" Padding="6,3">
                 <StackPanel>
                     <TextBlock Text="{Binding RightFileName}" FontWeight="SemiBold"/>
                     <TextBlock Text="{Binding RightFilePath}" FontSize="10"
-                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                               Foreground="{DynamicResource TcMutedTextBrush}"
                                TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Border>
         </Grid>
-        
-        <!-- Single header for inline mode -->
+
         <Border Grid.Row="1"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
-                Padding="8,4"
+                Background="{DynamicResource TcChromeBackgroundBrush}"
+                Padding="6,3"
                 IsVisible="{Binding DisplayMode, Converter={x:Static conv:IsInlineModeConverter.Instance}}">
-            <StackPanel Orientation="Horizontal" Spacing="16">
+            <StackPanel Orientation="Horizontal" Spacing="12">
                 <StackPanel>
                     <TextBlock Text="Left:" FontWeight="SemiBold" FontSize="11"/>
                     <TextBlock Text="{Binding LeftFileName}" FontSize="12"/>
                 </StackPanel>
-                <TextBlock Text="vs" VerticalAlignment="Center" 
-                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                <TextBlock Text="vs" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}"/>
                 <StackPanel>
                     <TextBlock Text="Right:" FontWeight="SemiBold" FontSize="11"/>
                     <TextBlock Text="{Binding RightFileName}" FontSize="12"/>
                 </StackPanel>
             </StackPanel>
         </Border>
-        
-        <!-- Loading indicator -->
-        <ProgressBar Grid.Row="2" IsIndeterminate="True" 
-                     IsVisible="{Binding IsLoading}" 
+
+        <ProgressBar Grid.Row="2" IsIndeterminate="True"
+                     IsVisible="{Binding IsLoading}"
                      VerticalAlignment="Top" Margin="0,4,0,0"/>
-        
-        <!-- Side-by-side diff view -->
-        <DataGrid Grid.Row="2"
-                  ItemsSource="{Binding DiffLines}"
-                  SelectedItem="{Binding SelectedDiffLine}"
-                  IsVisible="{Binding DisplayMode, Converter={x:Static conv:IsSideBySideConverter.Instance}}"
-                  AutoGenerateColumns="False"
-                  CanUserReorderColumns="False"
-                  CanUserResizeColumns="True"
-                  CanUserSortColumns="False"
-                  IsReadOnly="True"
-                  GridLinesVisibility="Vertical"
-                  BorderThickness="0"
-                  FontFamily="Consolas,Menlo,monospace"
-                  FontSize="12"
-                  SelectionMode="Single">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="#" Width="50"
-                                    Binding="{Binding LeftLineNumber}"/>
-                <DataGridTextColumn Header="Left" Width="*"
-                                    Binding="{Binding LeftText}"/>
-                <DataGridTemplateColumn Header="" Width="80">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate DataType="vm:DiffLineViewModel">
-                            <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Center">
-                                <Button Content="←" Padding="4,2"
-                                        Command="{Binding $parent[DataGrid].((vm:FileDiffViewModel)DataContext).CopyLineToLeftCommand}"
-                                        CommandParameter="{Binding}"
-                                        IsVisible="{Binding HasConflict}"
-                                        ToolTip.Tip="Copy right to left"/>
-                                <TextBlock Text="{Binding ChangeIcon}" 
-                                           VerticalAlignment="Center"
-                                           FontWeight="Bold"
-                                           Margin="4,0"/>
-                                <Button Content="→" Padding="4,2"
-                                        Command="{Binding $parent[DataGrid].((vm:FileDiffViewModel)DataContext).CopyLineToRightCommand}"
-                                        CommandParameter="{Binding}"
-                                        IsVisible="{Binding HasConflict}"
-                                        ToolTip.Tip="Copy left to right"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-                <DataGridTextColumn Header="#" Width="50"
-                                    Binding="{Binding RightLineNumber}"/>
-                <DataGridTextColumn Header="Right" Width="*"
-                                    Binding="{Binding RightText}"/>
-            </DataGrid.Columns>
-        </DataGrid>
-        
-        <!-- Inline diff view -->
-        <ListBox Grid.Row="2"
-                 ItemsSource="{Binding InlineDiffLines}"
-                 IsVisible="{Binding DisplayMode, Converter={x:Static conv:IsInlineModeConverter.Instance}}"
-                 FontFamily="Consolas,Menlo,monospace"
-                 FontSize="12">
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <Grid ColumnDefinitions="30,50,*">
-                        <TextBlock Grid.Column="0" 
-                                   Text="{Binding Type, Converter={x:Static conv:ChangeTypeToIconConverter.Instance}}"
-                                   FontWeight="Bold"
-                                   HorizontalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" 
-                                   Text="{Binding Position}"
-                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
-                        <TextBlock Grid.Column="2" Text="{Binding Text}"/>
-                    </Grid>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
-        
-        <!-- Stats Bar -->
-        <Border Grid.Row="3" 
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                Padding="8,4">
+
+        <controls:TcInsetPanel Grid.Row="2" Padding="0"
+                               IsVisible="{Binding DisplayMode, Converter={x:Static conv:IsSideBySideConverter.Instance}}">
+            <DataGrid ItemsSource="{Binding DiffLines}"
+                      SelectedItem="{Binding SelectedDiffLine}"
+                      ColumnDefinitionsSource="{Binding ColumnDefinitions}"
+                      FilteringModel="{Binding FilteringModel}"
+                      SortingModel="{Binding SortingModel}"
+                      SearchModel="{Binding SearchModel}"
+                      AutoGenerateColumns="False"
+                      CanUserReorderColumns="False"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="False"
+                      IsReadOnly="True"
+                      GridLinesVisibility="Vertical"
+                      BorderThickness="0"
+                      FontFamily="{DynamicResource MonoFontFamily}"
+                      FontSize="12"
+                      SelectionMode="Single">
+                <DataGrid.FastPathOptions>
+                    <DataGridFastPathOptions UseAccessorsOnly="True"
+                                             ThrowOnMissingAccessor="True" />
+                </DataGrid.FastPathOptions>
+            </DataGrid>
+        </controls:TcInsetPanel>
+
+        <controls:TcInsetPanel Grid.Row="2" Padding="0"
+                               IsVisible="{Binding DisplayMode, Converter={x:Static conv:IsInlineModeConverter.Instance}}">
+            <DataGrid ItemsSource="{Binding InlineDiffLines}"
+                      ColumnDefinitionsSource="{Binding InlineColumnDefinitions}"
+                      FilteringModel="{Binding InlineFilteringModel}"
+                      SortingModel="{Binding InlineSortingModel}"
+                      SearchModel="{Binding InlineSearchModel}"
+                      FontFamily="{DynamicResource MonoFontFamily}"
+                      FontSize="12"
+                      CanUserResizeColumns="True"
+                      CanUserReorderColumns="False"
+                      CanUserSortColumns="True"
+                      HeadersVisibility="None"
+                      GridLinesVisibility="None"
+                      BorderThickness="0"
+                      IsReadOnly="True">
+                <DataGrid.FastPathOptions>
+                    <DataGridFastPathOptions UseAccessorsOnly="True"
+                                             ThrowOnMissingAccessor="True" />
+                </DataGrid.FastPathOptions>
+            </DataGrid>
+        </controls:TcInsetPanel>
+
+        <controls:TcBevelPanel Grid.Row="3" Padding="6,4" Margin="0,6,0,0">
             <Grid ColumnDefinitions="*,Auto,Auto,Auto">
                 <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"/>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" Margin="16,0">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" Margin="12,0">
                     <TextBlock VerticalAlignment="Center">
                         <Run Text="+" Foreground="Green" FontWeight="Bold"/>
                         <Run Text="{Binding AddedLines}"/>
@@ -188,31 +170,23 @@
                     </TextBlock>
                 </StackPanel>
             </Grid>
-        </Border>
-        
-        <!-- Buttons -->
-        <Border Grid.Row="4" Padding="8">
+        </controls:TcBevelPanel>
+
+        <controls:TcBevelPanel Grid.Row="4" Padding="6,4" Margin="0,6,0,0">
             <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="💾 Save Left" Command="{Binding SaveLeftFileCommand}" 
-                            Padding="16,8"
-                            IsEnabled="{Binding HasUnsavedChanges}"
-                            ToolTip.Tip="Save merged result to left file"/>
-                    <Button Content="💾 Save Right" Command="{Binding SaveRightFileCommand}" 
-                            Padding="16,8"
-                            IsEnabled="{Binding HasUnsavedChanges}"
-                            ToolTip.Tip="Save merged result to right file"/>
-                    <Button Content="💾 Save As..." Command="{Binding SaveMergedFileAsCommand}" 
-                            Padding="16,8"
-                            ToolTip.Tip="Save merged result to a new file"/>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Content="Save Left" Command="{Binding SaveLeftFileCommand}"
+                            IsEnabled="{Binding HasUnsavedChanges}" Padding="10,4"/>
+                    <Button Content="Save Right" Command="{Binding SaveRightFileCommand}"
+                            IsEnabled="{Binding HasUnsavedChanges}" Padding="10,4"/>
+                    <Button Content="Save As..." Command="{Binding SaveMergedFileAsCommand}" Padding="10,4"/>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
                     <TextBlock Text="*" Foreground="Orange" VerticalAlignment="Center"
-                               IsVisible="{Binding HasUnsavedChanges}"
-                               ToolTip.Tip="Unsaved changes"/>
-                    <Button Content="Close" Command="{Binding CloseCommand}" Padding="16,8"/>
+                               IsVisible="{Binding HasUnsavedChanges}"/>
+                    <Button Content="Close" Command="{Binding CloseCommand}" Padding="10,4"/>
                 </StackPanel>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
     </Grid>
 </UserControl>

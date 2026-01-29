@@ -153,7 +153,16 @@ public partial class TcConfigImportViewModel : ViewModelBase
         
         try
         {
-            var result = await _importService.ImportAsync(WincmdIniPath);
+            var options = new TcImportOptions
+            {
+                ImportBookmarks = ImportBookmarks,
+                ImportFtpConnections = ImportFtpConnections,
+                ImportColorSchemes = ImportColorSchemes,
+                ImportCustomColumns = ImportCustomColumns,
+                ImportButtonBar = ImportButtonBar,
+                ImportUserMenu = ImportUserMenu
+            };
+            var result = await _importService.ImportAsync(WincmdIniPath, options);
             
             if (result.Success)
             {

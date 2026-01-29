@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using XCommander.Models;
 using XCommander.Services;
+using XCommander.Views.Dialogs;
 
 namespace XCommander.ViewModels;
 
@@ -11,12 +14,16 @@ public partial class TabbedPanelViewModel : ViewModelBase
     private readonly IFileSystemService _fileSystemService;
     private readonly IDescriptionFileService? _descriptionService;
     private readonly ISelectionService? _selectionService;
+    private readonly IFileAssociationService? _fileAssociationService;
+    private readonly AppSettings _settings;
     
     [ObservableProperty]
     private bool _isActive;
     
     [ObservableProperty]
     private TabViewModel? _activeTab;
+
+    public AppSettings Settings => _settings;
     
     public ObservableCollection<TabViewModel> Tabs { get; } = [];
     
@@ -24,12 +31,22 @@ public partial class TabbedPanelViewModel : ViewModelBase
     /// Fired when navigation occurs in any tab.
     /// </summary>
     public event EventHandler<string>? Navigated;
+    public event EventHandler<TabViewModel?>? ActiveTabChanged;
+    public event EventHandler<TabViewModel.ArchiveRequestEventArgs>? ArchiveOpenRequested;
     
-    public TabbedPanelViewModel(IFileSystemService fileSystemService, IDescriptionFileService? descriptionService = null, ISelectionService? selectionService = null)
+    public TabbedPanelViewModel(
+        IFileSystemService fileSystemService,
+        AppSettings settings,
+        IDescriptionFileService? descriptionService = null,
+        ISelectionService? selectionService = null,
+        IFileAssociationService? fileAssociationService = null)
     {
         _fileSystemService = fileSystemService;
+        _settings = settings;
         _descriptionService = descriptionService;
         _selectionService = selectionService;
+        _fileAssociationService = fileAssociationService;
+        _settings.PropertyChanged += OnSettingsChanged;
     }
     
     public void Initialize(string initialPath)
@@ -37,6 +54,11 @@ public partial class TabbedPanelViewModel : ViewModelBase
         var tab = CreateNewTab();
         tab.NavigateTo(initialPath);
         SetActiveTab(tab);
+    }
+
+    partial void OnActiveTabChanged(TabViewModel? value)
+    {
+        ActiveTabChanged?.Invoke(this, value);
     }
     
     [RelayCommand]
@@ -49,11 +71,29 @@ public partial class TabbedPanelViewModel : ViewModelBase
         }
         SetActiveTab(tab);
     }
+
+    [RelayCommand]
+    public void NavigateToDrive(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        if (_settings.OpenNewTabOnDriveChange)
+        {
+            var tab = CreateNewTab();
+            tab.NavigateTo(path);
+            SetActiveTab(tab);
+            return;
+        }
+
+        ActiveTab?.NavigateTo(path);
+    }
     
     public TabViewModel CreateNewTab()
     {
-        var tab = new TabViewModel(_fileSystemService, _descriptionService, _selectionService);
+        var tab = new TabViewModel(_fileSystemService, _settings, _descriptionService, _selectionService, _fileAssociationService);
         tab.Navigated += (sender, path) => Navigated?.Invoke(this, path);
+        tab.ArchiveOpenRequested += (_, args) => ArchiveOpenRequested?.Invoke(this, args);
         Tabs.Add(tab);
         return tab;
     }
@@ -194,6 +234,64 @@ public partial class TabbedPanelViewModel : ViewModelBase
             
         Tabs.Move(currentIndex, targetIndex);
     }
+
+    public PanelState CreateSessionState(string position)
+    {
+        var panelState = new PanelState
+        {
+            Position = position,
+            ActiveTabIndex = ActiveTab != null ? Tabs.IndexOf(ActiveTab) : 0,
+            IsVisible = true,
+            Tabs = Tabs.Select(tab => tab.CreateSessionState()).ToList()
+        };
+
+        if (panelState.Tabs.Count == 0)
+        {
+            panelState.ActiveTabIndex = 0;
+            return panelState;
+        }
+
+        panelState.ActiveTabIndex = Math.Clamp(panelState.ActiveTabIndex, 0, panelState.Tabs.Count - 1);
+        for (var i = 0; i < panelState.Tabs.Count; i++)
+            panelState.Tabs[i].IsActive = i == panelState.ActiveTabIndex;
+
+        return panelState;
+    }
+
+    public void RestoreFromSession(PanelState panelState, string fallbackPath)
+    {
+        Tabs.Clear();
+
+        if (panelState.Tabs.Count == 0)
+        {
+            var tab = CreateNewTab();
+            tab.NavigateTo(fallbackPath);
+            SetActiveTab(tab);
+            return;
+        }
+
+        foreach (var tabState in panelState.Tabs)
+        {
+            var tab = CreateNewTab();
+            tab.ApplySessionState(tabState, fallbackPath);
+        }
+
+        var activeIndex = Math.Clamp(panelState.ActiveTabIndex, 0, Tabs.Count - 1);
+        SetActiveTab(Tabs[activeIndex]);
+    }
+
+    private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppSettings.ShowHiddenFiles) ||
+            e.PropertyName == nameof(AppSettings.ShowSystemFiles))
+        {
+            foreach (var tab in Tabs)
+            {
+                tab.ShowHiddenFiles = _settings.ShowHiddenFiles;
+                tab.ShowSystemFiles = _settings.ShowSystemFiles;
+            }
+        }
+    }
     
     /// <summary>
     /// Adds a tab from another panel (for cross-panel drag-and-drop).
@@ -253,17 +351,32 @@ public partial class TabbedPanelViewModel : ViewModelBase
     public void CalculateDirectorySizes() => ActiveTab?.CalculateDirectorySizes();
     
     [RelayCommand]
-    public void ShowDrives()
+    public async Task ShowDrives()
     {
-        // Navigate to drives root (placeholder for drive selection UI)
-        if (OperatingSystem.IsWindows())
+        var drives = _fileSystemService.GetDrives().ToList();
+        if (drives.Count == 0)
+            return;
+
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            ActiveTab?.NavigateTo("C:\\");
+            var dialog = new DriveSelectionDialog(drives);
+            if (desktop.MainWindow != null)
+            {
+                await dialog.ShowDialog(desktop.MainWindow);
+            }
+            else
+            {
+                dialog.Show();
+            }
+
+            if (dialog.SelectedDrive != null)
+            {
+                ActiveTab?.NavigateTo(dialog.SelectedDrive.RootPath);
+            }
+            return;
         }
-        else if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
-        {
-            ActiveTab?.NavigateTo("/");
-        }
+
+        ActiveTab?.NavigateTo(drives[0].RootPath);
     }
     
     public string CurrentPath => ActiveTab?.CurrentPath ?? string.Empty;

@@ -4,9 +4,14 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
+using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,19 +19,72 @@ namespace XCommander.Services;
 
 public class CustomColumnService : ICustomColumnService
 {
+    private static readonly Regex ExpressionVariableRegex = new(@"\b(?<prefix>tc|shell|content)\.(?<name>[A-Za-z0-9_]+)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Dictionary<string, string> KnownTypeNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".txt"] = "Text Document",
+        [".log"] = "Log File",
+        [".md"] = "Markdown Document",
+        [".json"] = "JSON Document",
+        [".xml"] = "XML Document",
+        [".cs"] = "C# Source File",
+        [".js"] = "JavaScript File",
+        [".ts"] = "TypeScript File",
+        [".html"] = "HTML Document",
+        [".css"] = "Style Sheet",
+        [".png"] = "PNG Image",
+        [".jpg"] = "JPEG Image",
+        [".jpeg"] = "JPEG Image",
+        [".gif"] = "GIF Image",
+        [".bmp"] = "Bitmap Image",
+        [".zip"] = "ZIP Archive",
+        [".7z"] = "7-Zip Archive",
+        [".rar"] = "RAR Archive",
+        [".gz"] = "GZip Archive",
+        [".tar"] = "TAR Archive",
+        [".exe"] = "Application",
+        [".dll"] = "Application Extension",
+        [".pdf"] = "PDF Document"
+    };
+
     private readonly ConcurrentDictionary<string, CustomColumnDefinition> _builtInColumns = new();
     private readonly ConcurrentDictionary<string, CustomColumnDefinition> _userColumns = new();
     private readonly ConcurrentDictionary<string, CustomColumnSet> _columnSets = new();
     private readonly ConcurrentDictionary<string, IColumnValueProvider> _providers = new();
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, CustomColumnValue>> _valueCache = new();
+    private readonly string _storagePath;
+    private readonly SemaphoreSlim _storageLock = new(1, 1);
+    private readonly IContentPluginService? _contentPluginService;
+    private readonly IPluginService? _pluginService;
+    private readonly IDescriptionFileService? _descriptionFileService;
+    private readonly IFileChecksumService? _fileChecksumService;
     
     public event EventHandler<EventArgs>? ColumnsChanged;
     public event EventHandler<EventArgs>? ColumnSetsChanged;
-    
-    public CustomColumnService()
+
+    private static readonly JsonSerializerOptions StorageOptions = new()
     {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() }
+    };
+    
+    public CustomColumnService(
+        IContentPluginService? contentPluginService = null,
+        IPluginService? pluginService = null,
+        IDescriptionFileService? descriptionFileService = null,
+        IFileChecksumService? fileChecksumService = null)
+    {
+        _contentPluginService = contentPluginService;
+        _pluginService = pluginService;
+        _descriptionFileService = descriptionFileService;
+        _fileChecksumService = fileChecksumService;
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        _storagePath = Path.Combine(appData, "XCommander", "custom-columns.json");
         InitializeBuiltInColumns();
         InitializeDefaultColumnSets();
+        LoadUserData();
     }
     
     private void InitializeBuiltInColumns()
@@ -177,6 +235,315 @@ public class CustomColumnService : ICustomColumnService
             IsBuiltIn = true,
             DisplayOrder = 8
         });
+
+        // Description column (descript.ion or shell comments)
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Description,
+            Name = "Desc",
+            DisplayName = "Description",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Shell,
+            SourceField = "Description",
+            Width = 200,
+            Sortable = true,
+            Searchable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 9
+        });
+
+        // Version column
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Version,
+            Name = "Ver",
+            DisplayName = "Version",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Shell,
+            SourceField = "Version",
+            Width = 140,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 10
+        });
+
+        // Company column
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Company,
+            Name = "Company",
+            DisplayName = "Company",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Shell,
+            SourceField = "Company",
+            Width = 160,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 11
+        });
+
+        // Comments column
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Comments,
+            Name = "Comments",
+            DisplayName = "Comments",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Shell,
+            SourceField = "Comments",
+            Width = 200,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 12
+        });
+
+        // Owner column
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Owner,
+            Name = "Owner",
+            DisplayName = "Owner",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Shell,
+            SourceField = "Owner",
+            Width = 120,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 13
+        });
+
+        // Checksums
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.MD5,
+            Name = "MD5",
+            DisplayName = "MD5",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Shell,
+            SourceField = "MD5",
+            Width = 200,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 14
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.SHA256,
+            Name = "SHA256",
+            DisplayName = "SHA-256",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Shell,
+            SourceField = "SHA256",
+            Width = 220,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 15
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.CRC32,
+            Name = "CRC32",
+            DisplayName = "CRC32",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Shell,
+            SourceField = "CRC32",
+            Width = 120,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 16
+        });
+
+        // Media metadata (content plugins)
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Dimensions,
+            Name = "Dim",
+            DisplayName = "Dimensions",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Content,
+            SourceField = "Dimensions",
+            Width = 120,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 17
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Duration,
+            Name = "Duration",
+            DisplayName = "Duration",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Content,
+            SourceField = "Duration",
+            Width = 90,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 18
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.BitRate,
+            Name = "Bitrate",
+            DisplayName = "Bit Rate",
+            DataType = CustomColumnDataType.Number,
+            Source = CustomColumnSource.Content,
+            SourceField = "BitRate",
+            Width = 90,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 19
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Artist,
+            Name = "Artist",
+            DisplayName = "Artist",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Content,
+            SourceField = "Artist",
+            Width = 160,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 20
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Album,
+            Name = "Album",
+            DisplayName = "Album",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Content,
+            SourceField = "Album",
+            Width = 160,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 21
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Title,
+            Name = "Title",
+            DisplayName = "Title",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Content,
+            SourceField = "Title",
+            Width = 200,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 22
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Genre,
+            Name = "Genre",
+            DisplayName = "Genre",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Content,
+            SourceField = "Genre",
+            Width = 120,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 23
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Year,
+            Name = "Year",
+            DisplayName = "Year",
+            DataType = CustomColumnDataType.Number,
+            Source = CustomColumnSource.Content,
+            SourceField = "Year",
+            Width = 80,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 24
+        });
+
+        // Document metadata (content plugins)
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.PageCount,
+            Name = "Pages",
+            DisplayName = "Pages",
+            DataType = CustomColumnDataType.Number,
+            Source = CustomColumnSource.Content,
+            SourceField = "PageCount",
+            Width = 80,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 25
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Author,
+            Name = "Author",
+            DisplayName = "Author",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Content,
+            SourceField = "Author",
+            Width = 160,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 26
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Subject,
+            Name = "Subject",
+            DisplayName = "Subject",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Content,
+            SourceField = "Subject",
+            Width = 180,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 27
+        });
+
+        AddBuiltInColumn(new CustomColumnDefinition
+        {
+            Id = BuiltInColumns.Keywords,
+            Name = "Keywords",
+            DisplayName = "Keywords",
+            DataType = CustomColumnDataType.String,
+            Source = CustomColumnSource.Content,
+            SourceField = "Keywords",
+            Width = 200,
+            Sortable = true,
+            Visible = false,
+            IsBuiltIn = true,
+            DisplayOrder = 28
+        });
     }
     
     private void AddBuiltInColumn(CustomColumnDefinition column)
@@ -236,6 +603,66 @@ public class CustomColumnService : ICustomColumnService
             IsBuiltIn = true
         };
     }
+
+    private void LoadUserData()
+    {
+        try
+        {
+            if (!File.Exists(_storagePath))
+                return;
+
+            var json = File.ReadAllText(_storagePath);
+            var data = JsonSerializer.Deserialize<CustomColumnStore>(json, StorageOptions);
+            if (data == null)
+                return;
+
+            foreach (var column in data.Columns ?? new List<CustomColumnDefinition>())
+            {
+                if (string.IsNullOrWhiteSpace(column.Id) || _builtInColumns.ContainsKey(column.Id))
+                    continue;
+                _userColumns[column.Id] = column with { IsBuiltIn = false };
+            }
+
+            foreach (var set in data.ColumnSets ?? new List<CustomColumnSet>())
+            {
+                if (string.IsNullOrWhiteSpace(set.Id) || _columnSets.TryGetValue(set.Id, out var existing) && existing.IsBuiltIn)
+                    continue;
+                _columnSets[set.Id] = set with { IsBuiltIn = false };
+            }
+        }
+        catch
+        {
+            // Ignore load errors
+        }
+    }
+
+    private async Task SaveUserDataAsync(CancellationToken cancellationToken = default)
+    {
+        await _storageLock.WaitAsync(cancellationToken);
+        try
+        {
+            var directory = Path.GetDirectoryName(_storagePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+
+            var data = new CustomColumnStore
+            {
+                Columns = _userColumns.Values.OrderBy(c => c.DisplayOrder).ToList(),
+                ColumnSets = _columnSets.Values.Where(s => !s.IsBuiltIn).OrderBy(s => s.Name).ToList()
+            };
+
+            var json = JsonSerializer.Serialize(data, StorageOptions);
+            await File.WriteAllTextAsync(_storagePath, json, cancellationToken);
+        }
+        catch
+        {
+            // Ignore save errors
+        }
+        finally
+        {
+            _storageLock.Release();
+        }
+    }
     
     public IReadOnlyList<CustomColumnDefinition> GetBuiltInColumns()
     {
@@ -265,7 +692,7 @@ public class CustomColumnService : ICustomColumnService
         return null;
     }
     
-    public Task<CustomColumnDefinition> CreateColumnAsync(CustomColumnDefinition definition, CancellationToken cancellationToken = default)
+    public async Task<CustomColumnDefinition> CreateColumnAsync(CustomColumnDefinition definition, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(definition.Id))
         {
@@ -279,44 +706,47 @@ public class CustomColumnService : ICustomColumnService
         
         _userColumns[definition.Id] = definition with { IsBuiltIn = false };
         OnColumnsChanged();
-        
-        return Task.FromResult(definition);
+
+        await SaveUserDataAsync(cancellationToken);
+        return definition;
     }
     
-    public Task<bool> UpdateColumnAsync(CustomColumnDefinition definition, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateColumnAsync(CustomColumnDefinition definition, CancellationToken cancellationToken = default)
     {
         if (_builtInColumns.ContainsKey(definition.Id))
         {
-            return Task.FromResult(false); // Cannot modify built-in columns
+            return false; // Cannot modify built-in columns
         }
         
         if (!_userColumns.ContainsKey(definition.Id))
         {
-            return Task.FromResult(false);
+            return false;
         }
         
         _userColumns[definition.Id] = definition with { IsBuiltIn = false };
         InvalidateCacheForColumn(definition.Id);
         OnColumnsChanged();
-        
-        return Task.FromResult(true);
+
+        await SaveUserDataAsync(cancellationToken);
+        return true;
     }
     
-    public Task<bool> DeleteColumnAsync(string columnId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteColumnAsync(string columnId, CancellationToken cancellationToken = default)
     {
         if (_builtInColumns.ContainsKey(columnId))
         {
-            return Task.FromResult(false); // Cannot delete built-in columns
+            return false; // Cannot delete built-in columns
         }
         
         if (_userColumns.TryRemove(columnId, out _))
         {
             InvalidateCacheForColumn(columnId);
             OnColumnsChanged();
-            return Task.FromResult(true);
+            await SaveUserDataAsync(cancellationToken);
+            return true;
         }
         
-        return Task.FromResult(false);
+        return false;
     }
     
     public IReadOnlyList<CustomColumnSet> GetColumnSets()
@@ -329,7 +759,7 @@ public class CustomColumnService : ICustomColumnService
         return _columnSets.TryGetValue(setId, out var set) ? set : null;
     }
     
-    public Task<CustomColumnSet> CreateColumnSetAsync(CustomColumnSet set, CancellationToken cancellationToken = default)
+    public async Task<CustomColumnSet> CreateColumnSetAsync(CustomColumnSet set, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(set.Id))
         {
@@ -338,47 +768,50 @@ public class CustomColumnService : ICustomColumnService
         
         _columnSets[set.Id] = set with { IsBuiltIn = false };
         OnColumnSetsChanged();
-        
-        return Task.FromResult(set);
+
+        await SaveUserDataAsync(cancellationToken);
+        return set;
     }
     
-    public Task<bool> UpdateColumnSetAsync(CustomColumnSet set, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateColumnSetAsync(CustomColumnSet set, CancellationToken cancellationToken = default)
     {
         if (!_columnSets.TryGetValue(set.Id, out var existing))
         {
-            return Task.FromResult(false);
+            return false;
         }
         
         if (existing.IsBuiltIn)
         {
-            return Task.FromResult(false);
+            return false;
         }
         
         _columnSets[set.Id] = set with { IsBuiltIn = false };
         OnColumnSetsChanged();
-        
-        return Task.FromResult(true);
+
+        await SaveUserDataAsync(cancellationToken);
+        return true;
     }
     
-    public Task<bool> DeleteColumnSetAsync(string setId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteColumnSetAsync(string setId, CancellationToken cancellationToken = default)
     {
         if (!_columnSets.TryGetValue(setId, out var existing))
         {
-            return Task.FromResult(false);
+            return false;
         }
         
         if (existing.IsBuiltIn)
         {
-            return Task.FromResult(false);
+            return false;
         }
         
         if (_columnSets.TryRemove(setId, out _))
         {
             OnColumnSetsChanged();
-            return Task.FromResult(true);
+            await SaveUserDataAsync(cancellationToken);
+            return true;
         }
         
-        return Task.FromResult(false);
+        return false;
     }
     
     public CustomColumnSet GetColumnSetForFolder(string folderPath)
@@ -560,39 +993,449 @@ public class CustomColumnService : ICustomColumnService
     
     private Task<object?> GetShellPropertyValueAsync(string propertyName, string filePath, CancellationToken cancellationToken)
     {
-        // Shell property extraction would require platform-specific code
-        // This is a placeholder for now
-        return Task.FromResult<object?>(null);
+        if (string.IsNullOrWhiteSpace(propertyName))
+        {
+            return Task.FromResult<object?>(null);
+        }
+
+        var normalized = propertyName.Trim();
+        return GetShellPropertyValueCoreAsync(normalized, filePath, cancellationToken);
     }
     
     private Task<object?> GetContentFieldValueAsync(string fieldName, string filePath, CancellationToken cancellationToken)
     {
-        // Content field extraction from content plugins
-        // This is a placeholder for now
-        return Task.FromResult<object?>(null);
+        if (string.IsNullOrWhiteSpace(fieldName))
+        {
+            return Task.FromResult<object?>(null);
+        }
+
+        return GetContentFieldValueCoreAsync(fieldName.Trim(), filePath, cancellationToken);
     }
     
     private Task<object?> EvaluateExpressionAsync(string expression, string filePath, CancellationToken cancellationToken)
     {
-        // Simple expression evaluation
-        // Full implementation would support TC-style expressions
+        return EvaluateExpressionCoreAsync(expression, filePath, cancellationToken);
+    }
+
+    private async Task<object?> GetShellPropertyValueCoreAsync(string propertyName, string filePath, CancellationToken cancellationToken)
+    {
+        var normalized = propertyName.Trim();
+        var lower = normalized.ToLowerInvariant();
+
+        switch (lower)
+        {
+            case "typename":
+            case "type":
+                return GetTypeName(filePath);
+
+            case "description":
+                return await GetDescriptionAsync(filePath, cancellationToken);
+
+            case "version":
+                return GetFileVersionInfo(filePath)?.FileVersion;
+
+            case "productversion":
+                return GetFileVersionInfo(filePath)?.ProductVersion;
+
+            case "company":
+            case "companyname":
+                return GetFileVersionInfo(filePath)?.CompanyName;
+
+            case "comments":
+                return GetFileVersionInfo(filePath)?.Comments;
+
+            case "owner":
+                return GetOwnerName(filePath);
+
+            case "compressedsize":
+                return GetCompressedSize(filePath);
+
+            case "crc32":
+                return await GetChecksumAsync(filePath, ChecksumAlgorithm.CRC32, cancellationToken);
+
+            case "md5":
+                return await GetChecksumAsync(filePath, ChecksumAlgorithm.MD5, cancellationToken);
+
+            case "sha256":
+                return await GetChecksumAsync(filePath, ChecksumAlgorithm.SHA256, cancellationToken);
+
+            case "dimensions":
+            case "duration":
+            case "bitrate":
+            case "artist":
+            case "album":
+            case "title":
+            case "genre":
+            case "year":
+            case "pagecount":
+            case "author":
+            case "subject":
+            case "keywords":
+                return await GetContentFieldValueCoreAsync(normalized, filePath, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private async Task<object?> GetContentFieldValueCoreAsync(string fieldName, string filePath, CancellationToken cancellationToken)
+    {
+        // Support "pluginId:field" format for TC-style content plugins
+        var splitIndex = fieldName.IndexOf(':');
+        if (splitIndex > 0 && _pluginService != null)
+        {
+            var pluginId = fieldName.Substring(0, splitIndex);
+            var field = fieldName.Substring(splitIndex + 1);
+            if (!string.IsNullOrWhiteSpace(pluginId) && !string.IsNullOrWhiteSpace(field))
+            {
+                return await _pluginService.GetContentFieldValueAsync(pluginId, field, filePath, cancellationToken);
+            }
+        }
+
+        if (_contentPluginService != null)
+        {
+            var contentValue = await _contentPluginService.GetFieldValueAsync(filePath, fieldName, cancellationToken);
+            if (contentValue != null)
+            {
+                return contentValue.Value ?? contentValue.DisplayValue;
+            }
+        }
+
+        if (_pluginService != null)
+        {
+            foreach (var plugin in _pluginService.GetPluginsByType(PluginType.Content))
+            {
+                var fields = _pluginService.GetContentFields(plugin.Id);
+                var match = fields.FirstOrDefault(f => string.Equals(f.Name, fieldName, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    return await _pluginService.GetContentFieldValueAsync(plugin.Id, match.Name, filePath, cancellationToken);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<object?> EvaluateExpressionCoreAsync(string expression, string filePath, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(expression))
+            return null;
+
+        var trimmed = expression.Trim();
+        if (trimmed.StartsWith("[=", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal))
+        {
+            trimmed = trimmed.Substring(2, trimmed.Length - 3).Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(trimmed))
+            return null;
+
+        var variablesNeeded = ExtractExpressionVariables(trimmed);
+        var variables = await BuildExpressionVariablesAsync(variablesNeeded, filePath, cancellationToken);
+
+        // Direct variable expression
+        if (variablesNeeded.Count == 1 && string.Equals(trimmed, variablesNeeded.First(), StringComparison.OrdinalIgnoreCase))
+        {
+            var key = variablesNeeded.First();
+            return variables.TryGetValue(key, out var value) ? value : null;
+        }
+
+        var prepared = ReplaceVariables(trimmed, variables);
+        if (string.Equals(prepared, trimmed, StringComparison.Ordinal))
+        {
+            return trimmed;
+        }
+
         try
         {
-            var fileInfo = new FileInfo(filePath);
-            if (!fileInfo.Exists) return Task.FromResult<object?>(null);
-            
-            // Support basic expressions like "[=tc.Size/1024]" for KB
-            if (expression.Contains("tc.Size"))
+            var table = new DataTable
             {
-                var sizeKb = fileInfo.Length / 1024.0;
-                return Task.FromResult<object?>(sizeKb);
-            }
-            
-            return Task.FromResult<object?>(null);
+                Locale = CultureInfo.InvariantCulture
+            };
+
+            var result = table.Compute(prepared, string.Empty);
+            return result is DBNull ? null : result;
         }
         catch
         {
-            return Task.FromResult<object?>(null);
+            return null;
+        }
+    }
+
+    private static HashSet<string> ExtractExpressionVariables(string expression)
+    {
+        var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match match in ExpressionVariableRegex.Matches(expression))
+        {
+            results.Add(match.Value);
+        }
+        return results;
+    }
+
+    private async Task<Dictionary<string, object?>> BuildExpressionVariablesAsync(
+        HashSet<string> variableNames,
+        string filePath,
+        CancellationToken cancellationToken)
+    {
+        var variables = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in variableNames)
+        {
+            var parts = raw.Split('.', 2);
+            if (parts.Length != 2)
+                continue;
+
+            var prefix = parts[0].ToLowerInvariant();
+            var name = parts[1];
+            object? value = null;
+
+            switch (prefix)
+            {
+                case "tc":
+                    value = await ResolveTcVariableAsync(name, filePath, cancellationToken);
+                    break;
+                case "shell":
+                    value = await GetShellPropertyValueCoreAsync(name, filePath, cancellationToken);
+                    break;
+                case "content":
+                    value = await GetContentFieldValueCoreAsync(name, filePath, cancellationToken);
+                    break;
+            }
+
+            variables[raw] = value;
+        }
+
+        return variables;
+    }
+
+    private async Task<object?> ResolveTcVariableAsync(string name, string filePath, CancellationToken cancellationToken)
+    {
+        var lower = name.ToLowerInvariant();
+
+        switch (lower)
+        {
+            case "name":
+                return Path.GetFileName(filePath);
+            case "ext":
+            case "extension":
+                return Path.GetExtension(filePath).TrimStart('.');
+            case "size":
+                return new FileInfo(filePath).Exists ? new FileInfo(filePath).Length : 0L;
+            case "date":
+            case "modified":
+                return GetFilePropertyValue("LastWriteTime", filePath);
+            case "created":
+                return GetFilePropertyValue("CreationTime", filePath);
+            case "accessed":
+                return GetFilePropertyValue("LastAccessTime", filePath);
+            case "attributes":
+                return GetFilePropertyValue("Attributes", filePath);
+            case "path":
+            case "directory":
+            case "dir":
+                return Path.GetDirectoryName(filePath);
+            case "fullname":
+            case "fullpath":
+                return Path.GetFullPath(filePath);
+            case "type":
+            case "typename":
+                return await GetShellPropertyValueCoreAsync("TypeName", filePath, cancellationToken);
+            case "description":
+                return await GetShellPropertyValueCoreAsync("Description", filePath, cancellationToken);
+            case "version":
+                return await GetShellPropertyValueCoreAsync("Version", filePath, cancellationToken);
+            case "company":
+                return await GetShellPropertyValueCoreAsync("Company", filePath, cancellationToken);
+            case "comments":
+                return await GetShellPropertyValueCoreAsync("Comments", filePath, cancellationToken);
+            case "owner":
+                return await GetShellPropertyValueCoreAsync("Owner", filePath, cancellationToken);
+            case "crc32":
+                return await GetShellPropertyValueCoreAsync("CRC32", filePath, cancellationToken);
+            case "md5":
+                return await GetShellPropertyValueCoreAsync("MD5", filePath, cancellationToken);
+            case "sha256":
+                return await GetShellPropertyValueCoreAsync("SHA256", filePath, cancellationToken);
+            case "dimensions":
+            case "duration":
+            case "bitrate":
+            case "artist":
+            case "album":
+            case "title":
+            case "genre":
+            case "year":
+            case "pagecount":
+            case "author":
+            case "subject":
+            case "keywords":
+                return await GetContentFieldValueCoreAsync(name, filePath, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static string ReplaceVariables(string expression, Dictionary<string, object?> variables)
+    {
+        return ExpressionVariableRegex.Replace(expression, match =>
+        {
+            var key = match.Value;
+            if (!variables.TryGetValue(key, out var value))
+            {
+                return "NULL";
+            }
+
+            return FormatExpressionLiteral(value);
+        });
+    }
+
+    private static string FormatExpressionLiteral(object? value)
+    {
+        if (value == null)
+            return "NULL";
+
+        if (value is bool boolValue)
+            return boolValue ? "TRUE" : "FALSE";
+
+        if (value is DateTime dateTime)
+            return dateTime.Ticks.ToString(CultureInfo.InvariantCulture);
+
+        if (value is string strValue)
+        {
+            var escaped = strValue.Replace("'", "''");
+            return $"'{escaped}'";
+        }
+
+        if (value is IFormattable formattable)
+        {
+            return formattable.ToString(null, CultureInfo.InvariantCulture);
+        }
+
+        return $"'{value.ToString()?.Replace("'", "''")}'";
+    }
+
+    private string GetTypeName(string filePath)
+    {
+        if (Directory.Exists(filePath))
+            return "File Folder";
+
+        try
+        {
+            if (Path.GetPathRoot(filePath) == filePath)
+            {
+                var driveInfo = new DriveInfo(filePath);
+                if (driveInfo.IsReady)
+                {
+                    return string.IsNullOrEmpty(driveInfo.VolumeLabel)
+                        ? $"{driveInfo.DriveType} Drive"
+                        : $"{driveInfo.VolumeLabel} ({driveInfo.DriveType})";
+                }
+            }
+        }
+        catch
+        {
+            // Ignore drive errors
+        }
+
+        var extension = Path.GetExtension(filePath);
+        if (string.IsNullOrEmpty(extension))
+            return "File";
+
+        if (KnownTypeNames.TryGetValue(extension, out var typeName))
+            return typeName;
+
+        return $"{extension.TrimStart('.').ToUpperInvariant()} File";
+    }
+
+    private async Task<string?> GetDescriptionAsync(string filePath, CancellationToken cancellationToken)
+    {
+        if (_descriptionFileService == null)
+            return null;
+
+        try
+        {
+            return await _descriptionFileService.GetDescriptionAsync(filePath);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static FileVersionInfo? GetFileVersionInfo(string filePath)
+    {
+        try
+        {
+            if (!File.Exists(filePath))
+                return null;
+            return FileVersionInfo.GetVersionInfo(filePath);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private string? GetOwnerName(string filePath)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                var fileInfo = new FileInfo(filePath);
+                if (fileInfo.Exists)
+                {
+                    var accessControl = fileInfo.GetAccessControl();
+                    var owner = accessControl.GetOwner(typeof(System.Security.Principal.NTAccount));
+                    return owner?.ToString();
+                }
+
+                var directoryInfo = new DirectoryInfo(filePath);
+                if (directoryInfo.Exists)
+                {
+                    var accessControl = directoryInfo.GetAccessControl();
+                    var owner = accessControl.GetOwner(typeof(System.Security.Principal.NTAccount));
+                    return owner?.ToString();
+                }
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    private static long? GetCompressedSize(string filePath)
+    {
+        try
+        {
+            var info = new FileInfo(filePath);
+            if (!info.Exists)
+                return null;
+            return info.Length;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task<string?> GetChecksumAsync(string filePath, ChecksumAlgorithm algorithm, CancellationToken cancellationToken)
+    {
+        if (_fileChecksumService == null)
+            return null;
+
+        try
+        {
+            if (!File.Exists(filePath))
+                return null;
+
+            var result = await _fileChecksumService.CalculateChecksumAsync(filePath, algorithm, cancellationToken);
+            return result.Success ? result.Hash : null;
+        }
+        catch
+        {
+            return null;
         }
     }
     
@@ -720,7 +1563,34 @@ public class CustomColumnService : ICustomColumnService
         {
             return Task.FromResult(provider.GetSupportedFields());
         }
-        
+
+        if (string.Equals(pluginId, "content", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(pluginId, "builtin", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_contentPluginService != null)
+            {
+                var fields = _contentPluginService.GetPlugins()
+                    .SelectMany(p => p.Fields)
+                    .Select(f => f.Name)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                return Task.FromResult<IReadOnlyList<string>>(fields);
+            }
+        }
+
+        if (_pluginService != null)
+        {
+            var fields = _pluginService.GetPluginsByType(PluginType.Content)
+                .SelectMany(p => _pluginService.GetContentFields(p.Id))
+                .Select(f => f.Name)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (fields.Count > 0)
+            {
+                return Task.FromResult<IReadOnlyList<string>>(fields);
+            }
+        }
+
         return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
     }
     
@@ -796,6 +1666,12 @@ public class CustomColumnService : ICustomColumnService
     public void InvalidateCacheForFile(string filePath)
     {
         _valueCache.TryRemove(filePath, out _);
+    }
+
+    private sealed class CustomColumnStore
+    {
+        public List<CustomColumnDefinition> Columns { get; init; } = new();
+        public List<CustomColumnSet> ColumnSets { get; init; } = new();
     }
     
     private void OnColumnsChanged()

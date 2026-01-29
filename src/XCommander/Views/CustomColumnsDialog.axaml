@@ -2,90 +2,114 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:XCommander.Controls"
              xmlns:vm="using:XCommander.ViewModels"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="450"
              x:Class="XCommander.Views.CustomColumnsDialog"
              x:DataType="vm:CustomColumnsViewModel">
-    
-    <Grid RowDefinitions="Auto,*,Auto,Auto">
-        <!-- Header -->
-        <Border Grid.Row="0" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                Padding="16">
-            <StackPanel>
-                <TextBlock Text="Custom Columns" FontSize="20" FontWeight="SemiBold"/>
-                <TextBlock Text="Configure which columns are displayed and their order" 
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="ActiveColumnTemplate"
+                      x:DataType="vm:ColumnConfigItemViewModel">
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
+                <CheckBox Grid.Column="0"
+                          IsChecked="{Binding IsVisible}"
+                          IsEnabled="{Binding Id, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                          Command="{Binding $parent[UserControl].((vm:CustomColumnsViewModel)DataContext).ToggleColumnVisibilityCommand}"
+                          CommandParameter="{Binding}"/>
+                <TextBlock Grid.Column="1" Text="{Binding Name}"
+                           VerticalAlignment="Center" Margin="8,0"/>
+                <TextBlock Grid.Column="2" Text="{Binding Width, StringFormat={}{0}px}"
+                           VerticalAlignment="Center"
                            Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                           Margin="0,4,0,0"/>
+                           FontSize="11"/>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="AvailableColumnTemplate"
+                      x:DataType="vm:ColumnConfigItemViewModel">
+            <TextBlock Text="{Binding Name}" Margin="8,4"/>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="10">
+        <controls:TcBevelPanel Grid.Row="0" Padding="6,4">
+            <StackPanel>
+                <TextBlock Text="Custom Columns" FontSize="14" FontWeight="Bold"/>
+                <TextBlock Text="Configure which columns are displayed and their order"
+                           Foreground="{DynamicResource TcMutedTextBrush}"
+                           Margin="0,2,0,0"/>
             </StackPanel>
-        </Border>
+        </controls:TcBevelPanel>
         
         <!-- Content -->
-        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,*" Margin="16">
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,*" Margin="0,6,0,0">
             <!-- Active Columns -->
             <Grid RowDefinitions="Auto,*">
                 <TextBlock Text="Active Columns" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                <Border Grid.Row="1" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-                        BorderThickness="1" CornerRadius="4">
-                    <ListBox ItemsSource="{Binding Columns}"
-                             SelectedItem="{Binding SelectedColumn}"
-                             Background="Transparent">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ColumnConfigItemViewModel">
-                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
-                                    <CheckBox Grid.Column="0" 
-                                              IsChecked="{Binding IsVisible}"
-                                              IsEnabled="{Binding Id, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                              Command="{Binding $parent[UserControl].((vm:CustomColumnsViewModel)DataContext).ToggleColumnVisibilityCommand}"
-                                              CommandParameter="{Binding}"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding Name}" 
-                                               VerticalAlignment="Center" Margin="8,0"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding Width, StringFormat={}{0}px}" 
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                                               FontSize="11"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Border>
+                <controls:TcInsetPanel Grid.Row="1" Padding="0">
+                    <DataGrid ItemsSource="{Binding Columns}"
+                              SelectedItem="{Binding SelectedColumn}"
+                              ColumnDefinitionsSource="{Binding ColumnsColumnDefinitions}"
+                              FilteringModel="{Binding ColumnsFilteringModel}"
+                              SortingModel="{Binding ColumnsSortingModel}"
+                              SearchModel="{Binding ColumnsSearchModel}"
+                              Background="Transparent"
+                              SelectionMode="Single"
+                              CanUserResizeColumns="True"
+                              CanUserReorderColumns="False"
+                              CanUserSortColumns="True"
+                              HeadersVisibility="None"
+                              GridLinesVisibility="None"
+                              BorderThickness="0"
+                              IsReadOnly="True">
+                        <DataGrid.FastPathOptions>
+                            <DataGridFastPathOptions UseAccessorsOnly="True"
+                                                     ThrowOnMissingAccessor="True" />
+                        </DataGrid.FastPathOptions>
+                    </DataGrid>
+                </controls:TcInsetPanel>
             </Grid>
             
             <!-- Move Buttons -->
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8" Spacing="4">
-                <Button Content="▲" Command="{Binding MoveColumnUpCommand}" 
-                        ToolTip.Tip="Move Up" Width="32"/>
-                <Button Content="▼" Command="{Binding MoveColumnDownCommand}" 
-                        ToolTip.Tip="Move Down" Width="32"/>
-                <Separator Margin="0,8"/>
-                <Button Content="←" Command="{Binding AddColumnCommand}" 
-                        ToolTip.Tip="Add Column" Width="32"/>
-                <Button Content="→" Command="{Binding RemoveColumnCommand}" 
-                        ToolTip.Tip="Remove Column" Width="32"/>
+                <Button Content="Up" Command="{Binding MoveColumnUpCommand}" Width="50"/>
+                <Button Content="Down" Command="{Binding MoveColumnDownCommand}" Width="50"/>
+                <TextBlock Text="|" HorizontalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="0,4"/>
+                <Button Content="Add" Command="{Binding AddColumnCommand}" Width="50"/>
+                <Button Content="Remove" Command="{Binding RemoveColumnCommand}" Width="60"/>
             </StackPanel>
             
             <!-- Available Columns -->
             <Grid Grid.Column="2" RowDefinitions="Auto,*">
                 <TextBlock Text="Available Columns" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                <Border Grid.Row="1" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-                        BorderThickness="1" CornerRadius="4">
-                    <ListBox ItemsSource="{Binding AvailableColumns}"
-                             SelectedItem="{Binding SelectedAvailableColumn}"
-                             Background="Transparent">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ColumnConfigItemViewModel">
-                                <TextBlock Text="{Binding Name}" Margin="8,4"/>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Border>
+                <controls:TcInsetPanel Grid.Row="1" Padding="0">
+                    <DataGrid ItemsSource="{Binding AvailableColumns}"
+                              SelectedItem="{Binding SelectedAvailableColumn}"
+                              ColumnDefinitionsSource="{Binding AvailableColumnDefinitions}"
+                              FilteringModel="{Binding AvailableFilteringModel}"
+                              SortingModel="{Binding AvailableSortingModel}"
+                              SearchModel="{Binding AvailableSearchModel}"
+                              Background="Transparent"
+                              SelectionMode="Single"
+                              CanUserResizeColumns="True"
+                              CanUserReorderColumns="False"
+                              CanUserSortColumns="True"
+                              HeadersVisibility="None"
+                              GridLinesVisibility="None"
+                              BorderThickness="0"
+                              IsReadOnly="True">
+                        <DataGrid.FastPathOptions>
+                            <DataGridFastPathOptions UseAccessorsOnly="True"
+                                                     ThrowOnMissingAccessor="True" />
+                        </DataGrid.FastPathOptions>
+                    </DataGrid>
+                </controls:TcInsetPanel>
             </Grid>
         </Grid>
         
         <!-- Column Properties -->
-        <Border Grid.Row="2" Margin="16,0,16,16" Padding="16" 
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                CornerRadius="4"
-                IsVisible="{Binding SelectedColumn, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <controls:TcBevelPanel Grid.Row="2" Padding="6,4" Margin="0,6,0,0"
+                               IsVisible="{Binding SelectedColumn, Converter={x:Static ObjectConverters.IsNotNull}}">
             <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,*" RowDefinitions="Auto,Auto">
                 <TextBlock Text="Column Width:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <NumericUpDown Grid.Column="1" Value="{Binding SelectedColumn.Width}" 
@@ -99,17 +123,17 @@
                     <ComboBoxItem Content="Right"/>
                 </ComboBox>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
         
         <!-- Button Bar -->
-        <Border Grid.Row="3" Padding="16" Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+        <controls:TcBevelPanel Grid.Row="3" Padding="6,4" Margin="0,6,0,0">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <Button Content="Reset to Default" Command="{Binding ResetToDefaultCommand}"/>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
                     <Button Content="OK" Click="OnOkClick" Width="80"/>
                     <Button Content="Cancel" Click="OnCancelClick" Width="80"/>
                 </StackPanel>
             </Grid>
-        </Border>
+        </controls:TcBevelPanel>
     </Grid>
 </UserControl>

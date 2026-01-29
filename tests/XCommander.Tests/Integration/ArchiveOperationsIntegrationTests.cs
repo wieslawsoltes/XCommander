@@ -1,6 +1,7 @@
 using System.Text;
 using SharpCompress.Archives.Zip;
 using SharpCompress.Common;
+using SharpCompress.Readers;
 using SharpCompress.Writers;
 
 namespace XCommander.Tests.Integration;
@@ -45,7 +46,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         await File.WriteAllTextAsync(sourceFile, "Test content for ZIP");
         
         // Act
-        using (var archive = ZipArchive.Create())
+        using (var archive = CreateZipArchive())
         {
             using var stream = File.OpenRead(sourceFile);
             archive.AddEntry("test.txt", stream, true);
@@ -56,7 +57,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         // Assert
         Assert.True(File.Exists(archivePath));
         
-        using var readArchive = ZipArchive.Open(archivePath);
+        using var readArchive = OpenZipArchive(archivePath);
         var entries = readArchive.Entries.Where(e => !e.IsDirectory).ToList();
         Assert.Single(entries);
         Assert.Equal("test.txt", entries[0].Key);
@@ -77,7 +78,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         }
         
         // Act - Use memory streams with leaveOpen=false for all entries
-        using (var archive = ZipArchive.Create())
+        using (var archive = CreateZipArchive())
         {
             foreach (var file in files)
             {
@@ -92,7 +93,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         // Assert
         Assert.True(File.Exists(archivePath));
         
-        using var readArchive = ZipArchive.Open(archivePath);
+        using var readArchive = OpenZipArchive(archivePath);
         Assert.Equal(5, readArchive.Entries.Count(e => !e.IsDirectory));
     }
     
@@ -109,7 +110,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         await File.WriteAllTextAsync(Path.Combine(subDir, "sub.txt"), "sub");
         
         // Act
-        using (var archive = ZipArchive.Create())
+        using (var archive = CreateZipArchive())
         {
             using var stream1 = File.OpenRead(Path.Combine(sourceDir, "root.txt"));
             archive.AddEntry("root.txt", stream1, true);
@@ -120,7 +121,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         }
         
         // Assert
-        using var readArchive = ZipArchive.Open(archivePath);
+        using var readArchive = OpenZipArchive(archivePath);
         var entries = readArchive.Entries.Where(e => !e.IsDirectory).ToList();
         Assert.Equal(2, entries.Count);
         Assert.Contains(entries, e => e.Key == "root.txt");
@@ -140,7 +141,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         Directory.CreateDirectory(extractDir);
         
         // Create test archive
-        using (var archive = ZipArchive.Create())
+        using (var archive = CreateZipArchive())
         {
             using var stream1 = new MemoryStream(Encoding.UTF8.GetBytes("Content 1"));
             using var stream2 = new MemoryStream(Encoding.UTF8.GetBytes("Content 2"));
@@ -151,7 +152,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         }
         
         // Act
-        using (var archive = ZipArchive.Open(archivePath))
+        using (var archive = OpenZipArchive(archivePath))
         {
             foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
             {
@@ -177,7 +178,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         var extractDir = Path.Combine(_testRoot, "selectextracted");
         Directory.CreateDirectory(extractDir);
         
-        using (var archive = ZipArchive.Create())
+        using (var archive = CreateZipArchive())
         {
             using var stream1 = new MemoryStream(Encoding.UTF8.GetBytes("Extract me"));
             using var stream2 = new MemoryStream(Encoding.UTF8.GetBytes("Skip me"));
@@ -188,7 +189,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         }
         
         // Act
-        using (var archive = ZipArchive.Open(archivePath))
+        using (var archive = OpenZipArchive(archivePath))
         {
             var entry = archive.Entries.First(e => e.Key == "extract.txt");
             var destPath = Path.Combine(extractDir, "extract.txt");
@@ -215,7 +216,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         await File.WriteAllTextAsync(newFile, "New content");
         
         // Create initial archive
-        using (var archive = ZipArchive.Create())
+        using (var archive = CreateZipArchive())
         {
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes("Original"));
             archive.AddEntry("original.txt", stream, true);
@@ -225,7 +226,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         
         // Act - Add new file
         var tempPath = archivePath + ".tmp";
-        using (var archive = ZipArchive.Open(archivePath))
+        using (var archive = OpenZipArchive(archivePath))
         {
             using var newFileStream = File.OpenRead(newFile);
             archive.AddEntry("newfile.txt", newFileStream, true);
@@ -235,7 +236,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         File.Move(tempPath, archivePath, overwrite: true);
         
         // Assert
-        using var readArchive = ZipArchive.Open(archivePath);
+        using var readArchive = OpenZipArchive(archivePath);
         var entries = readArchive.Entries.Where(e => !e.IsDirectory).ToList();
         Assert.Equal(2, entries.Count);
         Assert.Contains(entries, e => e.Key == "original.txt");
@@ -249,7 +250,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         var archivePath = Path.Combine(_testRoot, "deletefrom.zip");
         
         // Create archive with multiple files
-        using (var archive = ZipArchive.Create())
+        using (var archive = CreateZipArchive())
         {
             using var stream1 = new MemoryStream(Encoding.UTF8.GetBytes("Keep"));
             using var stream2 = new MemoryStream(Encoding.UTF8.GetBytes("Delete"));
@@ -261,7 +262,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         
         // Act - Delete file
         var tempPath = archivePath + ".tmp";
-        using (var archive = ZipArchive.Open(archivePath))
+        using (var archive = OpenZipArchive(archivePath))
         {
             var entryToDelete = archive.Entries.First(e => e.Key == "delete.txt");
             archive.RemoveEntry(entryToDelete);
@@ -271,7 +272,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         File.Move(tempPath, archivePath, overwrite: true);
         
         // Assert
-        using var readArchive = ZipArchive.Open(archivePath);
+        using var readArchive = OpenZipArchive(archivePath);
         var entries = readArchive.Entries.Where(e => !e.IsDirectory).ToList();
         Assert.Single(entries);
         Assert.Equal("keep.txt", entries[0].Key);
@@ -287,7 +288,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         // Arrange
         var archivePath = Path.Combine(_testRoot, "browse.zip");
         
-        using (var archive = ZipArchive.Create())
+        using (var archive = CreateZipArchive())
         {
             using var s1 = new MemoryStream(Encoding.UTF8.GetBytes("1"));
             using var s2 = new MemoryStream(Encoding.UTF8.GetBytes("2"));
@@ -301,7 +302,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         
         // Act
         List<string> entries;
-        using (var archive = ZipArchive.Open(archivePath))
+        using (var archive = OpenZipArchive(archivePath))
         {
             entries = archive.Entries
                 .Where(e => !e.IsDirectory)
@@ -323,7 +324,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         var archivePath = Path.Combine(_testRoot, "sizes.zip");
         var content = new string('A', 1000); // 1000 bytes
         
-        using (var archive = ZipArchive.Create())
+        using (var archive = CreateZipArchive())
         {
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
             archive.AddEntry("data.txt", stream, true);
@@ -334,7 +335,7 @@ public class ArchiveOperationsIntegrationTests : IDisposable
         // Act
         long size;
         long compressedSize;
-        using (var archive = ZipArchive.Open(archivePath))
+        using (var archive = OpenZipArchive(archivePath))
         {
             var entry = archive.Entries.First(e => !e.IsDirectory);
             size = entry.Size;
@@ -347,4 +348,14 @@ public class ArchiveOperationsIntegrationTests : IDisposable
     }
     
     #endregion
+
+    private static ZipArchive CreateZipArchive()
+    {
+        return (ZipArchive)ZipArchive.CreateArchive();
+    }
+
+    private static ZipArchive OpenZipArchive(string archivePath)
+    {
+        return (ZipArchive)ZipArchive.OpenArchive(archivePath, new ReaderOptions());
+    }
 }

@@ -1,4 +1,8 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using XCommander.Models;
@@ -75,12 +79,106 @@ public partial class CustomColumnsViewModel : ViewModelBase
     
     [ObservableProperty]
     private ColumnConfigItemViewModel? _selectedAvailableColumn;
+
+    public ObservableCollection<DataGridColumnDefinition> ColumnsColumnDefinitions { get; }
+    public FilteringModel ColumnsFilteringModel { get; }
+    public SortingModel ColumnsSortingModel { get; }
+    public SearchModel ColumnsSearchModel { get; }
+    public ObservableCollection<DataGridColumnDefinition> AvailableColumnDefinitions { get; }
+    public FilteringModel AvailableFilteringModel { get; }
+    public SortingModel AvailableSortingModel { get; }
+    public SearchModel AvailableSearchModel { get; }
     
     public event EventHandler? ColumnsChanged;
 
     public CustomColumnsViewModel()
     {
+        ColumnsFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        ColumnsSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        ColumnsSearchModel = new SearchModel();
+        ColumnsColumnDefinitions = BuildActiveColumnDefinitions();
+
+        AvailableFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        AvailableSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        AvailableSearchModel = new SearchModel();
+        AvailableColumnDefinitions = BuildAvailableColumnDefinitions();
         LoadDefaultColumns();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildActiveColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<ColumnConfigItemViewModel>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Active Columns",
+                cellTemplateKey: "ActiveColumnTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "active-column";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<ColumnConfigItemViewModel, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<ColumnConfigItemViewModel, string>(
+                            item => item.Name),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not ColumnConfigItemViewModel columnItem)
+                                return string.Empty;
+                            return $"{columnItem.Name} {columnItem.Id}";
+                        }
+                    };
+                })
+        };
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildAvailableColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<ColumnConfigItemViewModel>();
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: "Available Columns",
+                cellTemplateKey: "AvailableColumnTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "available-column";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<ColumnConfigItemViewModel, string>(
+                        item => item.Name);
+                    column.ValueType = typeof(string);
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<ColumnConfigItemViewModel, string>(
+                            item => item.Name),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not ColumnConfigItemViewModel columnItem)
+                                return string.Empty;
+                            return $"{columnItem.Name} {columnItem.Id}";
+                        }
+                    };
+                })
+        };
     }
 
     private void LoadDefaultColumns()

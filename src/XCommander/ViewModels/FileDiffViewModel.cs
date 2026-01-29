@@ -1,9 +1,15 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridFiltering;
+using Avalonia.Controls.DataGridSearching;
+using Avalonia.Controls.DataGridSorting;
+using Avalonia.Data.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DiffPlex;
 using DiffPlex.DiffBuilder;
 using DiffPlex.DiffBuilder.Model;
+using XCommander.Helpers;
 
 namespace XCommander.ViewModels;
 
@@ -94,6 +100,12 @@ public partial class DiffLineViewModel : ViewModelBase
 
 public partial class FileDiffViewModel : ViewModelBase
 {
+    private const string LeftLineColumnKey = "left-line";
+    private const string LeftTextColumnKey = "left-text";
+    private const string ActionColumnKey = "action";
+    private const string RightLineColumnKey = "right-line";
+    private const string RightTextColumnKey = "right-text";
+
     private readonly Differ _differ = new();
     
     [ObservableProperty]
@@ -143,8 +155,190 @@ public partial class FileDiffViewModel : ViewModelBase
     
     public ObservableCollection<DiffLineViewModel> DiffLines { get; } = new();
     public ObservableCollection<DiffPiece> InlineDiffLines { get; } = new();
+    public ObservableCollection<DataGridColumnDefinition> ColumnDefinitions { get; }
+    public FilteringModel FilteringModel { get; }
+    public SortingModel SortingModel { get; }
+    public SearchModel SearchModel { get; }
+    public ObservableCollection<DataGridColumnDefinition> InlineColumnDefinitions { get; }
+    public FilteringModel InlineFilteringModel { get; }
+    public SortingModel InlineSortingModel { get; }
+    public SearchModel InlineSearchModel { get; }
     
     public event EventHandler? RequestClose;
+
+    public FileDiffViewModel()
+    {
+        FilteringModel = new FilteringModel { OwnsViewFilter = true };
+        SortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        SearchModel = new SearchModel();
+        ColumnDefinitions = BuildColumnDefinitions();
+        InlineFilteringModel = new FilteringModel { OwnsViewFilter = true };
+        InlineSortingModel = new SortingModel
+        {
+            MultiSort = true,
+            CycleMode = SortCycleMode.AscendingDescendingNone,
+            OwnsViewSorts = true
+        };
+        InlineSearchModel = new SearchModel();
+        InlineColumnDefinitions = BuildInlineColumnDefinitions();
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<DiffLineViewModel>();
+
+        IPropertyInfo leftLineProperty = DataGridColumnHelper.CreateProperty(
+            nameof(DiffLineViewModel.LeftLineNumber),
+            (DiffLineViewModel item) => item.LeftLineNumber);
+        IPropertyInfo leftTextProperty = DataGridColumnHelper.CreateProperty(
+            nameof(DiffLineViewModel.LeftText),
+            (DiffLineViewModel item) => item.LeftText,
+            (item, value) => item.LeftText = value);
+        IPropertyInfo rightLineProperty = DataGridColumnHelper.CreateProperty(
+            nameof(DiffLineViewModel.RightLineNumber),
+            (DiffLineViewModel item) => item.RightLineNumber);
+        IPropertyInfo rightTextProperty = DataGridColumnHelper.CreateProperty(
+            nameof(DiffLineViewModel.RightText),
+            (DiffLineViewModel item) => item.RightText,
+            (item, value) => item.RightText = value);
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Text(
+                header: "#",
+                property: leftLineProperty,
+                getter: item => item.LeftLineNumber,
+                configure: column =>
+                {
+                    column.ColumnKey = LeftLineColumnKey;
+                    column.Width = new DataGridLength(50);
+                    column.IsReadOnly = true;
+                    column.CanUserSort = false;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Left",
+                property: leftTextProperty,
+                getter: item => item.LeftText,
+                configure: column =>
+                {
+                    column.ColumnKey = LeftTextColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Template(
+                header: string.Empty,
+                cellTemplateKey: "DiffLineActionTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = ActionColumnKey;
+                    column.Width = new DataGridLength(80);
+                    column.IsReadOnly = true;
+                    column.CanUserSort = false;
+                    column.ShowFilterButton = false;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<DiffLineViewModel, string>(
+                        item => item.ChangeIcon);
+                    column.ValueType = typeof(string);
+                }),
+            builder.Text(
+                header: "#",
+                property: rightLineProperty,
+                getter: item => item.RightLineNumber,
+                configure: column =>
+                {
+                    column.ColumnKey = RightLineColumnKey;
+                    column.Width = new DataGridLength(50);
+                    column.IsReadOnly = true;
+                    column.CanUserSort = false;
+                    column.ShowFilterButton = true;
+                }),
+            builder.Text(
+                header: "Right",
+                property: rightTextProperty,
+                getter: item => item.RightText,
+                configure: column =>
+                {
+                    column.ColumnKey = RightTextColumnKey;
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                })
+        };
+    }
+
+    private static ObservableCollection<DataGridColumnDefinition> BuildInlineColumnDefinitions()
+    {
+        var builder = DataGridColumnDefinitionBuilder.For<DiffPiece>();
+
+        IPropertyInfo positionProperty = DataGridColumnHelper.CreateProperty(
+            nameof(DiffPiece.Position),
+            (DiffPiece item) => item.Position);
+        IPropertyInfo textProperty = DataGridColumnHelper.CreateProperty(
+            nameof(DiffPiece.Text),
+            (DiffPiece item) => item.Text);
+
+        return new ObservableCollection<DataGridColumnDefinition>
+        {
+            builder.Template(
+                header: string.Empty,
+                cellTemplateKey: "InlineDiffTypeTemplate",
+                configure: column =>
+                {
+                    column.ColumnKey = "inline-type";
+                    column.Width = new DataGridLength(30);
+                    column.IsReadOnly = true;
+                    column.CanUserSort = false;
+                    column.ShowFilterButton = false;
+                    column.ValueAccessor = new DataGridColumnValueAccessor<DiffPiece, string>(
+                        item => item.Type.ToString());
+                    column.ValueType = typeof(string);
+                }),
+            builder.Text(
+                header: "Pos",
+                property: positionProperty,
+                getter: item => item.Position,
+                configure: column =>
+                {
+                    column.ColumnKey = "inline-position";
+                    column.Width = new DataGridLength(50);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<DiffPiece, int?>(
+                            item => item.Position)
+                    };
+                }),
+            builder.Text(
+                header: "Text",
+                property: textProperty,
+                getter: item => item.Text,
+                configure: column =>
+                {
+                    column.ColumnKey = "inline-text";
+                    column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+                    column.IsReadOnly = true;
+                    column.ShowFilterButton = true;
+                    column.Options = new DataGridColumnDefinitionOptions
+                    {
+                        SortValueAccessor = new DataGridColumnValueAccessor<DiffPiece, string>(
+                            item => item.Text),
+                        SearchTextProvider = item =>
+                        {
+                            if (item is not DiffPiece piece)
+                                return string.Empty;
+                            return piece.Text;
+                        }
+                    };
+                })
+        };
+    }
     
     partial void OnIgnoreWhitespaceChanged(bool value)
     {

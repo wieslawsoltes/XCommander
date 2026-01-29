@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="using:XCommander.Controls"
         xmlns:vm="using:XCommander.ViewModels"
         xmlns:converters="using:XCommander.Converters"
         mc:Ignorable="d" d:DesignWidth="750" d:DesignHeight="550"
@@ -11,36 +12,69 @@
         Width="800"
         Height="600"
         WindowStartupLocation="CenterOwner">
-    
-    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="15">
+
+    <Window.Resources>
+        <DataTemplate x:Key="FileColorRuleTemplate"
+                      x:DataType="vm:FileColorRuleViewModel">
+            <Border Padding="6" Margin="2"
+                    Opacity="{Binding IsEnabled, Converter={x:Static converters:BoolToOpacityConverter.Instance}}">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <!-- Color Preview -->
+                    <Border Grid.Column="0"
+                            Width="24" Height="24"
+                            Margin="0,0,10,0">
+                        <Border.Background>
+                            <SolidColorBrush Color="{Binding ForegroundColor}"/>
+                        </Border.Background>
+                    </Border>
+                    
+                    <!-- Name & Pattern -->
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="{Binding Criteria}" FontSize="11" Opacity="0.6"/>
+                            <TextBlock Text="{Binding Pattern}" FontSize="11" Opacity="0.6"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="200"/>
+                        </StackPanel>
+                    </StackPanel>
+                    
+                    <!-- Status -->
+                    <TextBlock Grid.Column="2"
+                               Text="●"
+                               FontSize="16"
+                               VerticalAlignment="Center"
+                               Foreground="{Binding IsEnabled, Converter={x:Static converters:BoolToStatusBrushConverter.Instance}}"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="10">
         <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,15">
-            <TextBlock Text="File Coloring Rules" FontSize="18" FontWeight="SemiBold"/>
+        <StackPanel Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock Text="File Coloring Rules" FontSize="14" FontWeight="Bold"/>
             <TextBlock Text="Customize how files are displayed based on extension, attributes, size, or custom patterns."
-                       Opacity="0.7" Margin="0,5,0,0"/>
+                       Foreground="{DynamicResource TcMutedTextBrush}" Margin="0,2,0,0"/>
         </StackPanel>
         
         <!-- Main Content -->
-        <Grid Grid.Row="1" ColumnDefinitions="*,300">
+        <Grid Grid.Row="1" ColumnDefinitions="*,300" ColumnSpacing="8">
             <!-- Rules List -->
-            <Border Grid.Column="0" 
-                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                    CornerRadius="4"
-                    Margin="0,0,10,0">
+            <controls:TcInsetPanel Grid.Column="0" Padding="0">
                 <Grid RowDefinitions="Auto,*">
                     <!-- List Toolbar -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="5" Margin="10">
-                        <Button Content="➕ Add" Command="{Binding AddRuleCommand}" Padding="10,5"/>
-                        <Button Content="🗑️ Delete" Command="{Binding DeleteRuleCommand}" 
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="5" Margin="8">
+                        <Button Content="Add" Command="{Binding AddRuleCommand}" Padding="8,4"/>
+                        <Button Content="Delete" Command="{Binding DeleteRuleCommand}" 
                                 IsEnabled="{Binding SelectedRule, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                Padding="10,5"/>
-                        <Button Content="⬆️" Command="{Binding MoveUpCommand}" 
+                                Padding="8,4"/>
+                        <Button Content="Up" Command="{Binding MoveUpCommand}" 
                                 IsEnabled="{Binding SelectedRule, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                ToolTip.Tip="Move Up" Padding="8,5"/>
-                        <Button Content="⬇️" Command="{Binding MoveDownCommand}" 
+                                ToolTip.Tip="Move Up" Padding="8,4"/>
+                        <Button Content="Down" Command="{Binding MoveDownCommand}" 
                                 IsEnabled="{Binding SelectedRule, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                ToolTip.Tip="Move Down" Padding="8,5"/>
-                        <Separator Width="1" Background="Gray" Margin="5,0"/>
+                                ToolTip.Tip="Move Down" Padding="8,4"/>
+                        <TextBlock Text="|" VerticalAlignment="Center" Foreground="{DynamicResource TcMutedTextBrush}" Margin="5,0"/>
                         <ComboBox ItemsSource="{Binding Presets}" 
                                   SelectedItem="{Binding SelectedPreset}"
                                   Width="150"
@@ -48,62 +82,40 @@
                         <Button Content="Load" 
                                 Command="{Binding LoadPresetCommand}"
                                 CommandParameter="{Binding SelectedPreset}"
-                                Padding="10,5"/>
+                                Padding="8,4"/>
                     </StackPanel>
                     
                     <!-- Rules -->
-                    <ListBox Grid.Row="1" 
-                             ItemsSource="{Binding Rules}"
-                             SelectedItem="{Binding SelectedRule}"
-                             Margin="5">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:FileColorRuleViewModel">
-                                <Border Padding="8" Margin="2" CornerRadius="3"
-                                        Opacity="{Binding IsEnabled, Converter={x:Static converters:BoolToOpacityConverter.Instance}}">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <!-- Color Preview -->
-                                        <Border Grid.Column="0" 
-                                                Width="24" Height="24" 
-                                                CornerRadius="4"
-                                                Margin="0,0,10,0">
-                                            <Border.Background>
-                                                <SolidColorBrush Color="{Binding ForegroundColor}"/>
-                                            </Border.Background>
-                                        </Border>
-                                        
-                                        <!-- Name & Pattern -->
-                                        <StackPanel Grid.Column="1" Spacing="2">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                                <TextBlock Text="{Binding Criteria}" FontSize="11" Opacity="0.6"/>
-                                                <TextBlock Text="{Binding Pattern}" FontSize="11" Opacity="0.6" 
-                                                           TextTrimming="CharacterEllipsis" MaxWidth="200"/>
-                                            </StackPanel>
-                                        </StackPanel>
-                                        
-                                        <!-- Status -->
-                                        <TextBlock Grid.Column="2" 
-                                                   Text="●"
-                                                   FontSize="16"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{Binding IsEnabled, Converter={x:Static converters:BoolToStatusBrushConverter.Instance}}"/>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding Rules}"
+                              SelectedItem="{Binding SelectedRule}"
+                              ColumnDefinitionsSource="{Binding RulesColumnDefinitions}"
+                              FilteringModel="{Binding RulesFilteringModel}"
+                              SortingModel="{Binding RulesSortingModel}"
+                              SearchModel="{Binding RulesSearchModel}"
+                              Margin="5"
+                              CanUserResizeColumns="True"
+                              CanUserReorderColumns="False"
+                              CanUserSortColumns="True"
+                              HeadersVisibility="None"
+                              GridLinesVisibility="None"
+                              BorderThickness="0"
+                              IsReadOnly="True">
+                        <DataGrid.FastPathOptions>
+                            <DataGridFastPathOptions UseAccessorsOnly="True"
+                                                     ThrowOnMissingAccessor="True" />
+                        </DataGrid.FastPathOptions>
+                    </DataGrid>
                 </Grid>
-            </Border>
+            </controls:TcInsetPanel>
             
             <!-- Edit Panel -->
-            <Border Grid.Column="1" 
-                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                    CornerRadius="4"
-                    Padding="15"
-                    IsEnabled="{Binding IsEditing}">
+            <controls:TcInsetPanel Grid.Column="1"
+                                   Padding="10"
+                                   IsEnabled="{Binding IsEditing}">
                 <ScrollViewer>
                     <StackPanel Spacing="12">
-                        <TextBlock Text="Edit Rule" FontWeight="SemiBold" FontSize="14"/>
+                        <TextBlock Text="Edit Rule" FontWeight="SemiBold" FontSize="13"/>
                         
                         <!-- Name -->
                         <StackPanel Spacing="4">
@@ -131,7 +143,7 @@
                             <TextBlock Text="Foreground Color" FontSize="11" Opacity="0.7"/>
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBox Grid.Column="0" Text="{Binding EditForeground}"/>
-                                <Border Grid.Column="1" Width="30" Height="30" CornerRadius="4" Margin="5,0,0,0">
+                                <Border Grid.Column="1" Width="30" Height="30" Margin="5,0,0,0">
                                     <Border.Background>
                                         <SolidColorBrush Color="{Binding EditForeground}"/>
                                     </Border.Background>
@@ -174,8 +186,8 @@
                         <!-- Preview -->
                         <StackPanel Spacing="4" Margin="0,10,0,0">
                             <TextBlock Text="Preview" FontSize="11" Opacity="0.7"/>
-                            <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}" 
-                                    CornerRadius="4" Padding="10">
+                            <Border Background="{DynamicResource TcWindowBackgroundBrush}" 
+                                    Padding="8">
                                 <TextBlock Text="Sample File.txt" FontSize="14">
                                     <TextBlock.Foreground>
                                         <SolidColorBrush Color="{Binding EditForeground}"/>
@@ -188,31 +200,30 @@
                         <Button Content="Apply Changes" 
                                 Command="{Binding ApplyChangesCommand}"
                                 HorizontalAlignment="Stretch"
-                                Classes="accent"
-                                Padding="10,8"
-                                Margin="0,10,0,0"/>
+                                Padding="10,6"
+                                Margin="0,8,0,0"/>
                         
                         <!-- Toggle Enable -->
                         <Button Content="Toggle Enable/Disable"
                                 Command="{Binding ToggleEnabledCommand}"
                                 HorizontalAlignment="Stretch"
-                                Padding="10,8"/>
+                                Padding="10,6"/>
                     </StackPanel>
                 </ScrollViewer>
-            </Border>
+            </controls:TcInsetPanel>
         </Grid>
         
         <!-- Status -->
         <TextBlock Grid.Row="2" Text="{Binding StatusText}" 
-                   Foreground="{DynamicResource SystemAccentColor}"
-                   Margin="0,10"/>
+                   Foreground="{DynamicResource TcMutedTextBrush}"
+                   Margin="0,6"/>
         
         <!-- Buttons -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
-            <Button Content="Import..." Command="{Binding ImportRulesCommand}" Padding="15,8"/>
-            <Button Content="Export..." Command="{Binding ExportRulesCommand}" Padding="15,8"/>
-            <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" Padding="15,8"/>
-            <Button Content="Close" Click="OnCloseClick" Padding="15,8"/>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+            <Button Content="Import..." Command="{Binding ImportRulesCommand}" MinWidth="80"/>
+            <Button Content="Export..." Command="{Binding ExportRulesCommand}" MinWidth="80"/>
+            <Button Content="Save" Command="{Binding SaveCommand}" MinWidth="80"/>
+            <Button Content="Close" Click="OnCloseClick" MinWidth="80"/>
         </StackPanel>
     </Grid>
 </Window>

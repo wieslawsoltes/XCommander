@@ -727,7 +727,9 @@ public class ArchiveContentPlugin : ContentPlugin
         {
             try
             {
-                using var archive = SharpCompress.Archives.ArchiveFactory.Open(filePath);
+                using var archive = SharpCompress.Archives.ArchiveFactory.OpenArchive(
+                    filePath,
+                    new SharpCompress.Readers.ReaderOptions());
                 var entries = archive.Entries.ToList();
                 
                 var fileCount = entries.Count(e => !e.IsDirectory);
